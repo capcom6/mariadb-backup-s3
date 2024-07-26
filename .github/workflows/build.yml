@@ -1,0 +1,51 @@
+# workflow name
+name: release
+
+# on events
+on:
+  release:
+    types:
+      - created
+
+permissions:
+  contents: write
+  packages: write
+
+# jobs
+jobs:
+  # generate build cross-platform build files
+  generate:
+    name: Generate cross-platform builds
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { os: darwin, arch: amd64, tags: netcgo }
+          - { os: darwin, arch: arm64, tags: netcgo }
+          - { os: linux, arch: amd64, env: CGO_ENABLED=0 }
+          - { os: linux, arch: arm64, env: CGO_ENABLED=0 }
+          - { os: windows, arch: amd64, env: CGO_ENABLED=0 }
+    steps:
+      # step 1: checkout repository code
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      # step 2: set env
+    #   - name: Set APP_VERSION env
+    #     run: echo APP_VERSION=$(echo ${GITHUB_REF} | rev | cut -d'/' -f 1 | rev ) >> ${GITHUB_ENV}
+    #   - name: Set BUILD_TIME env
+    #     run: echo BUILD_TIME=$(date) >> ${GITHUB_ENV}
+    #   - name: Set APP_NAME env
+    #     run: echo APP_NAME=${{ github.event.repository.name }} >> ${GITHUB_ENV}
+
+      # step 3: generate build files
+      - name: Build
+        uses: wangyoucao577/go-release-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          goos: ${{ matrix.os }}
+          goarch: ${{ matrix.arch }}
+          project_path: "."
+          goversion: "1.22"
+        #   ldflags: -X "github.com/capcom6/${{ env.APP_NAME }}/internal/config.appVersion=${{ env.APP_VERSION }}" -X "github.com/capcom6/${{ env.APP_NAME }}/internal/config.buildTime=${{ env.BUILD_TIME }}" -X github.com/capcom6/${{ env.APP_NAME }}/internal/config.gitCommit=${{ github.sha }} -X github.com/capcom6/${{ env.APP_NAME }}/internal/config.gitRef=${{ github.ref }}
+          extra_files: LICENSE README.md
