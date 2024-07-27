@@ -2,12 +2,15 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log"
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
+	"runtime"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -16,49 +19,59 @@ import (
 	"github.com/capcom6/mariadb-backup-s3/internal/config"
 )
 
+var ErrInterrupted = fmt.Errorf("interrupted")
+
+var cores = runtime.NumCPU()
+
 func main() {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	if err := doWork(ctx); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func doWork(ctx context.Context) error {
 	cfg := config.Load()
 
 	tempdir, err := os.MkdirTemp("", "mariadb")
 	if err != nil {
-		log.Fatalf("failed to create tempdir: %v", err)
+		return fmt.Errorf("failed to create tempdir: %w", err)
 	}
 	defer os.RemoveAll(tempdir)
-
 	log.Printf("tempdir: %s", tempdir)
 
-	if err := backup(cfg.MariaDB, tempdir); err != nil {
-		log.Fatalf("failed to backup: %v", err)
+	if err := backup(ctx, cfg.MariaDB, tempdir); err != nil {
+		return fmt.Errorf("failed to backup: %w", err)
 	}
-
 	log.Printf("backup done: %s", tempdir)
 
-	if err := prepare(cfg.MariaDB, tempdir); err != nil {
-		log.Fatalf("failed to prepare: %v", err)
+	if err := prepare(ctx, cfg.MariaDB, tempdir); err != nil {
+		return fmt.Errorf("failed to prepare: %w", err)
 	}
-
 	log.Printf("prepare done: %s", tempdir)
 
 	compressed, err := os.CreateTemp("", "mariadb")
 	if err != nil {
-		log.Fatalf("failed to create compressed: %v", err)
+		return fmt.Errorf("failed to create compressed: %w", err)
 	}
 	defer os.Remove(compressed.Name())
 
-	if err := compress(tempdir, compressed.Name()); err != nil {
-		log.Fatalf("failed to compress: %v", err)
+	if err := compress(ctx, tempdir, compressed.Name()); err != nil {
+		return fmt.Errorf("failed to compress: %w", err)
 	}
-
 	log.Printf("compressed done: %s", compressed.Name())
 
-	if err := upload(cfg.Storage, compressed.Name()); err != nil {
-		log.Fatalf("failed to upload: %v", err)
+	if err := upload(ctx, cfg.Storage, compressed.Name()); err != nil {
+		return fmt.Errorf("failed to upload: %w", err)
 	}
-
 	log.Printf("upload done: %s", compressed.Name())
+
+	return nil
 }
 
-func run(cmdline string) error {
+func run(_ context.Context, cmdline string) error {
 	buf := bytes.Buffer{}
 
 	cmd := exec.Command("bash", "-c", cmdline)
@@ -66,32 +79,29 @@ func run(cmdline string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = &buf
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to run: %w: %s", err, buf.String())
-	}
-
-	return nil
+	return cmd.Run()
 }
 
-func backup(options config.MariaDB, dir string) error {
-	cmdline := fmt.Sprintf(`mariabackup --backup --target-dir='%s' --user='%s' --password='%s'`, dir, options.User, options.Password)
+func backup(ctx context.Context, options config.MariaDB, dir string) error {
+	cmdline := fmt.Sprintf(`mariabackup --backup --parallel=%d --target-dir='%s' --user='%s' --password='%s'`, cores, dir, options.User, options.Password)
 
-	return run(cmdline)
+	return run(ctx, cmdline)
 }
 
-func prepare(_ config.MariaDB, dir string) error {
+func prepare(ctx context.Context, _ config.MariaDB, dir string) error {
 	cmdline := fmt.Sprintf(`mariabackup --prepare --target-dir='%s'`, dir)
 
-	return run(cmdline)
+	return run(ctx, cmdline)
 }
 
-func compress(source, target string) error {
-	cmdline := fmt.Sprintf(`tar -czf '%s' -C '%s' .`, target, source)
+func compress(ctx context.Context, source, target string) error {
+	// cmdline := fmt.Sprintf(`tar -czf '%s' -C '%s' .`, target, source)
+	cmdline := fmt.Sprintf(`tar -cf - '%s' | pigz > '%s'`, source, target)
 
-	return run(cmdline)
+	return run(ctx, cmdline)
 }
 
-func upload(options config.Storage, source string) error {
+func upload(ctx context.Context, options config.Storage, source string) error {
 	filename := time.Now().UTC().Format("2006-01-02-15-04-05") + ".tar.gz"
 
 	parsedUrl, err := url.Parse(options.URL)
@@ -131,7 +141,7 @@ func upload(options config.Storage, source string) error {
 
 	svc := s3.New(sess)
 
-	_, err = svc.PutObject(&s3.PutObjectInput{
+	_, err = svc.PutObjectWithContext(ctx, &s3.PutObjectInput{
 		Bucket:      &parsedUrl.Host,
 		Key:         &key,
 		ContentType: aws.String("application/x-gzip"),
@@ -142,4 +152,13 @@ func upload(options config.Storage, source string) error {
 	}
 
 	return nil
+}
+
+func isInterrupted(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
+	}
 }
