@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -63,7 +64,7 @@ func doWork(ctx context.Context) error {
 	}
 	log.Printf("compressed done: %s", compressed.Name())
 
-	if err := upload(ctx, cfg.Storage, compressed.Name()); err != nil {
+	if err := upload(ctx, cfg.Backup, cfg.Storage, compressed.Name()); err != nil {
 		return fmt.Errorf("failed to upload: %w", err)
 	}
 	log.Printf("upload done: %s", compressed.Name())
@@ -101,19 +102,20 @@ func compress(ctx context.Context, source, target string) error {
 	return run(ctx, cmdline)
 }
 
-func upload(ctx context.Context, options config.Storage, source string) error {
+func upload(ctx context.Context, backup config.Backup, storage config.Storage, source string) error {
 	filename := time.Now().UTC().Format("2006-01-02-15-04-05") + ".tar.gz"
 
-	parsedUrl, err := url.Parse(options.URL)
+	parsedUrl, err := url.Parse(storage.URL)
 	if err != nil {
-		return fmt.Errorf("failed to parse url %s: %w", options.URL, err)
+		return fmt.Errorf("failed to parse url %s: %w", storage.URL, err)
 	}
 
 	if parsedUrl.Scheme != "s3" {
 		return fmt.Errorf("unsupported scheme %s", parsedUrl.Scheme)
 	}
 
-	key := path.Join(parsedUrl.Path, filename)
+	prefix := strings.Trim(parsedUrl.Path, "/")
+	key := strings.TrimPrefix(path.Join(parsedUrl.Path, filename), "/")
 
 	h, err := os.Open(source)
 	if err != nil {
@@ -141,6 +143,10 @@ func upload(ctx context.Context, options config.Storage, source string) error {
 
 	svc := s3.New(sess)
 
+	if err := cleanup(ctx, backup, svc, parsedUrl.Host, prefix); err != nil {
+		log.Printf("failed to cleanup: %s", err)
+	}
+
 	_, err = svc.PutObjectWithContext(ctx, &s3.PutObjectInput{
 		Bucket:      &parsedUrl.Host,
 		Key:         &key,
@@ -149,6 +155,45 @@ func upload(ctx context.Context, options config.Storage, source string) error {
 	})
 	if err != nil {
 		return fmt.Errorf("failed to upload: %w", err)
+	}
+
+	return nil
+}
+
+func cleanup(ctx context.Context, backup config.Backup, svc *s3.S3, bucket, prefix string) error {
+	if backup.Limits.MaxCount == 0 {
+		return nil
+	}
+
+	keys := make([]*s3.ObjectIdentifier, 0, backup.Limits.MaxCount+1)
+
+	err := svc.ListObjectsV2PagesWithContext(ctx, &s3.ListObjectsV2Input{
+		Bucket: &bucket,
+		Prefix: aws.String(prefix),
+	}, func(p *s3.ListObjectsV2Output, last bool) bool {
+		for _, obj := range p.Contents {
+			keys = append(keys, &s3.ObjectIdentifier{Key: obj.Key})
+		}
+		return true
+	})
+	if err != nil {
+		return fmt.Errorf("failed to cleanup: %w", err)
+	}
+
+	if len(keys) <= backup.Limits.MaxCount {
+		return nil
+	}
+
+	log.Printf("found %d keys, %d will be deleted", len(keys), len(keys)-backup.Limits.MaxCount)
+
+	_, err = svc.DeleteObjectsWithContext(ctx, &s3.DeleteObjectsInput{
+		Bucket: &bucket,
+		Delete: &s3.Delete{
+			Objects: keys[:len(keys)-backup.Limits.MaxCount],
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to cleanup: %w", err)
 	}
 
 	return nil
