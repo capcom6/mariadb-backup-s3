@@ -125,12 +125,16 @@ func upload(ctx context.Context, backup config.Backup, storage config.Storage, s
 
 	var endpoint *string
 	var forcePathStyle *bool
+	var disableDeleteObjects = false
 
 	if val := parsedUrl.Query().Get("endpoint"); val != "" {
 		endpoint = aws.String(val)
 	}
 	if val := parsedUrl.Query().Get("force_path_style"); val != "" {
 		forcePathStyle = aws.Bool(val == "true")
+	}
+	if val := parsedUrl.Query().Get("disable_delete_objects"); val != "" {
+		disableDeleteObjects = (val == "true")
 	}
 
 	sess, err := session.NewSession(&aws.Config{
@@ -143,7 +147,7 @@ func upload(ctx context.Context, backup config.Backup, storage config.Storage, s
 
 	svc := s3.New(sess)
 
-	if err := cleanup(ctx, backup, svc, parsedUrl.Host, prefix); err != nil {
+	if err := cleanup(ctx, backup, svc, parsedUrl.Host, prefix, disableDeleteObjects); err != nil {
 		log.Printf("failed to cleanup: %s", err)
 	}
 
@@ -160,7 +164,7 @@ func upload(ctx context.Context, backup config.Backup, storage config.Storage, s
 	return nil
 }
 
-func cleanup(ctx context.Context, backup config.Backup, svc *s3.S3, bucket, prefix string) error {
+func cleanup(ctx context.Context, backup config.Backup, svc *s3.S3, bucket, prefix string, disableDeleteObjects bool) error {
 	if backup.Limits.MaxCount == 0 {
 		return nil
 	}
@@ -186,14 +190,27 @@ func cleanup(ctx context.Context, backup config.Backup, svc *s3.S3, bucket, pref
 
 	log.Printf("found %d keys, %d will be deleted", len(keys), len(keys)-backup.Limits.MaxCount)
 
-	_, err = svc.DeleteObjectsWithContext(ctx, &s3.DeleteObjectsInput{
-		Bucket: &bucket,
-		Delete: &s3.Delete{
-			Objects: keys[:len(keys)-backup.Limits.MaxCount],
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("failed to cleanup: %w", err)
+	if disableDeleteObjects {
+		for _, v := range keys[:len(keys)-backup.Limits.MaxCount] {
+			log.Printf("delete %s", *v.Key)
+			_, err := svc.DeleteObjectWithContext(ctx, &s3.DeleteObjectInput{
+				Bucket: &bucket,
+				Key:    v.Key,
+			})
+			if err != nil {
+				log.Printf("failed to delete: %s", err)
+			}
+		}
+	} else {
+		_, err = svc.DeleteObjectsWithContext(ctx, &s3.DeleteObjectsInput{
+			Bucket: &bucket,
+			Delete: &s3.Delete{
+				Objects: keys[:len(keys)-backup.Limits.MaxCount],
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to cleanup: %w", err)
+		}
 	}
 
 	return nil
