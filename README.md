@@ -71,7 +71,11 @@ The configuration is loaded from environment variables and command-line flags. E
 
 * `MARIADB__USER`: MariaDB username for database authentication.
 * `MARIADB__PASSWORD`: MariaDB password for database authentication.
-* `STORAGE__URL`: URL for storage service, including bucket name and endpoint.
+* `STORAGE__URL`: URL for storage service, including bucket name and endpoint. Supported query-params:
+  * `endpoint`: Endpoint for the storage service.
+  * `force_path_style`: Force path-style URLs.
+  * `disable_delete_objects`: Use one-by-one delete instead of bulk delete.
+* `BACKUP__LIMITS__MAX_COUNT`: Maximum number of backups to keep.
 
 ## Command-Line Flags
 
