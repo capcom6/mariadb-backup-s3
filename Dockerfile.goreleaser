@@ -1,0 +1,13 @@
+FROM mariadb:lts
+
+# Install pigz
+RUN apt-get update && apt-get install -y pigz && rm -rf /var/lib/apt/lists/*
+
+# Set the Current Working Directory inside the container
+WORKDIR /app
+
+# Copy the Pre-built binary file from GoReleaser
+COPY mariadb-backup-s3 .
+
+# Command to run the executable
+ENTRYPOINT ["./mariadb-backup-s3"]

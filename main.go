@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -80,11 +81,20 @@ func run(_ context.Context, cmdline string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = &buf
 
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return errors.Join(errors.New(buf.String()), err)
+	}
+	return nil
 }
 
 func backup(ctx context.Context, options config.MariaDB, dir string) error {
 	cmdline := fmt.Sprintf(`mariabackup --backup --parallel=%d --target-dir='%s' --user='%s' --password='%s'`, cores, dir, options.User, options.Password)
+	if options.Host != "" {
+		cmdline += fmt.Sprintf(" --host='%s' --port=%d", options.Host, options.Port)
+	}
+	if options.BackupOptions != "" {
+		cmdline += fmt.Sprintf(" %s", options.BackupOptions)
+	}
 
 	return run(ctx, cmdline)
 }

@@ -2,6 +2,8 @@ package config
 
 import (
 	"flag"
+	"log"
+	"os"
 	"sync"
 
 	"github.com/joho/godotenv"
@@ -9,8 +11,11 @@ import (
 )
 
 type MariaDB struct {
-	User     string `envconfig:"MARIADB__USER"`
-	Password string `envconfig:"MARIADB__PASSWORD"`
+	Host          string `envconfig:"MARIADB__HOST"`
+	Port          int    `envconfig:"MARIADB__PORT"`
+	User          string `envconfig:"MARIADB__USER"`
+	Password      string `envconfig:"MARIADB__PASSWORD"`
+	BackupOptions string `envconfig:"MARIADB__BACKUP_OPTIONS"`
 }
 
 type Storage struct {
@@ -34,6 +39,7 @@ type Config struct {
 var onceLoader sync.Once
 var config = Config{
 	MariaDB: MariaDB{
+		Port:     3306,
 		User:     "root",
 		Password: "",
 	},
@@ -47,11 +53,16 @@ var config = Config{
 
 func Load() Config {
 	onceLoader.Do(func() {
-		godotenv.Load()
+		if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
+			log.Printf("failed to load .env: %v", err)
+		}
 		envconfig.MustProcess("", &config)
 
+		flag.StringVar(&config.MariaDB.Host, "db-host", config.MariaDB.Host, "Database Host")
+		flag.IntVar(&config.MariaDB.Port, "db-port", config.MariaDB.Port, "Database Port")
 		flag.StringVar(&config.MariaDB.User, "db-user", config.MariaDB.User, "Database User")
 		flag.StringVar(&config.MariaDB.Password, "db-password", config.MariaDB.Password, "Database Password")
+		flag.StringVar(&config.MariaDB.BackupOptions, "db-backup-options", config.MariaDB.BackupOptions, "Database Backup Options")
 
 		flag.StringVar(&config.Storage.URL, "storage-url", config.Storage.URL, "Storage URL, e.g. s3://my-bucket/my-folder")
 		flag.Parse()
