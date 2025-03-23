@@ -1,0 +1,68 @@
+services:
+  db:
+    image: mariadb:lts
+    environment:
+      - MARIADB_ROOT_PASSWORD=${MARIADB_ROOT_PASSWORD}
+      - MARIADB_AUTO_UPGRADE
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "healthcheck.sh",
+          "--su-mysql",
+          "--connect",
+          "--innodb_initialized"
+        ]
+      timeout: 5s
+      retries: 10
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+  
+  db-backup:
+    image: ghcr.io/capcom6/mariadb-backup-s3:latest
+    environment:
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_KEY=${AWS_SECRET_ACCESS_KEY}
+      - MARIADB__HOST=db
+      - MARIADB__USER=root
+      - MARIADB__PASSWORD=${MARIADB_ROOT_PASSWORD}
+      - MARIADB__BACKUP_OPTIONS=${DB_BACKUP__OPTIONS:-'--skip-ssl'}
+      - STORAGE__URL=${STORAGE_URL}
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    deploy:
+      mode: replicated
+      replicas: 0
+      labels:
+        - "swarm.cronjob.enable=true"
+        - "swarm.cronjob.schedule=${DB_BACKUP__SCHEDULE:-'@daily'}"
+        - "swarm.cronjob.skip-running=true"
+      restart_policy:
+        condition: none
+      placement:
+        constraints:
+          - node.role == manager
+
+  cronjob:
+    image: ghcr.io/crazy-max/swarm-cronjob:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    environment:
+      - "TZ=${TIMEZONE:-UTC}"
+      - "LOG_LEVEL=info"
+      - "LOG_JSON=true"
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
+volumes:
+  mariadb-data:
