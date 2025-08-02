@@ -27,7 +27,8 @@ mariadb-backup-s3
 
 - 🛡️ Full database backups using `mariabackup`
 - 🗜️ Compression to `.tar.gz` format
-- ☁️ Secure S3-compatible storage upload
+- ☁️ Multiple storage backends (S3-compatible, filesystem)
+- 🔌 Pluggable storage interface for extensibility
 - 🔄 Automatic backup rotation
 - 🐳 Docker container support
 
@@ -86,25 +87,53 @@ MARIADB__PASSWORD=your_strong_password
 MARIADB__HOST=localhost
 MARIADB__PORT=3306
 
-# S3 Configuration
+# Storage Configuration
+STORAGE__URL=s3://your-bucket/backups?endpoint=https://s3.endpoint
+
+# S3 Configuration (when STORAGE__TYPE=s3)
 AWS_ACCESS_KEY=your_access_key
 AWS_SECRET_KEY=your_secret_key
 AWS_REGION=us-east-1
-STORAGE__URL=s3://your-bucket/backups?endpoint=https://s3.endpoint
 
 # Backup Settings
 BACKUP__LIMITS__MAX_COUNT=30  # Keep last 30 backups
 ```
 
-| Variable                    | Default      | Description                        |
-| --------------------------- | ------------ | ---------------------------------- |
-| `MARIADB__HOST`             | localhost    | Database host address              |
-| `MARIADB__PORT`             | 3306         | Database port                      |
-| `MARIADB__USER`             | root         | Database user                      |
-| `MARIADB__PASSWORD`         | -            | Database password                  |
-| `MARIADB__BACKUP_OPTIONS`   | -            | Extra `mariabackup` options        |
-| `STORAGE__URL`              | **Required** | S3 bucket URL with endpoint params |
-| `BACKUP__LIMITS__MAX_COUNT` | 30           | Maximum backups to retain          |
+| Variable                    | Default      | Description                          |
+| --------------------------- | ------------ | ------------------------------------ |
+| `MARIADB__HOST`             | localhost    | Database host address                |
+| `MARIADB__PORT`             | 3306         | Database port                        |
+| `MARIADB__USER`             | root         | Database user                        |
+| `MARIADB__PASSWORD`         | -            | Database password                    |
+| `MARIADB__BACKUP_OPTIONS`   | -            | Extra `mariabackup` options          |
+| `STORAGE__URL`              | **Required** | Storage URL (format depends on type) |
+| `BACKUP__LIMITS__MAX_COUNT` | 30           | Maximum backups to retain            |
+
+### Storage Types
+
+#### S3 Storage
+For S3-compatible storage (including AWS S3, MinIO, DigitalOcean Spaces, etc.):
+
+```dotenv
+STORAGE__URL=s3://bucket-name/path?endpoint=https://s3.example.com&region=us-east-1
+```
+
+**Required for S3:**
+- `AWS_ACCESS_KEY`: Your access key
+- `AWS_SECRET_KEY`: Your secret key
+- `AWS_REGION`: AWS region (or any region for non-AWS S3)
+
+#### Filesystem Storage
+For local or mounted filesystem storage:
+
+```dotenv
+STORAGE__URL=file:///absolute/path/to/backup/directory
+```
+
+**Examples:**
+- Linux/macOS: `file:///var/backups/mariadb`
+- Windows: `file://C:/backups/mariadb`
+- Docker volume: `file:///data/backups`
 
 ### Command-Line Flags
 Override any configuration with flags:
@@ -113,7 +142,7 @@ Override any configuration with flags:
 ./mariadb-backup-s3 \
   --db-host=mariadb.example.com \
   --db-password=secret \
-  --storage-url="s3://my-bucket/backups?endpoint=https://s3.example.com"
+  --storage-url="file:///var/backups/mariadb"
 ```
 
 | Flag                  | Description                         |
@@ -131,6 +160,25 @@ Override any configuration with flags:
 ```shell
 docker run --rm \
   -v /var/lib/mysql:/var/lib/mysql \
+  -v /var/backups:/backups \
+  --env-file .env \
+  ghcr.io/capcom6/mariadb-backup-s3
+```
+
+### Filesystem Storage Example
+```shell
+# Create .env file for filesystem storage
+cat > .env << EOF
+MARIADB__USER=root
+MARIADB__PASSWORD=secret
+STORAGE__URL=file:///backups/mariadb
+BACKUP__LIMITS__MAX_COUNT=7
+EOF
+
+# Run with filesystem storage
+docker run --rm \
+  -v /var/lib/mysql:/var/lib/mysql \
+  -v /var/backups:/backups \
   --env-file .env \
   ghcr.io/capcom6/mariadb-backup-s3
 ```
