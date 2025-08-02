@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"log"
+	"net/url"
 	"os"
 	"sync"
 
@@ -20,6 +21,10 @@ type MariaDB struct {
 
 type Storage struct {
 	URL string `envconfig:"STORAGE__URL"`
+}
+
+func (s Storage) GetURL() (*url.URL, error) {
+	return url.Parse(s.URL)
 }
 
 type BackupLimits struct {

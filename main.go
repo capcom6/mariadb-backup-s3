@@ -6,19 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
-	"path"
 	"runtime"
-	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/capcom6/mariadb-backup-s3/internal/config"
+	"github.com/capcom6/mariadb-backup-s3/internal/storage"
 )
 
 var ErrInterrupted = fmt.Errorf("interrupted")
@@ -106,26 +101,23 @@ func prepare(ctx context.Context, _ config.MariaDB, dir string) error {
 }
 
 func compress(ctx context.Context, source, target string) error {
-	// cmdline := fmt.Sprintf(`tar -czf '%s' -C '%s' .`, target, source)
 	cmdline := fmt.Sprintf(`tar -cf - '%s' | pigz > '%s'`, source, target)
 
 	return run(ctx, cmdline)
 }
 
-func upload(ctx context.Context, backup config.Backup, storage config.Storage, source string) error {
+func upload(ctx context.Context, backup config.Backup, storageConfig config.Storage, source string) error {
 	filename := time.Now().UTC().Format("2006-01-02-15-04-05") + ".tar.gz"
 
-	parsedUrl, err := url.Parse(storage.URL)
+	u, err := storageConfig.GetURL()
 	if err != nil {
-		return fmt.Errorf("failed to parse url %s: %w", storage.URL, err)
+		return fmt.Errorf("failed to parse storage url: %w", err)
 	}
 
-	if parsedUrl.Scheme != "s3" {
-		return fmt.Errorf("unsupported scheme %s", parsedUrl.Scheme)
+	storageBackend, err := storage.New(u)
+	if err != nil {
+		return fmt.Errorf("failed to create storage backend: %w", err)
 	}
-
-	prefix := strings.Trim(parsedUrl.Path, "/")
-	key := strings.TrimPrefix(path.Join(parsedUrl.Path, filename), "/")
 
 	h, err := os.Open(source)
 	if err != nil {
@@ -133,94 +125,14 @@ func upload(ctx context.Context, backup config.Backup, storage config.Storage, s
 	}
 	defer h.Close()
 
-	var endpoint *string
-	var forcePathStyle *bool
-	var disableDeleteObjects = false
-
-	if val := parsedUrl.Query().Get("endpoint"); val != "" {
-		endpoint = aws.String(val)
-	}
-	if val := parsedUrl.Query().Get("force_path_style"); val != "" {
-		forcePathStyle = aws.Bool(val == "true")
-	}
-	if val := parsedUrl.Query().Get("disable_delete_objects"); val != "" {
-		disableDeleteObjects = (val == "true")
-	}
-
-	sess, err := session.NewSession(&aws.Config{
-		Endpoint:         endpoint,
-		S3ForcePathStyle: forcePathStyle,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create session: %w", err)
-	}
-
-	svc := s3.New(sess)
-
-	if err := cleanup(ctx, backup, svc, parsedUrl.Host, prefix, disableDeleteObjects); err != nil {
-		log.Printf("failed to cleanup: %s", err)
-	}
-
-	_, err = svc.PutObjectWithContext(ctx, &s3.PutObjectInput{
-		Bucket:      &parsedUrl.Host,
-		Key:         &key,
-		ContentType: aws.String("application/x-gzip"),
-		Body:        h,
-	})
-	if err != nil {
+	// Upload the backup
+	if err := storageBackend.Upload(ctx, filename, h); err != nil {
 		return fmt.Errorf("failed to upload: %w", err)
 	}
 
-	return nil
-}
-
-func cleanup(ctx context.Context, backup config.Backup, svc *s3.S3, bucket, prefix string, disableDeleteObjects bool) error {
-	if backup.Limits.MaxCount == 0 {
-		return nil
-	}
-
-	keys := make([]*s3.ObjectIdentifier, 0, backup.Limits.MaxCount+1)
-
-	err := svc.ListObjectsV2PagesWithContext(ctx, &s3.ListObjectsV2Input{
-		Bucket: &bucket,
-		Prefix: aws.String(prefix),
-	}, func(p *s3.ListObjectsV2Output, last bool) bool {
-		for _, obj := range p.Contents {
-			keys = append(keys, &s3.ObjectIdentifier{Key: obj.Key})
-		}
-		return true
-	})
-	if err != nil {
-		return fmt.Errorf("failed to cleanup: %w", err)
-	}
-
-	if len(keys) <= backup.Limits.MaxCount {
-		return nil
-	}
-
-	log.Printf("found %d keys, %d will be deleted", len(keys), len(keys)-backup.Limits.MaxCount)
-
-	if disableDeleteObjects {
-		for _, v := range keys[:len(keys)-backup.Limits.MaxCount] {
-			log.Printf("delete %s", *v.Key)
-			_, err := svc.DeleteObjectWithContext(ctx, &s3.DeleteObjectInput{
-				Bucket: &bucket,
-				Key:    v.Key,
-			})
-			if err != nil {
-				log.Printf("failed to delete: %s", err)
-			}
-		}
-	} else {
-		_, err = svc.DeleteObjectsWithContext(ctx, &s3.DeleteObjectsInput{
-			Bucket: &bucket,
-			Delete: &s3.Delete{
-				Objects: keys[:len(keys)-backup.Limits.MaxCount],
-			},
-		})
-		if err != nil {
-			return fmt.Errorf("failed to cleanup: %w", err)
-		}
+	// Cleanup old backups
+	if err := storageBackend.DeleteOldBackups(ctx, backup.Limits.MaxCount); err != nil {
+		log.Printf("failed to cleanup: %s", err)
 	}
 
 	return nil
