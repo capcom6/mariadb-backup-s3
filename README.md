@@ -90,7 +90,7 @@ MARIADB__PORT=3306
 # Storage Configuration
 STORAGE__URL=s3://your-bucket/backups?endpoint=https://s3.endpoint
 
-# S3 Configuration (when STORAGE__TYPE=s3)
+# S3 Configuration (when using S3 storage)
 AWS_ACCESS_KEY=your_access_key
 AWS_SECRET_KEY=your_secret_key
 AWS_REGION=us-east-1
