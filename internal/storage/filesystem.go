@@ -96,6 +96,13 @@ func (f *filesystemStorage) DeleteOldBackups(ctx context.Context, maxCount int) 
 	// Delete oldest files
 	toDelete := files[:len(files)-maxCount]
 	for _, file := range toDelete {
+		// Check for context cancellation
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		filePath := filepath.Join(fullPath, file.Name())
 		if err := os.Remove(filePath); err != nil {
 			return fmt.Errorf("failed to delete file %s: %w", file.Name(), err)
@@ -108,7 +115,7 @@ func (f *filesystemStorage) DeleteOldBackups(ctx context.Context, maxCount int) 
 // copyWithContext performs io.Copy with context cancellation support
 func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) error {
 	// Create a buffer for efficient copying
-	buf := make([]byte, 64*1024) // 32KB buffer
+	buf := make([]byte, 64*1024) // 64KB buffer
 
 	for {
 		select {
