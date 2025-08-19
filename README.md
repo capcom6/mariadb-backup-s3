@@ -19,10 +19,16 @@
     - [From Source (Advanced)](#from-source-advanced)
   - [⚙️ Configuration](#️-configuration)
     - [Environment Variables](#environment-variables)
+    - [Storage Types](#storage-types)
+      - [S3 Storage](#s3-storage)
+      - [Google Cloud Storage (GCS)](#google-cloud-storage-gcs)
+      - [Azure Blob Storage](#azure-blob-storage)
+      - [FTP Storage](#ftp-storage)
+      - [Filesystem Storage](#filesystem-storage)
     - [Command-Line Flags](#command-line-flags)
   - [📂 Storage Types](#-storage-types)
-    - [S3 Storage](#s3-storage)
-    - [Filesystem Storage](#filesystem-storage)
+    - [S3 Storage](#s3-storage-1)
+    - [Filesystem Storage](#filesystem-storage-1)
   - [🚀 Usage](#-usage)
     - [Command Line](#command-line)
     - [Docker](#docker-1)
@@ -55,7 +61,7 @@ mariadb-backup-s3
 
 - 🛡️ Full database backups using `mariabackup`
 - 🗜️ Compression to `.tar.gz` format
-- ☁️ Multiple storage backends (S3-compatible, filesystem)
+- ☁️ Multiple storage backends (S3, GCS, Azure, FTP, filesystem)
 - 🔌 Pluggable storage interface for extensibility
 - 🔄 Automatic backup rotation
 - 🐳 Docker container support
@@ -68,15 +74,14 @@ The backup process follows these steps:
 2. 💾 Perform MariaDB backup using `mariabackup --backup`
 3. 🔧 Prepare backup for consistency using `mariabackup --prepare`
 4. 🗜️ Compress backup to `.tar.gz` archive
-5. 🚀 Upload archive to S3-compatible storage
+5. 🚀 Upload archive to configured storage backend
 6. 🧹 Clean up old backups based on retention policy
 
 ## 📋 Prerequisites
 
 - Go 1.22+ (for building from source)
 - MariaDB server
-- AWS credentials with S3 access
-- S3-compatible storage bucket
+- Storage backend credentials (depending on chosen storage type)
 
 ## 📦 Installation
 
@@ -142,6 +147,66 @@ BACKUP__LIMITS__MAX_COUNT=30  # Keep last 30 backups
 | `MARIADB__BACKUP_OPTIONS`   | -            | Extra `mariabackup` options          |
 | `STORAGE__URL`              | **Required** | Storage URL (format depends on type) |
 | `BACKUP__LIMITS__MAX_COUNT` | 30           | Maximum backups to retain            |
+
+### Storage Types
+
+#### S3 Storage
+For S3-compatible storage (including AWS S3, MinIO, DigitalOcean Spaces, etc.):
+
+```dotenv
+STORAGE__URL=s3://bucket-name/path?endpoint=https://s3.example.com&region=us-east-1
+```
+
+**Required for S3:**
+- `AWS_ACCESS_KEY`: Your access key
+- `AWS_SECRET_KEY`: Your secret key
+- `AWS_REGION`: AWS region (or any region for non-AWS S3)
+
+#### Google Cloud Storage (GCS)
+For Google Cloud Storage:
+
+```dotenv
+STORAGE__URL=gcs://bucket-name/path?project=your-project-id
+```
+
+**Required for GCS:**
+- `GOOGLE_APPLICATION_CREDENTIALS`: Path to service account JSON file
+- `project`: Your GCP project ID
+
+#### Azure Blob Storage
+For Azure Blob Storage:
+
+```dotenv
+STORAGE__URL=azure://account-name/container-name/path?sas=your-sas-token
+```
+
+**Required for Azure:**
+- `sas`: SAS token for authentication (or use connection string with account key)
+
+#### FTP Storage
+For FTP/SFTP servers:
+
+```dotenv
+STORAGE__URL=ftp://username:password@host:port/path
+```
+
+**Required for FTP:**
+- `username`: FTP username (defaults to "anonymous" if not provided)
+- `password`: FTP password (optional for anonymous)
+- `host`: FTP server hostname
+- `port`: FTP port (defaults to 21)
+
+#### Filesystem Storage
+For local or mounted filesystem storage:
+
+```dotenv
+STORAGE__URL=file:///absolute/path/to/backup/directory
+```
+
+**Examples:**
+- Linux/macOS: `file:///var/backups/mariadb`
+- Windows: `file://C:/backups/mariadb`
+- Docker volume: `file:///data/backups`
 
 ### Command-Line Flags
 Override any configuration with flags:
