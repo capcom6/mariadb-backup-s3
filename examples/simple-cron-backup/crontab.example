@@ -1,0 +1,6 @@
+# MariaDB Backup CRON Configuration
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/bin
+
+# Daily backup at 2 AM
+0 2 * * * /usr/local/bin/mariadb-backup-s3 >> "$HOME/mariadb-backup.log" 2>&1

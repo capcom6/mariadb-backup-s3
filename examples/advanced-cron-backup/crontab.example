@@ -1,0 +1,52 @@
+# MariaDB Backup CRON Configuration
+# Copy this file and customize as needed, then install with:
+# crontab /path/to/this/file
+
+# Environment variables for CRON
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+MAILTO=""
+
+# =============================================================================
+# MariaDB Backup Schedules
+# Uncomment and adjust ONE of the following schedules based on your needs
+# =============================================================================
+
+# Option 1: Daily backup at 2 AM (recommended for most use cases)
+# 0 2 * * * /path/to/mariadb-backup-s3/examples/advanced-cron-backup/backup.sh
+
+# Option 2: Weekly backup on Sunday at 3 AM
+# 0 3 * * 0 /path/to/mariadb-backup-s3/examples/advanced-cron-backup/backup.sh
+
+# Option 3: Monthly backup on the 1st at 4 AM
+# 0 4 1 * * /path/to/mariadb-backup-s3/examples/advanced-cron-backup/backup.sh
+
+# Option 4: Every 6 hours (for high-availability systems)
+# 0 */6 * * * /path/to/mariadb-backup-s3/examples/advanced-cron-backup/backup.sh
+
+# Option 5: Twice daily at noon and midnight
+# 0 0,12 * * * /path/to/mariadb-backup-s3/examples/advanced-cron-backup/backup.sh
+
+# =============================================================================
+# Optional: Backup Monitoring and Maintenance Tasks
+# =============================================================================
+
+# Check if backup ran successfully in the last 24 hours (runs at 8 AM)
+# This sends an email if the backup log hasn't been updated in the last day
+# 30 8 * * * if [ -f "/var/log/mariadb-backup.log" ] && [ $(find /var/log/mariadb-backup.log -mtime -1 | wc -l) -eq 0 ]; then echo "Backup may have failed - no log entry in the last 24 hours" | mail -s "Backup Alert - $(hostname)" admin@example.com; fi
+
+# Rotate backup logs weekly (keeps 4 weeks of logs)
+# 0 3 * * 0 find /var/log/mariadb-backup*.log -mtime +28 -exec rm {} \;
+
+# Clean up old temporary backup files daily (if any)
+# 15 2 * * * find /tmp -name "mariadb-backup-*" -type d -mtime +1 -exec rm -rf {} \; 2>/dev/null || true
+
+# =============================================================================
+# Notes:
+# 1. Replace /path/to/mariadb-backup-s3 with the actual path to your installation
+# 2. Ensure the backup.sh script is executable: chmod +x backup.sh
+# 3. Configure backup.env with your database and storage settings
+# 4. Test the backup script manually before adding to CRON: ./backup.sh
+# 5. Check CRON logs: tail -f /var/log/syslog | grep CRON
+# 6. Check backup logs: tail -f /var/log/mariadb-backup.log
+# =============================================================================
