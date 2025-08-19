@@ -1,0 +1,28 @@
+[Unit]
+Description=MariaDB Backup to S3
+After=network.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/default/mariadb-backup-s3
+ExecStart=/usr/local/bin/mariadb-backup-s3
+User=backup-user
+Group=backup-user
+SupplementaryGroups=mysql
+UMask=0077
+TimeoutStartSec=2h
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=tmpfs
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+LockPersonality=yes
+ReadWritePaths=/var/backups/mariadb
