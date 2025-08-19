@@ -6,29 +6,38 @@ import (
 	"io"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 type s3Storage struct {
 	bucket string
 	prefix string
-	svc    *s3.S3
+	client *s3.Client
 }
 
 func NewS3Storage(u *url.URL) (StorageBackend, error) {
-	endpoint := u.Query().Get("endpoint")
-	forcePathStyle := u.Query().Get("s3-force-path-style") == "true"
+	forcePathStyle := false
 
-	sess, err := session.NewSession(&aws.Config{
-		Endpoint:         aws.String(endpoint),
-		S3ForcePathStyle: aws.Bool(forcePathStyle),
-	})
+	endpoint := u.Query().Get("endpoint")
+	forcePathStyleRaw := u.Query().Get("s3-force-path-style")
+	if forcePathStyleRaw != "" {
+		var err error
+		forcePathStyle, err = strconv.ParseBool(forcePathStyleRaw)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse s3-force-path-style: %w", err)
+		}
+	}
+
+	sdkConfig, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("failed to create AWS session: %w", err)
+		return nil, fmt.Errorf("failed to load AWS SDK config: %w", err)
 	}
 
 	prefix := strings.TrimPrefix(u.Path, "/")
@@ -36,21 +45,34 @@ func NewS3Storage(u *url.URL) (StorageBackend, error) {
 		prefix += "/"
 	}
 
+	s3Options := []func(*s3.Options){}
+	if endpoint != "" {
+		s3Options = append(s3Options, func(o *s3.Options) {
+			o.BaseEndpoint = aws.String(endpoint)
+		})
+	}
+	if forcePathStyle {
+		s3Options = append(s3Options, func(o *s3.Options) {
+			o.UsePathStyle = true
+		})
+	}
+
 	return &s3Storage{
 		bucket: u.Host,
 		prefix: prefix,
-		svc:    s3.New(sess),
+		client: s3.NewFromConfig(sdkConfig, s3Options...),
 	}, nil
 }
 
 func (s *s3Storage) Upload(ctx context.Context, path string, data io.Reader) error {
 	key := s.prefix + path
 
-	_, err := s.svc.PutObjectWithContext(ctx, &s3.PutObjectInput{
+	uploader := manager.NewUploader(s.client)
+	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(s.bucket),
 		Key:         aws.String(key),
-		ContentType: aws.String("application/x-gzip"),
-		Body:        aws.ReadSeekCloser(data),
+		ContentType: aws.String("application/gzip"),
+		Body:        data,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to upload to S3: %w", err)
@@ -63,36 +85,43 @@ func (s *s3Storage) DeleteOldBackups(ctx context.Context, maxCount int) error {
 	if maxCount == 0 {
 		return nil
 	}
-
-	keys := make([]*s3.ObjectIdentifier, 0, maxCount+1)
-
-	err := s.svc.ListObjectsV2PagesWithContext(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(s.bucket),
-		Prefix: aws.String(s.prefix),
-	}, func(p *s3.ListObjectsV2Output, last bool) bool {
-		for _, obj := range p.Contents {
-			keys = append(keys, &s3.ObjectIdentifier{Key: obj.Key})
-		}
-		return true
-	})
-	if err != nil {
-		return fmt.Errorf("failed to list objects: %w", err)
+	if maxCount < 0 {
+		return fmt.Errorf("invalid maxCount: %d", maxCount)
 	}
 
-	if len(keys) <= maxCount {
+	var err error
+	var output *s3.ListObjectsV2Output
+	input := &s3.ListObjectsV2Input{
+		Bucket: aws.String(s.bucket),
+		Prefix: aws.String(s.prefix),
+	}
+	objects := make([]types.ObjectIdentifier, 0, maxCount+1)
+	objectPaginator := s3.NewListObjectsV2Paginator(s.client, input)
+	for objectPaginator.HasMorePages() {
+		output, err = objectPaginator.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to list objects: %w", err)
+		}
+		for _, obj := range output.Contents {
+			objects = append(objects, types.ObjectIdentifier{
+				Key: obj.Key,
+			})
+		}
+	}
+
+	if len(objects) <= maxCount {
 		return nil
 	}
 
-	// Sort keys by name (which includes timestamp) to delete oldest
-	sort.Slice(keys, func(i, j int) bool {
-		return *keys[i].Key < *keys[j].Key
+	sort.Slice(objects, func(i, j int) bool {
+		return aws.ToString(objects[i].Key) < aws.ToString(objects[j].Key)
 	})
 
-	toDelete := keys[:len(keys)-maxCount]
+	toDelete := objects[:len(objects)-maxCount]
 
-	_, err = s.svc.DeleteObjectsWithContext(ctx, &s3.DeleteObjectsInput{
+	_, err = s.client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
 		Bucket: aws.String(s.bucket),
-		Delete: &s3.Delete{
+		Delete: &types.Delete{
 			Objects: toDelete,
 			Quiet:   aws.Bool(true),
 		},
