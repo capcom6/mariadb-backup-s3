@@ -27,8 +27,6 @@
     - [Command Line](#command-line)
     - [Docker](#docker-1)
   - [⏰ Scheduling](#-scheduling)
-    - [systemd Service Example](#systemd-service-example)
-    - [Docker Swarm Example](#docker-swarm-example)
   - [🤝 Contributing](#-contributing)
   - [📄 License](#-license)
 
@@ -133,15 +131,15 @@ AWS_REGION=us-east-1
 BACKUP__LIMITS__MAX_COUNT=30  # Keep last 30 backups
 ```
 
-| Variable                    | Default      | Description                          |
-| --------------------------- | ------------ | ------------------------------------ |
-| `MARIADB__HOST`             | localhost    | Database host address                |
-| `MARIADB__PORT`             | 3306         | Database port                        |
-| `MARIADB__USER`             | root         | Database user                        |
-| `MARIADB__PASSWORD`         | -            | Database password                    |
-| `MARIADB__BACKUP_OPTIONS`   | -            | Extra `mariabackup` options          |
-| `STORAGE__URL`              | **Required** | Storage URL (format depends on type) |
-| `BACKUP__LIMITS__MAX_COUNT` | 30           | Maximum backups to retain            |
+| Variable                    | Default       | Description                          |
+| --------------------------- | ------------- | ------------------------------------ |
+| `MARIADB__HOST`             | localhost     | Database host address                |
+| `MARIADB__PORT`             | 3306          | Database port                        |
+| `MARIADB__USER`             | root          | Database user                        |
+| `MARIADB__PASSWORD`         | -             | Database password                    |
+| `MARIADB__BACKUP_OPTIONS`   | -             | Extra `mariabackup` options          |
+| `STORAGE__URL`              | **Required**  | Storage URL (format depends on type) |
+| `BACKUP__LIMITS__MAX_COUNT` | 0 (unlimited) | Maximum backups to retain            |
 
 ### Command-Line Flags
 Override any configuration with flags:
@@ -221,13 +219,10 @@ docker run --rm \
 
 ## ⏰ Scheduling
 
-### systemd Service Example
-
-For running as a scheduled service on Linux, see the [systemd example](./examples/systemd-service).
-
-### Docker Swarm Example
-
-The example can be found in [examples/docker-cron-backup](./examples/docker-cron-backup/compose.yml)
+- **systemd Service Example**: [examples/systemd-service](./examples/systemd-service/)
+- **Docker Swarm CRON Example**: [examples/docker-cron-backup](./examples/docker-cron-backup/)
+- **Simple CRON Example**: [examples/simple-cron-backup](./examples/simple-cron-backup/)
+- **Advanced CRON Example**: [examples/advanced-cron-backup](./examples/advanced-cron-backup/)
 
 ## 🤝 Contributing
 
