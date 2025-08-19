@@ -1,0 +1,12 @@
+[Unit]
+Description=Run mariadb-backup-s3 daily at 2:30 AM
+
+[Timer]
+Unit=mariadb-backup-s3.service
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+AccuracySec=5m
+RandomizedDelaySec=30m
+
+[Install]
+WantedBy=timers.target

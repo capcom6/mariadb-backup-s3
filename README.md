@@ -183,6 +183,12 @@ docker run --rm \
   ghcr.io/capcom6/mariadb-backup-s3
 ```
 
+## Examples
+
+### systemd Service Example
+
+For running as a scheduled service on Linux, see the [systemd example](./examples/systemd-service).
+
 ### Docker Swarm Example
 
 The example can be found in [examples/docker-cron-backup](./examples/docker-cron-backup/compose.yml)
