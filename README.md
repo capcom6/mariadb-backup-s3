@@ -5,6 +5,34 @@
 
 🔁 Automated MariaDB database backups with S3-compatible storage integration
 
+## Table of Contents
+- [🗄️ MariaDB Backup to S3](#️-mariadb-backup-to-s3)
+  - [Table of Contents](#table-of-contents)
+  - [🚀 Quick Start](#-quick-start)
+  - [✨ Features](#-features)
+  - [🛠️ How It Works](#️-how-it-works)
+  - [📋 Prerequisites](#-prerequisites)
+  - [📦 Installation](#-installation)
+    - [Binary Installation (Recommended)](#binary-installation-recommended)
+    - [Using Go Install](#using-go-install)
+    - [Docker](#docker)
+    - [From Source (Advanced)](#from-source-advanced)
+  - [⚙️ Configuration](#️-configuration)
+    - [Environment Variables](#environment-variables)
+    - [Command-Line Flags](#command-line-flags)
+  - [📂 Storage Types](#-storage-types)
+    - [S3 Storage](#s3-storage)
+    - [Filesystem Storage](#filesystem-storage)
+  - [🚀 Usage](#-usage)
+    - [Command Line](#command-line)
+    - [Docker](#docker-1)
+  - [⏰ Scheduling](#-scheduling)
+    - [systemd Service Example](#systemd-service-example)
+    - [Docker Swarm Example](#docker-swarm-example)
+  - [🤝 Contributing](#-contributing)
+  - [📄 License](#-license)
+
+
 ## 🚀 Quick Start
 
 ```shell
@@ -68,6 +96,12 @@ go install github.com/capcom6/mariadb-backup-s3@latest
 docker pull ghcr.io/capcom6/mariadb-backup-s3:latest
 ```
 
+> **Note**
+> The Docker image uses MariaDB's `lts` version. For specific versions:
+> 1. Clone the repository
+> 2. Modify `Dockerfile` base image
+> 3. Build custom image: `docker build -t custom-backup-image .`
+
 ### From Source (Advanced)
 ```shell
 git clone https://github.com/capcom6/mariadb-backup-s3.git
@@ -109,32 +143,6 @@ BACKUP__LIMITS__MAX_COUNT=30  # Keep last 30 backups
 | `STORAGE__URL`              | **Required** | Storage URL (format depends on type) |
 | `BACKUP__LIMITS__MAX_COUNT` | 30           | Maximum backups to retain            |
 
-### Storage Types
-
-#### S3 Storage
-For S3-compatible storage (including AWS S3, MinIO, DigitalOcean Spaces, etc.):
-
-```dotenv
-STORAGE__URL=s3://bucket-name/path?endpoint=https://s3.example.com&region=us-east-1
-```
-
-**Required for S3:**
-- `AWS_ACCESS_KEY`: Your access key
-- `AWS_SECRET_KEY`: Your secret key
-- `AWS_REGION`: AWS region (or any region for non-AWS S3)
-
-#### Filesystem Storage
-For local or mounted filesystem storage:
-
-```dotenv
-STORAGE__URL=file:///absolute/path/to/backup/directory
-```
-
-**Examples:**
-- Linux/macOS: `file:///var/backups/mariadb`
-- Windows: `file://C:/backups/mariadb`
-- Docker volume: `file:///data/backups`
-
 ### Command-Line Flags
 Override any configuration with flags:
 
@@ -154,18 +162,46 @@ Override any configuration with flags:
 | `--db-backup-options` | Additional `mariabackup` parameters |
 | `--storage-url`       | Custom storage URL                  |
 
-## 🐳 Docker Usage
 
-### Basic Example
-```shell
-docker run --rm \
-  -v /var/lib/mysql:/var/lib/mysql \
-  -v /var/backups:/backups \
-  --env-file .env \
-  ghcr.io/capcom6/mariadb-backup-s3
+## 📂 Storage Types
+
+### S3 Storage
+For S3-compatible storage (including AWS S3, MinIO, DigitalOcean Spaces, etc.):
+
+```dotenv
+STORAGE__URL=s3://bucket-name/path?endpoint=https://s3.example.com&region=us-east-1
 ```
 
-### Filesystem Storage Example
+**Required for S3:**
+- `AWS_ACCESS_KEY`: Your access key
+- `AWS_SECRET_KEY`: Your secret key
+- `AWS_REGION`: AWS region (or any region for non-AWS S3)
+
+### Filesystem Storage
+For local or mounted filesystem storage:
+
+```dotenv
+STORAGE__URL=file:///absolute/path/to/backup/directory
+```
+
+**Examples:**
+- Linux/macOS: `file:///var/backups/mariadb`
+- Windows: `file://C:/backups/mariadb`
+- Docker volume: `file:///data/backups`
+
+
+## 🚀 Usage
+
+### Command Line
+```shell
+# Configure & run
+cp .env.example .env
+nano .env  # Edit with your credentials
+
+./mariadb-backup-s3
+```
+
+### Docker
 ```shell
 # Create .env file for filesystem storage
 cat > .env << EOF
@@ -183,7 +219,7 @@ docker run --rm \
   ghcr.io/capcom6/mariadb-backup-s3
 ```
 
-## Examples
+## ⏰ Scheduling
 
 ### systemd Service Example
 
@@ -192,12 +228,6 @@ For running as a scheduled service on Linux, see the [systemd example](./example
 ### Docker Swarm Example
 
 The example can be found in [examples/docker-cron-backup](./examples/docker-cron-backup/compose.yml)
-
-> **Note**
-> The Docker image uses MariaDB's `lts` version. For specific versions:
-> 1. Clone the repository
-> 2. Modify `Dockerfile` base image
-> 3. Build custom image: `docker build -t custom-backup-image .`
 
 ## 🤝 Contributing
 
