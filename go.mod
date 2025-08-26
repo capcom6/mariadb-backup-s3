@@ -1,6 +1,8 @@
 module github.com/capcom6/mariadb-backup-s3
 
-go 1.22.4
+go 1.23.0
+
+toolchain go1.24.1
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.38.0
@@ -9,6 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.87.0
 	github.com/joho/godotenv v1.5.1
 	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/secsy/goftp v0.0.0-20200609142545-aa2de14babf4
 )
 
 require (
