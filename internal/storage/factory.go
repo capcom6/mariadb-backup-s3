@@ -12,6 +12,8 @@ func New(u *url.URL) (StorageBackend, error) {
 		return NewS3Storage(u)
 	case "file":
 		return NewFilesystemStorage(u)
+	case "ftp":
+		return NewFTPStorage(u)
 	default:
 		return nil, fmt.Errorf("unsupported storage type: %s", u.Scheme)
 	}

@@ -22,6 +22,7 @@
     - [Command-Line Flags](#command-line-flags)
   - [📂 Storage Types](#-storage-types)
     - [S3 Storage](#s3-storage)
+    - [FTP Storage](#ftp-storage)
     - [Filesystem Storage](#filesystem-storage)
   - [🚀 Usage](#-usage)
     - [Command Line](#command-line)
@@ -53,7 +54,7 @@ mariadb-backup-s3
 
 - 🛡️ Full database backups using `mariabackup`
 - 🗜️ Compression to `.tar.gz` format
-- ☁️ Multiple storage backends (S3-compatible, filesystem)
+- ☁️ Multiple storage backends (S3, FTP, filesystem)
 - 🔌 Pluggable storage interface for extensibility
 - 🔄 Automatic backup rotation
 - 🐳 Docker container support
@@ -66,15 +67,14 @@ The backup process follows these steps:
 2. 💾 Perform MariaDB backup using `mariabackup --backup`
 3. 🔧 Prepare backup for consistency using `mariabackup --prepare`
 4. 🗜️ Compress backup to `.tar.gz` archive
-5. 🚀 Upload archive to S3-compatible storage
+5. 🚀 Upload archive to configured storage backend
 6. 🧹 Clean up old backups based on retention policy
 
 ## 📋 Prerequisites
 
 - Go 1.22+ (for building from source)
 - MariaDB server
-- AWS credentials with S3 access
-- S3-compatible storage bucket
+- Storage backend credentials (depending on chosen storage type)
 
 ## 📦 Installation
 
@@ -175,6 +175,19 @@ STORAGE__URL=s3://bucket-name/path?endpoint=https://s3.example.com&region=us-eas
 - `AWS_SECRET_KEY`: Your secret key
 - `AWS_REGION`: AWS region (or any region for non-AWS S3)
 
+### FTP Storage
+For FTP servers:
+
+```dotenv
+STORAGE__URL=ftp://username:password@host:port/path
+```
+
+**Required for FTP:**
+- `username`: FTP username (defaults to "anonymous" if not provided)
+- `password`: FTP password (optional for anonymous)
+- `host`: FTP server hostname
+- `port`: FTP port (defaults to 21)
+
 ### Filesystem Storage
 For local or mounted filesystem storage:
 
@@ -186,7 +199,6 @@ STORAGE__URL=file:///absolute/path/to/backup/directory
 - Linux/macOS: `file:///var/backups/mariadb`
 - Windows: `file://C:/backups/mariadb`
 - Docker volume: `file:///data/backups`
-
 
 ## 🚀 Usage
 
