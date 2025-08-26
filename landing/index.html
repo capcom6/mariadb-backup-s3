@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mariadb-backup-s3 - Automate MariaDB Backups to S3</title>
+    <meta name="description"
+        content="Open-source solution for reliable, cloud-native MariaDB database backups to S3-compatible storage">
+    <link rel="stylesheet" href="styles.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cal+Sans:wght@400;600;700&family=Noto+Sans:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div class="theme-switch-wrapper">
+        <button id="theme-light" class="theme-button" data-theme="light" aria-label="Light Theme">☀️</button>
+        <button id="theme-dark" class="theme-button" data-theme="dark" aria-label="Dark Theme">🌙</button>
+        <button id="theme-system" class="theme-button" data-theme="system" aria-label="System Theme">💻</button>
+    </div>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-text">
+                    <h1 class="hero-title">Automate MariaDB Backups to S3 in Minutes</h1>
+                    <p class="hero-subtitle">Open-source solution for reliable, cloud-native MariaDB database backups to
+                        S3-compatible storage</p>
+                    <div class="hero-cta">
+                        <a href="https://github.com/capcom6/mariadb-backup-s3" class="btn btn-primary">Get Started on
+                            GitHub</a>
+                        <a href="#quick-start" class="btn btn-secondary">View Quick Start</a>
+                    </div>
+                    <div class="github-stats">
+                        <div class="stat">
+                            <span class="stat-number" id="stars-count">-</span>
+                            <span class="stat-label">Stars</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-number" id="forks-count">-</span>
+                            <span class="stat-label">Forks</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-number" id="version">-</span>
+                            <span class="stat-label">Latest Version</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="hero-visual">
+                    <div class="backup-flow">
+                        <div class="flow-item mariadb">
+                            <div class="icon">🗃️</div>
+                            <span>MariaDB</span>
+                        </div>
+                        <div class="arrow">→</div>
+                        <div class="flow-item backup-tool">
+                            <div class="icon">⚡</div>
+                            <span>Backup Tool</span>
+                        </div>
+                        <div class="arrow">→</div>
+                        <div class="flow-item s3">
+                            <div class="icon">☁️</div>
+                            <span>S3 Storage</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Problem/Solution Section -->
+    <section class="problem-solution">
+        <div class="container">
+            <div class="section-header">
+                <h2>Stop Worrying About Database Backups</h2>
+                <p>Manual backup processes are error-prone, time-consuming, and don't scale. Our solution automates the
+                    entire backup lifecycle.</p>
+            </div>
+            <div class="comparison">
+                <div class="before">
+                    <h3>Before</h3>
+                    <ul>
+                        <li>Manual backup scripts prone to failure</li>
+                        <li>Inconsistent backup schedules</li>
+                        <li>Complex retention management</li>
+                        <li>No cloud-native storage integration</li>
+                    </ul>
+                </div>
+                <div class="after">
+                    <h3>After</h3>
+                    <ul>
+                        <li>Flexible, reliable backup execution</li>
+                        <li>Easy integration with existing schedulers</li>
+                        <li>Customizable retention policies</li>
+                        <li>Native S3 and cloud storage support</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Key Features -->
+    <section class="features">
+        <div class="container">
+            <div class="section-header">
+                <h2>Powerful Features for Modern Infrastructure</h2>
+            </div>
+            <div class="features-grid">
+                <div class="feature">
+                    <div class="feature-icon">🔄</div>
+                    <h3>Flexible Scheduling</h3>
+                    <p>Run on-demand or integrate with cron or systemd timers for automated backup
+                        schedules.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">☁️</div>
+                    <h3>S3-Compatible Storage</h3>
+                    <p>Works with AWS S3, MinIO, DigitalOcean Spaces, and any S3-compatible storage provider.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🐳</div>
+                    <h3>Docker Ready</h3>
+                    <p>Deploy as a Docker container or sidecar.
+                    </p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🗂️</div>
+                    <h3>Smart Retention</h3>
+                    <p>Intelligent backup rotation with configurable retention policies to optimize storage costs.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">⚙️</div>
+                    <h3>Simple Configuration</h3>
+                    <p>Environment variable-based configuration. No complex config files or learning curves.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📁</div>
+                    <h3>Filesystem-Level Backups</h3>
+                    <p>Uses mariabackup for high-performance, hot backups with direct filesystem access to MariaDB data
+                        directory for maximum reliability and speed.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Why Filesystem Access is Required -->
+    <section class="filesystem-access">
+        <div class="container">
+            <div class="section-header">
+                <h2>Why Filesystem Access is Required</h2>
+                <p>Understanding the technical requirements for reliable MariaDB backups</p>
+            </div>
+            <div class="explanation-content">
+                <div class="explanation-item">
+                    <div class="explanation-icon">📁</div>
+                    <h3>mariabackup Technology</h3>
+                    <p>mariadb-backup-s3 uses <strong>mariabackup</strong>, high-performance backup tool for
+                        MariaDB.
+                        Unlike mysqldump which exports data through SQL queries, mariabackup works at the filesystem
+                        level
+                        by copying database files directly.</p>
+                </div>
+                <div class="explanation-item">
+                    <div class="explanation-icon">🔄</div>
+                    <h3>Hot Backups Without Locking</h3>
+                    <p>mariabackup performs <strong>hot backups</strong> - it can backup your database while it's
+                        running
+                        without significant performance impact. This requires direct access to the MariaDB data files
+                        located in <code>/var/lib/mysql</code>.</p>
+                </div>
+                <div class="explanation-item">
+                    <div class="explanation-icon">⚡</div>
+                    <h3>Performance & Reliability</h3>
+                    <p>Direct filesystem access enables faster backups and restores compared to SQL-based methods.
+                        This approach ensures data consistency and provides better performance for larger databases.</p>
+                </div>
+                <div class="explanation-item">
+                    <div class="explanation-icon">🔒</div>
+                    <h3>Security Considerations</h3>
+                    <p>The backup process requires read access to database files, but never needs write access.
+                        This allows for secure, least-privilege configurations where backup users have minimal
+                        permissions.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Quick Start -->
+    <section class="quick-start" id="quick-start">
+        <div class="container">
+            <div class="section-header">
+                <h2>Get Started in Minutes</h2>
+                <p>Choose your preferred deployment method and start backing up your MariaDB databases immediately.</p>
+            </div>
+            <div class="deployment-tabs">
+                <div class="tab-buttons">
+                    <button class="tab-btn active" data-tab="docker">Docker</button>
+                    <button class="tab-btn" data-tab="binary">Binary</button>
+                </div>
+                <div class="tab-content">
+                    <div class="tab-pane active" id="docker">
+                        <div class="code-example">
+                            <div class="code-header">
+                                <span>docker-compose.yml</span>
+                                <button class="copy-btn" data-copy="docker-compose">Copy</button>
+                            </div>
+                            <pre><code>version: '3.8'
+services:
+  db:
+    image: mariadb:lts
+    environment:
+      - MARIADB_ROOT_PASSWORD=your-db-password
+      - MARIADB_AUTO_UPGRADE
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "healthcheck.sh",
+          "--su-mysql",
+          "--connect",
+          "--innodb_initialized"
+        ]
+      timeout: 5s
+      retries: 10
+    volumes:
+      - mariadb-data:/var/lib/mysql
+
+  db-backup:
+    image: ghcr.io/capcom6/mariadb-backup-s3:latest
+    environment:
+      - MARIADB__HOST=db
+      - MARIADB__USER=root
+      - MARIADB__PASSWORD=your-db-password
+      - MARIADB__BACKUP_OPTIONS=--skip-ssl
+      - STORAGE__URL=s3://your-bucket/backups
+      - AWS_ACCESS_KEY_ID=your-access-key
+      - AWS_SECRET_ACCESS_KEY=your-secret-key
+      - AWS_REGION=us-east-1
+      - BACKUP__LIMITS__MAX_COUNT=30
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    deploy:
+      replicas: 0
+      labels:
+        - "swarm.cronjob.enable=true"
+        - "swarm.cronjob.schedule=@daily"
+        - "swarm.cronjob.skip-running=true"
+      restart_policy:
+        condition: none
+
+  cronjob:
+    image: ghcr.io/crazy-max/swarm-cronjob:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    environment:
+      - "TZ=UTC"
+      - "LOG_LEVEL=info"
+      - "LOG_JSON=true"
+    deploy:
+      replicas: 1
+
+volumes:
+  mariadb-data:</code></pre>
+                        </div>
+                        <p class="step-description">Deploy with
+                            <code>docker stack deploy -c docker-compose.yml mariadb</code> for automated daily backups!
+                        </p>
+                    </div>
+                    <div class="tab-pane" id="binary">
+                        <div class="code-example">
+                            <div class="code-header">
+                                <span>Installation & Setup</span>
+                                <button class="copy-btn" data-copy="binary">Copy</button>
+                            </div>
+                            <pre><code># Download and install the binary
+wget https://github.com/capcom6/mariadb-backup-s3/releases/latest/download/mariadb-backup-s3_Linux_x86_64.tar.gz
+tar -xzf mariadb-backup-s3_Linux_x86_64.tar.gz
+sudo install -m 0755 mariadb-backup-s3 /usr/local/bin/
+
+# Create backup user
+sudo useradd -r -s /usr/sbin/nologin backup-user
+sudo mkdir -p /var/backups/mariadb
+sudo chown backup-user:backup-user /var/backups/mariadb
+
+# Create configuration file
+sudo tee /etc/default/mariadb-backup-s3 > /dev/null << EOF
+MARIADB__HOST=localhost
+MARIADB__USER=backup_user
+MARIADB__PASSWORD=secure_password
+MARIADB__BACKUP_OPTIONS=--skip-ssl
+STORAGE__URL=s3://your-bucket/backups
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
+AWS_REGION=us-east-1
+BACKUP__LIMITS__MAX_COUNT=30
+EOF
+sudo chmod 600 /etc/default/mariadb-backup-s3
+
+# Create systemd service
+sudo tee /etc/systemd/system/mariadb-backup-s3.service > /dev/null << EOF
+[Unit]
+Description=MariaDB Backup to S3
+After=network.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/default/mariadb-backup-s3
+ExecStart=/usr/local/bin/mariadb-backup-s3
+User=backup-user
+Group=backup-user
+TimeoutStartSec=2h
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=tmpfs
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+LockPersonality=yes
+ReadWritePaths=/var/backups/mariadb
+EOF
+
+# Create systemd timer
+sudo tee /etc/systemd/system/mariadb-backup-s3.timer > /dev/null << EOF
+[Unit]
+Description=Run mariadb-backup-s3 daily at 2:30 AM
+
+[Timer]
+Unit=mariadb-backup-s3.service
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+AccuracySec=5m
+RandomizedDelaySec=30m
+
+[Install]
+WantedBy=timers.target
+EOF
+
+# Enable and start the timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now mariadb-backup-s3.timer</code></pre>
+                        </div>
+                        <p class="step-description">Your automated daily backups are now scheduled! Check status with
+                            <code>systemctl list-timers mariadb-backup-s3.timer</code>
+                        </p>
+                        <div class="important-note">
+                            <strong>⚠️ Important:</strong> The backup user needs filesystem access to the MariaDB data
+                            directory
+                            (<code>/var/lib/mysql</code>) for mariabackup to function properly. Ensure the backup user
+                            has
+                            appropriate read permissions to the MariaDB data files.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Configuration -->
+    <section class="configuration">
+        <div class="container">
+            <div class="section-header">
+                <h2>Flexible Configuration Options</h2>
+                <p>Customize backup behavior with simple environment variables</p>
+            </div>
+            <div class="config-grid">
+                <div class="config-category">
+                    <h3>Database Settings</h3>
+                    <div class="config-items">
+                        <div class="config-item">
+                            <code>MARIADB__HOST</code>
+                            <span>MariaDB server hostname</span>
+                        </div>
+                        <div class="config-item">
+                            <code>MARIADB__PORT</code>
+                            <span>Database port (default: 3306)</span>
+                        </div>
+                        <div class="config-item">
+                            <code>MARIADB__USER</code>
+                            <span>Database username with backup privileges</span>
+                        </div>
+                        <div class="config-item">
+                            <code>MARIADB__PASSWORD</code>
+                            <span>Database password</span>
+                        </div>
+                        <div class="config-item">
+                            <code>MARIADB__BACKUP_OPTIONS</code>
+                            <span>Additional mariabackup options (e.g., --parallel=4)</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="config-category">
+                    <h3>Storage Configuration</h3>
+                    <div class="config-items">
+                        <div class="config-item">
+                            <code>STORAGE__URL</code>
+                            <span>Storage URL (e.g., s3://my-bucket/backups, file:///tmp/backups)</span>
+                        </div>
+                        <div class="config-item">
+                            <code>AWS_ACCESS_KEY_ID</code>
+                            <span>S3 access key ID</span>
+                        </div>
+                        <div class="config-item">
+                            <code>AWS_SECRET_ACCESS_KEY</code>
+                            <span>S3 secret access key</span>
+                        </div>
+                        <div class="config-item">
+                            <code>AWS_REGION</code>
+                            <span>S3 region (default: us-east-1)</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="config-category">
+                    <h3>Backup Settings</h3>
+                    <div class="config-items">
+                        <div class="config-item">
+                            <code>BACKUP__LIMITS__MAX_COUNT</code>
+                            <span>Maximum number of backups to retain (0 = unlimited)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Comparison Table -->
+    <section class="comparison-table">
+        <div class="container">
+            <div class="section-header">
+                <h2>Why Choose mariadb-backup-s3?</h2>
+                <p>Compare with other backup solutions</p>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>mariadb-backup-s3</th>
+                            <th>mysqldump</th>
+                            <th>Percona XtraBackup</th>
+                            <th>Custom Scripts</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>S3 Integration</td>
+                            <td class="check">✓ Native</td>
+                            <td class="cross">✗ Manual</td>
+                            <td class="cross">✗ Manual</td>
+                            <td class="cross">✗ Custom</td>
+                        </tr>
+                        <tr>
+                            <td>Docker Support</td>
+                            <td class="check">✓ Official image</td>
+                            <td class="cross">✗ Manual setup</td>
+                            <td class="check">✓ Official image</td>
+                            <td class="cross">✗ Custom</td>
+                        </tr>
+                        <tr>
+                            <td>Retention Management</td>
+                            <td class="check">✓ Automatic</td>
+                            <td class="cross">✗ Manual</td>
+                            <td class="cross">✗ Manual</td>
+                            <td class="cross">✗ Custom</td>
+                        </tr>
+                        <tr>
+                            <td>Configuration</td>
+                            <td class="check">✓ Environment vars</td>
+                            <td class="partial">~ Command line</td>
+                            <td class="partial">~ Config files</td>
+                            <td class="cross">✗ Complex</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Community -->
+    <section class="community">
+        <div class="container">
+            <div class="section-header">
+                <h2>Join the Community</h2>
+                <p>Open source, actively maintained, and growing</p>
+            </div>
+            <div class="community-grid">
+                <div class="community-item">
+                    <h3>🐛 Issues & Support</h3>
+                    <p>Found a bug or need help? Our issue tracker is monitored daily by maintainers.</p>
+                    <a href="https://github.com/capcom6/mariadb-backup-s3/issues">Report Issues</a>
+                </div>
+                <div class="community-item">
+                    <h3>🤝 Contributing</h3>
+                    <p>Help make mariadb-backup-s3 better! We welcome contributions from the community.</p>
+                    <a href="https://github.com/capcom6/mariadb-backup-s3/blob/master/CONTRIBUTING.md">Contribute</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Footer -->
+    <section class="cta-footer">
+        <div class="container">
+            <div class="cta-content">
+                <h2>Ready to Automate Your MariaDB Backups?</h2>
+                <p>Join hundreds of developers and ops teams who trust mariadb-backup-s3 for their database backup
+                    needs.</p>
+                <div class="cta-buttons">
+                    <a href="https://github.com/capcom6/mariadb-backup-s3" class="btn btn-primary">Get Started on
+                        GitHub</a>
+                    <a href="https://github.com/capcom6/mariadb-backup-s3/releases" class="btn btn-secondary">Download
+                        Latest Release</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>mariadb-backup-s3</h3>
+                    <p>Reliable, automated MariaDB backups to S3-compatible storage.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="https://github.com/capcom6/mariadb-backup-s3">GitHub Repository</a></li>
+                        <li><a
+                                href="https://github.com/capcom6/mariadb-backup-s3/blob/master/README.md">Documentation</a>
+                        </li>
+                        <li><a href="https://github.com/capcom6/mariadb-backup-s3/releases">Releases</a></li>
+                        <li><a href="https://github.com/capcom6/mariadb-backup-s3/issues">Issues</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a
+                                href="https://github.com/capcom6/mariadb-backup-s3/blob/master/CONTRIBUTING.md">Contributing</a>
+                        </li>
+                        <li><a href="https://github.com/capcom6/mariadb-backup-s3/blob/master/CODE_OF_CONDUCT.md">Code
+                                of
+                                Conduct</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>License</h4>
+                    <p>Apache 2.0 License</p>
+                    <p>© <span id="current-year"></span> mariadb-backup-s3</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
