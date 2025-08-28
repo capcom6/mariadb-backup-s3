@@ -54,7 +54,7 @@ mariadb-backup-s3
 
 - 🛡️ Full database backups using `mariabackup`
 - 🗜️ Compression to `.tar.gz` format
-- ☁️ Multiple storage backends (S3, FTP, filesystem)
+- ☁️ Multiple storage backends (S3-compatible, FTP, filesystem)
 - 🔌 Pluggable storage interface for extensibility
 - 🔄 Automatic backup rotation
 - 🐳 Docker container support
@@ -72,7 +72,7 @@ The backup process follows these steps:
 
 ## 📋 Prerequisites
 
-- Go 1.22+ (for building from source)
+- Go 1.23+ (for building from source)
 - MariaDB server
 - Storage backend credentials (depending on chosen storage type)
 
