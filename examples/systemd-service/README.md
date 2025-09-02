@@ -25,7 +25,7 @@ MARIADB__HOST=localhost
 MARIADB__PORT=3306
 MARIADB__USER=backup
 MARIADB__PASSWORD=your_secure_password
-MARIADB__BACKUP_OPTIONS=--all-databases
+MARIADB__BACKUP_OPTIONS=--skip-ssl --parallel=4
 
 # Storage configuration (S3)
 STORAGE__URL=s3://your-bucket-name/backup-path?endpoint=https://s3.example.com
@@ -48,7 +48,6 @@ Create a dedicated user for backups:
 
 ```bash
 sudo useradd -r -s /usr/sbin/nologin backup-user
-sudo usermod -aG mysql backup-user
 sudo mkdir -p /var/backups/mariadb
 sudo chown backup-user:backup-user /var/backups/mariadb
 ```
