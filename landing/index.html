@@ -233,7 +233,7 @@ services:
       - MARIADB__HOST=db
       - MARIADB__USER=root
       - MARIADB__PASSWORD=your-db-password
-      - MARIADB__BACKUP_OPTIONS=--skip-ssl
+      - MARIADB__BACKUP_OPTIONS=--skip-ssl --parallel=4
       - STORAGE__URL=s3://your-bucket/backups
       - AWS_ACCESS_KEY_ID=your-access-key
       - AWS_SECRET_ACCESS_KEY=your-secret-key
@@ -281,7 +281,6 @@ sudo install -m 0755 mariadb-backup-s3 /usr/local/bin/
 
 # Create backup user
 sudo useradd -r -s /usr/sbin/nologin backup-user
-sudo usermod -aG mysql backup-user
 sudo mkdir -p /var/backups/mariadb
 sudo chown backup-user:backup-user /var/backups/mariadb
 
@@ -290,7 +289,7 @@ sudo tee /etc/default/mariadb-backup-s3 > /dev/null << EOF
 MARIADB__HOST=localhost
 MARIADB__USER=backup_user
 MARIADB__PASSWORD=secure_password
-MARIADB__BACKUP_OPTIONS=--skip-ssl
+MARIADB__BACKUP_OPTIONS=--skip-ssl --parallel=4
 STORAGE__URL=s3://your-bucket/backups
 AWS_ACCESS_KEY_ID=your-access-key
 AWS_SECRET_ACCESS_KEY=your-secret-key
@@ -311,6 +310,8 @@ EnvironmentFile=/etc/default/mariadb-backup-s3
 ExecStart=/usr/local/bin/mariadb-backup-s3
 User=backup-user
 Group=backup-user
+SupplementaryGroups=mysql
+UMask=0077
 TimeoutStartSec=2h
 
 # Security hardening
