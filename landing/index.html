@@ -281,6 +281,7 @@ sudo install -m 0755 mariadb-backup-s3 /usr/local/bin/
 
 # Create backup user
 sudo useradd -r -s /usr/sbin/nologin backup-user
+sudo usermod -aG mysql backup-user
 sudo mkdir -p /var/backups/mariadb
 sudo chown backup-user:backup-user /var/backups/mariadb
 
