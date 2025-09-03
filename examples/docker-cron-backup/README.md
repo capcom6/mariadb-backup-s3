@@ -7,6 +7,7 @@ This example shows how to automate MariaDB backups using Docker Swarm. It uses t
 
 ## ⚙️ Prerequisites
 * Docker Swarm setup
+* At least 2x the actual database size in free space for successful backup
 
 ## ⚙️ Environment Setup
 Create a `.env` file with:

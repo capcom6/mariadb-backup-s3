@@ -12,6 +12,12 @@ examples/cron-backup/
 └── backup.env.example    # Environment variables template
 ```
 
+## 📋 Prerequisites
+
+To ensure successful backups:
+
+- At least 2x the actual database size in free space available
+
 ## 🚀 Setup Instructions
 
 ### 1. Create Environment File

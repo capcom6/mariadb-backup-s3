@@ -74,6 +74,7 @@ The backup process follows these steps:
 
 - Go 1.23+ (for building from source)
 - MariaDB server
+- At least 2x the actual database size in free space (for successful backup)
 - Storage backend credentials (depending on chosen storage type)
 
 ## 📦 Installation
