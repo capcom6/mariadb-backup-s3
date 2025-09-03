@@ -11,6 +11,12 @@ examples/simple-cron-backup/
 └── crontab.example
 ```
 
+## 📋 Prerequisites
+
+To ensure successful backups:
+
+- At least 2x the actual database size in free space available
+
 ## 🚀 Setup Instructions
 
 ### 1. Create a Dedicated User
