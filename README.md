@@ -168,13 +168,17 @@ Override any configuration with flags:
 For S3-compatible storage (including AWS S3, MinIO, DigitalOcean Spaces, etc.):
 
 ```dotenv
-STORAGE__URL=s3://bucket-name/path?endpoint=https://s3.example.com&region=us-east-1
+STORAGE__URL=s3://bucket-name/path?endpoint=https://s3.example.com
 ```
 
 **Required for S3:**
 - `AWS_ACCESS_KEY`: Your access key
 - `AWS_SECRET_KEY`: Your secret key
 - `AWS_REGION`: AWS region (or any region for non-AWS S3)
+
+**Query Parameters:**
+- `endpoint`: S3 endpoint URL
+- `s3-force-path-style`: Set to "true" to use path-style URLs
 
 ### FTP Storage
 For FTP servers:
