@@ -10,8 +10,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.18.4
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.87.0
 	github.com/joho/godotenv v1.5.1
-	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/secsy/goftp v0.0.0-20200609142545-aa2de14babf4
+	github.com/urfave/cli/v3 v3.4.1
 )
 
 require (
