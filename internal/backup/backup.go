@@ -62,10 +62,14 @@ func Execute(ctx context.Context, cfg Config) error {
 	return nil
 }
 
-func run(ctx context.Context, cmdline string) error {
+func run(ctx context.Context, args []string) error {
+	if len(args) == 0 {
+		return errors.New("no arguments")
+	}
+
 	buf := bytes.Buffer{}
 
-	cmd := exec.CommandContext(ctx, "bash", "-c", cmdline)
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = &buf
@@ -77,31 +81,79 @@ func run(ctx context.Context, cmdline string) error {
 }
 
 func backup(ctx context.Context, options MariaDBConfig, dir string) error {
-	cmdline := fmt.Sprintf(`mariabackup --backup --parallel=%d --target-dir='%s' --user='%s' --password='%s'`, cores, dir, options.User, options.Password)
-	if options.Host != "" {
-		cmdline += fmt.Sprintf(" --host='%s' --port=%d", options.Host, options.Port)
+	args := []string{
+		"mariabackup",
+		"--backup",
+		"--parallel=" + fmt.Sprintf("%d", cores),
+		"--target-dir=" + dir,
+		"--user=" + options.User,
+		"--password=" + options.Password,
 	}
+
+	if options.Host != "" {
+		args = append(args, "--host="+options.Host, "--port="+fmt.Sprintf("%d", options.Port))
+	}
+
 	if options.BackupOptions != "" {
 		opts, err := sanitizer.SanitizeOptions(options.BackupOptions)
 		if err != nil {
 			return fmt.Errorf("failed to sanitize options: %w", err)
 		}
-		cmdline += fmt.Sprintf(" %s", opts)
+
+		args = append(args, opts...)
 	}
 
-	return run(ctx, cmdline)
+	return run(ctx, args)
 }
 
 func prepare(ctx context.Context, _ MariaDBConfig, dir string) error {
-	cmdline := fmt.Sprintf(`mariabackup --prepare --target-dir='%s'`, dir)
+	args := []string{
+		"mariabackup",
+		"--prepare",
+		"--target-dir=" + dir,
+	}
 
-	return run(ctx, cmdline)
+	return run(ctx, args)
 }
 
 func compress(ctx context.Context, source, target string) error {
-	cmdline := fmt.Sprintf(`tar -cf - '%s' | pigz > '%s'`, source, target)
+	// Create tar command
+	tarCmd := exec.CommandContext(ctx, "tar", "-cf", "-", source)
+	pigzCmd := exec.CommandContext(ctx, "pigz")
 
-	return run(ctx, cmdline)
+	// Open target file
+	outFile, err := os.Create(target)
+	if err != nil {
+		return fmt.Errorf("failed to create target: %w", err)
+	}
+	defer func(outFile *os.File) {
+		if err := outFile.Close(); err != nil {
+			log.Printf("failed to close target: %s", err)
+		}
+	}(outFile)
+
+	// Set up piping
+	pigzCmd.Stdin, err = tarCmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+	pigzCmd.Stdout = outFile
+
+	var tarErr, pigzErr bytes.Buffer
+	var errs []error
+	tarCmd.Stderr = &tarErr
+	pigzCmd.Stderr = &pigzErr
+
+	if err := pigzCmd.Start(); err != nil {
+		return fmt.Errorf("failed to start pigz: %w", err)
+	}
+	if err := tarCmd.Run(); err != nil {
+		errs = append(errs, errors.Join(errors.New(tarErr.String()), err))
+	}
+	if err := pigzCmd.Wait(); err != nil {
+		errs = append(errs, errors.Join(errors.New(pigzErr.String()), err))
+	}
+	return errors.Join(errs...)
 }
 
 func upload(ctx context.Context, backup Backup, storageConfig StorageConfig, source string) error {
