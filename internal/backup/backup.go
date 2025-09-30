@@ -21,7 +21,11 @@ func Execute(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to create tempdir: %w", err)
 	}
-	defer os.RemoveAll(tempdir)
+	defer func() {
+		if err := os.RemoveAll(tempdir); err != nil {
+			log.Printf("failed to remove tempdir: %s", err)
+		}
+	}()
 	log.Printf("tempdir: %s", tempdir)
 
 	if err := backup(ctx, cfg.MariaDB, tempdir); err != nil {
@@ -38,7 +42,11 @@ func Execute(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to create compressed: %w", err)
 	}
-	defer os.Remove(compressed.Name())
+	defer func(compressed *os.File) {
+		if err := os.Remove(compressed.Name()); err != nil {
+			log.Printf("failed to remove compressed: %s", err)
+		}
+	}(compressed)
 
 	if err := compress(ctx, tempdir, compressed.Name()); err != nil {
 		return fmt.Errorf("failed to compress: %w", err)
@@ -53,10 +61,10 @@ func Execute(ctx context.Context, cfg Config) error {
 	return nil
 }
 
-func run(_ context.Context, cmdline string) error {
+func run(ctx context.Context, cmdline string) error {
 	buf := bytes.Buffer{}
 
-	cmd := exec.Command("bash", "-c", cmdline)
+	cmd := exec.CommandContext(ctx, "bash", "-c", cmdline)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = &buf
@@ -108,7 +116,11 @@ func upload(ctx context.Context, backup Backup, storageConfig StorageConfig, sou
 	if err != nil {
 		return fmt.Errorf("failed to open %s: %w", source, err)
 	}
-	defer h.Close()
+	defer func(h *os.File) {
+		if err := h.Close(); err != nil {
+			log.Printf("failed to close %s: %s", source, err)
+		}
+	}(h)
 
 	// Upload the backup
 	if err := storageBackend.Upload(ctx, filename, h); err != nil {
@@ -121,13 +133,4 @@ func upload(ctx context.Context, backup Backup, storageConfig StorageConfig, sou
 	}
 
 	return nil
-}
-
-func isInterrupted(ctx context.Context) bool {
-	select {
-	case <-ctx.Done():
-		return true
-	default:
-		return false
-	}
 }
