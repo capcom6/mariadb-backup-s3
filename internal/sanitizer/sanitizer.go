@@ -17,7 +17,7 @@ func SanitizeOptions(options string) ([]string, error) {
 	args := strings.Fields(options)
 
 	// Validate each argument to ensure it's a safe mariabackup option
-	var safeArgs []string
+	safeArgs := make([]string, 0, len(args))
 	for _, arg := range args {
 		if err := validateOption(arg); err != nil {
 			return nil, fmt.Errorf("invalid backup option '%s': %w", arg, err)
