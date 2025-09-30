@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/capcom6/mariadb-backup-s3/internal/sanitizer"
 	"github.com/capcom6/mariadb-backup-s3/internal/storage"
 )
 
@@ -81,7 +82,11 @@ func backup(ctx context.Context, options MariaDBConfig, dir string) error {
 		cmdline += fmt.Sprintf(" --host='%s' --port=%d", options.Host, options.Port)
 	}
 	if options.BackupOptions != "" {
-		cmdline += fmt.Sprintf(" %s", options.BackupOptions)
+		opts, err := sanitizer.SanitizeOptions(options.BackupOptions)
+		if err != nil {
+			return fmt.Errorf("failed to sanitize options: %w", err)
+		}
+		cmdline += fmt.Sprintf(" %s", opts)
 	}
 
 	return run(ctx, cmdline)
