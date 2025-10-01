@@ -44,17 +44,20 @@ func Execute(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("failed to create compressed: %w", err)
 	}
 	defer func(compressed *os.File) {
+		if err := compressed.Close(); err != nil {
+			log.Printf("failed to close compressed: %s", err)
+		}
 		if err := os.Remove(compressed.Name()); err != nil {
 			log.Printf("failed to remove compressed: %s", err)
 		}
 	}(compressed)
 
-	if err := compress(ctx, tempdir, compressed.Name()); err != nil {
+	if err := compress(ctx, tempdir, compressed); err != nil {
 		return fmt.Errorf("failed to compress: %w", err)
 	}
 	log.Printf("compressed done: %s", compressed.Name())
 
-	if err := upload(ctx, cfg.Backup, cfg.Storage, compressed.Name()); err != nil {
+	if err := upload(ctx, cfg.Backup, cfg.Storage, compressed); err != nil {
 		return fmt.Errorf("failed to upload: %w", err)
 	}
 	log.Printf("upload done: %s", compressed.Name())
@@ -116,28 +119,18 @@ func prepare(ctx context.Context, _ MariaDBConfig, dir string) error {
 	return run(ctx, args)
 }
 
-func compress(ctx context.Context, source, target string) error {
+func compress(ctx context.Context, source string, target *os.File) error {
 	// Create tar command
 	tarCmd := exec.CommandContext(ctx, "tar", "-cf", "-", source)
 	pigzCmd := exec.CommandContext(ctx, "pigz")
 
-	// Open target file
-	outFile, err := os.Create(target)
-	if err != nil {
-		return fmt.Errorf("failed to create target: %w", err)
-	}
-	defer func(outFile *os.File) {
-		if err := outFile.Close(); err != nil {
-			log.Printf("failed to close target: %s", err)
-		}
-	}(outFile)
-
 	// Set up piping
+	var err error
 	pigzCmd.Stdin, err = tarCmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
-	pigzCmd.Stdout = outFile
+	pigzCmd.Stdout = target
 
 	var tarErr, pigzErr bytes.Buffer
 	var errs []error
@@ -156,7 +149,7 @@ func compress(ctx context.Context, source, target string) error {
 	return errors.Join(errs...)
 }
 
-func upload(ctx context.Context, backup Backup, storageConfig StorageConfig, source string) error {
+func upload(ctx context.Context, backup Backup, storageConfig StorageConfig, source *os.File) error {
 	filename := time.Now().UTC().Format("2006-01-02-15-04-05") + ".tar.gz"
 
 	u, err := storageConfig.GetURL()
@@ -169,18 +162,11 @@ func upload(ctx context.Context, backup Backup, storageConfig StorageConfig, sou
 		return fmt.Errorf("failed to create storage backend: %w", err)
 	}
 
-	h, err := os.Open(source)
-	if err != nil {
-		return fmt.Errorf("failed to open %s: %w", source, err)
-	}
-	defer func(h *os.File) {
-		if err := h.Close(); err != nil {
-			log.Printf("failed to close %s: %s", source, err)
-		}
-	}(h)
-
 	// Upload the backup
-	if err := storageBackend.Upload(ctx, filename, h); err != nil {
+	if _, err := source.Seek(0, 0); err != nil {
+		return fmt.Errorf("failed to seek: %w", err)
+	}
+	if err := storageBackend.Upload(ctx, filename, source); err != nil {
 		return fmt.Errorf("failed to upload: %w", err)
 	}
 
