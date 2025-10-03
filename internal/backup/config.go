@@ -28,10 +28,20 @@ type Backup struct {
 	Limits BackupLimitsConfig
 }
 
+type EncryptionConfig struct {
+	EncryptionKey string
+}
+
 type Config struct {
-	MariaDB MariaDBConfig
-	Storage StorageConfig
-	Backup  Backup
+	MariaDB    MariaDBConfig
+	Storage    StorageConfig
+	Backup     Backup
+	Encryption EncryptionConfig
+}
+
+// EncryptionEnabled returns true if encryption is configured and enabled
+func (c *Config) EncryptionEnabled() bool {
+	return c.Encryption.EncryptionKey != ""
 }
 
 func DefaultConfig() Config {
@@ -48,6 +58,9 @@ func DefaultConfig() Config {
 		},
 		Backup: Backup{
 			Limits: BackupLimitsConfig{MaxCount: 0},
+		},
+		Encryption: EncryptionConfig{
+			EncryptionKey: "",
 		},
 	}
 }
