@@ -52,6 +52,11 @@ func Command() *cli.Command {
 				DefaultText: "0",
 				Sources:     cli.EnvVars("BACKUP__LIMITS__MAX_COUNT"),
 			},
+			&cli.StringFlag{
+				Name:    "encryption-key",
+				Usage:   "Encryption key (32 bytes, base64 encoded)",
+				Sources: cli.EnvVars("ENCRYPTION__KEY"),
+			},
 		},
 		Action: func(c context.Context, cmd *cli.Command) error {
 			cfg := backup.DefaultConfig()
@@ -65,6 +70,8 @@ func Command() *cli.Command {
 			cfg.Backup.Limits.MaxCount = cmd.Int("backup-limits-max-count")
 
 			cfg.Storage.URL = cmd.String("storage-url")
+
+			cfg.Encryption.EncryptionKey = cmd.String("encryption-key")
 
 			return backup.Execute(c, cfg)
 		},
