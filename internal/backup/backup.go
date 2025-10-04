@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -28,6 +29,7 @@ func Execute(ctx context.Context, cfg Config) error {
 		}
 	}()
 	log.Printf("tempdir: %s", tempdir)
+	log.Printf("Starting backup pipeline")
 
 	if err := backup(ctx, cfg.MariaDB, tempdir); err != nil {
 		return fmt.Errorf("failed to backup: %w", err)
@@ -39,29 +41,36 @@ func Execute(ctx context.Context, cfg Config) error {
 	}
 	log.Printf("prepare done: %s", tempdir)
 
-	compressed, err := os.CreateTemp("", "mariadb")
-	if err != nil {
-		return fmt.Errorf("failed to create compressed: %w", err)
-	}
-	defer func(compressed *os.File) {
-		if err := compressed.Close(); err != nil {
-			log.Printf("failed to close compressed: %s", err)
+	// Create pipe for streaming compression to upload
+	pipeReader, pipeWriter := io.Pipe()
+	defer func(pipeReader *io.PipeReader) {
+		if err := pipeReader.Close(); err != nil {
+			log.Printf("failed to close pipe: %s", err)
 		}
-		if err := os.Remove(compressed.Name()); err != nil {
-			log.Printf("failed to remove compressed: %s", err)
+	}(pipeReader)
+
+	backupPath := time.Now().UTC().Format("2006-01-02-15-04-05") + ".tar.gz"
+
+	// Start compression in goroutine
+	go func() {
+		err := compress(ctx, tempdir, pipeWriter)
+		if err != nil {
+			if closeErr := pipeWriter.CloseWithError(err); closeErr != nil {
+				log.Printf("failed to close pipe with error: %s", closeErr)
+			}
+			return
 		}
-	}(compressed)
+		if err := pipeWriter.Close(); err != nil {
+			log.Printf("failed to close pipe: %s", err)
+		}
+	}()
 
-	if err := compress(ctx, tempdir, compressed); err != nil {
-		return fmt.Errorf("failed to compress: %w", err)
+	log.Printf("Starting upload to %s", backupPath)
+	if err := upload(ctx, cfg.Backup, cfg.Storage, pipeReader, backupPath); err != nil {
+		return fmt.Errorf("upload failed: %w", err)
 	}
-	log.Printf("compressed done: %s", compressed.Name())
 
-	if err := upload(ctx, cfg.Backup, cfg.Storage, compressed); err != nil {
-		return fmt.Errorf("failed to upload: %w", err)
-	}
-	log.Printf("upload done: %s", compressed.Name())
-
+	log.Printf("Backup pipeline completed successfully")
 	return nil
 }
 
@@ -119,15 +128,19 @@ func prepare(ctx context.Context, _ MariaDBConfig, dir string) error {
 	return run(ctx, args)
 }
 
-func compress(ctx context.Context, source string, target *os.File) error {
+func compress(ctx context.Context, source string, target io.Writer) error {
+	start := time.Now()
+	log.Printf("Starting compression of %s", source)
+
 	// Create tar command
-	tarCmd := exec.CommandContext(ctx, "tar", "-cf", "-", source)
+	tarCmd := exec.CommandContext(ctx, "tar", "-C", source, "-cf", "-", ".")
 	pigzCmd := exec.CommandContext(ctx, "pigz")
 
 	// Set up piping
 	var err error
 	pigzCmd.Stdin, err = tarCmd.StdoutPipe()
 	if err != nil {
+		log.Printf("Compression failed: failed to create stdout pipe: %v", err)
 		return fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 	pigzCmd.Stdout = target
@@ -138,6 +151,7 @@ func compress(ctx context.Context, source string, target *os.File) error {
 	pigzCmd.Stderr = &pigzErr
 
 	if err := pigzCmd.Start(); err != nil {
+		log.Printf("Compression failed: failed to start pigz: %v", err)
 		return fmt.Errorf("failed to start pigz: %w", err)
 	}
 	if err := tarCmd.Run(); err != nil {
@@ -146,34 +160,44 @@ func compress(ctx context.Context, source string, target *os.File) error {
 	if err := pigzCmd.Wait(); err != nil {
 		errs = append(errs, errors.Join(errors.New(pigzErr.String()), err))
 	}
+
+	duration := time.Since(start)
+	if len(errs) > 0 {
+		log.Printf("Compression failed after %v: %v", duration, errors.Join(errs...))
+	} else {
+		log.Printf("Compression completed successfully in %v", duration)
+	}
 	return errors.Join(errs...)
 }
 
-func upload(ctx context.Context, backup Backup, storageConfig StorageConfig, source *os.File) error {
-	filename := time.Now().UTC().Format("2006-01-02-15-04-05") + ".tar.gz"
-
+func upload(ctx context.Context, backup Backup, storageConfig StorageConfig, source io.Reader, filename string) error {
+	start := time.Now()
 	u, err := storageConfig.GetURL()
 	if err != nil {
+		log.Printf("Upload failed: failed to parse storage url: %v", err)
 		return fmt.Errorf("failed to parse storage url: %w", err)
 	}
 
 	storageBackend, err := storage.New(u)
 	if err != nil {
+		log.Printf("Upload failed: failed to create storage backend: %v", err)
 		return fmt.Errorf("failed to create storage backend: %w", err)
 	}
 
 	// Upload the backup
-	if _, err := source.Seek(0, 0); err != nil {
-		return fmt.Errorf("failed to seek: %w", err)
-	}
 	if err := storageBackend.Upload(ctx, filename, source); err != nil {
+		log.Printf("Upload failed for %s: %v", filename, err)
 		return fmt.Errorf("failed to upload: %w", err)
 	}
+
+	duration := time.Since(start)
 
 	// Cleanup old backups
 	if err := storageBackend.DeleteOldBackups(ctx, backup.Limits.MaxCount); err != nil {
 		log.Printf("failed to cleanup: %s", err)
 	}
+
+	log.Printf("Upload completed successfully: %s in %v", filename, duration)
 
 	return nil
 }
