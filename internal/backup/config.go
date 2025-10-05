@@ -1,6 +1,8 @@
 package backup
 
 import (
+	"encoding/base64"
+	"fmt"
 	"net/url"
 )
 
@@ -30,6 +32,19 @@ type Backup struct {
 
 type EncryptionConfig struct {
 	EncryptionKey string
+}
+
+func (e EncryptionConfig) Enabled() bool {
+	return e.EncryptionKey != ""
+}
+
+func (e EncryptionConfig) Key() ([]byte, error) {
+	data, err := base64.StdEncoding.DecodeString(e.EncryptionKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode key: %w", err)
+	}
+
+	return data, nil
 }
 
 type Config struct {
