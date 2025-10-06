@@ -141,6 +141,12 @@
                     <p>Uses mariabackup for high-performance, hot backups with direct filesystem access to MariaDB data
                         directory for maximum reliability and speed.</p>
                 </div>
+                <div class="feature">
+                    <div class="feature-icon">🔒</div>
+                    <h3>End-to-End Encryption</h3>
+                    <p>Secure your backups with AES-256-GCM encryption. Protect sensitive data with industry-standard
+                        encryption that ensures confidentiality even if storage is compromised.</p>
+                </div>
             </div>
         </div>
     </section>
@@ -427,6 +433,10 @@ sudo systemctl enable --now mariadb-backup-s3.timer</code></pre>
                             <code>BACKUP__LIMITS__MAX_COUNT</code>
                             <span>Maximum number of backups to retain (0 = unlimited)</span>
                         </div>
+                        <div class="config-item">
+                            <code>ENCRYPTION__KEY</code>
+                            <span>Base64-encoded encryption key for AES-256-GCM</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -477,8 +487,15 @@ sudo systemctl enable --now mariadb-backup-s3.timer</code></pre>
                             <td>Configuration</td>
                             <td class="check">✓ Environment vars</td>
                             <td class="partial">~ Command line</td>
-                            <td class="partial">~ Config files</td>
+                            <td class="partial">~ Command line</td>
                             <td class="cross">✗ Complex</td>
+                        </tr>
+                        <tr>
+                            <td>Encryption Support</td>
+                            <td class="check">✓ Native</td>
+                            <td class="cross">✗ Manual</td>
+                            <td class="check">✓ Native</td>
+                            <td class="cross">✗ Custom</td>
                         </tr>
                     </tbody>
                 </table>
