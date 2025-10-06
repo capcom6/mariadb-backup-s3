@@ -52,14 +52,14 @@ func Execute(ctx context.Context, cfg Config) error {
 	}
 	log.Printf("prepare done: %s", tempdir)
 
-	return pipeline.Run(nil, nil,
-		func(_ io.Reader, w io.Writer) error {
+	return pipeline.Run(ctx, nil, nil,
+		func(ctx context.Context, _ io.Reader, w io.Writer) error {
 			return compress(ctx, tempdir, w)
 		},
-		func(r io.Reader, w io.Writer) error {
+		func(ctx context.Context, r io.Reader, w io.Writer) error {
 			return encrypt(ctx, cfg.Encryption, r, w)
 		},
-		func(r io.Reader, _ io.Writer) error {
+		func(ctx context.Context, r io.Reader, _ io.Writer) error {
 			return upload(ctx, cfg.Backup, cfg.Storage, r, targetName)
 		},
 	)
