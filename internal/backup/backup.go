@@ -41,8 +41,6 @@ func Execute(ctx context.Context, cfg Config) error {
 			log.Printf("failed to remove tempdir: %s", err)
 		}
 	}()
-	log.Printf("tempdir: %s", tempdir)
-	log.Printf("Starting backup pipeline")
 
 	if err := backup(ctx, cfg.MariaDB, tempdir); err != nil {
 		return fmt.Errorf("failed to backup: %w", err)
@@ -55,48 +53,16 @@ func Execute(ctx context.Context, cfg Config) error {
 	log.Printf("prepare done: %s", tempdir)
 
 	return pipeline.Run(nil, nil,
-		func(r io.Reader, w io.Writer) error {
+		func(_ io.Reader, w io.Writer) error {
 			return compress(ctx, tempdir, w)
 		},
 		func(r io.Reader, w io.Writer) error {
 			return encrypt(ctx, cfg.Encryption, r, w)
 		},
-		func(r io.Reader, w io.Writer) error {
+		func(r io.Reader, _ io.Writer) error {
 			return upload(ctx, cfg.Backup, cfg.Storage, r, targetName)
 		},
 	)
-
-	// Create pipe for streaming compression to upload
-	// pipeReader, pipeWriter := io.Pipe()
-	// defer func(pipeReader *io.PipeReader) {
-	// 	if err := pipeReader.Close(); err != nil {
-	// 		log.Printf("failed to close pipe: %s", err)
-	// 	}
-	// }(pipeReader)
-
-	// backupPath := time.Now().UTC().Format("2006-01-02-15-04-05") + ".tar.gz"
-
-	// // Start compression in goroutine
-	// go func() {
-	// 	err := compress(ctx, tempdir, pipeWriter)
-	// 	if err != nil {
-	// 		if closeErr := pipeWriter.CloseWithError(err); closeErr != nil {
-	// 			log.Printf("failed to close pipe with error: %s", closeErr)
-	// 		}
-	// 		return
-	// 	}
-	// 	if err := pipeWriter.Close(); err != nil {
-	// 		log.Printf("failed to close pipe: %s", err)
-	// 	}
-	// }()
-
-	// log.Printf("Starting upload to %s", backupPath)
-	// if err := upload(ctx, cfg.Backup, cfg.Storage, pipeReader, backupPath); err != nil {
-	// 	return fmt.Errorf("upload failed: %w", err)
-	// }
-
-	// log.Printf("Backup pipeline completed successfully")
-	// return nil
 }
 
 func run(ctx context.Context, args []string) error {

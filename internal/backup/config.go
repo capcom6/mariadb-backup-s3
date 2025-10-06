@@ -54,11 +54,6 @@ type Config struct {
 	Encryption EncryptionConfig
 }
 
-// EncryptionEnabled returns true if encryption is configured and enabled
-func (c *Config) EncryptionEnabled() bool {
-	return c.Encryption.EncryptionKey != ""
-}
-
 func DefaultConfig() Config {
 	return Config{
 		MariaDB: MariaDBConfig{
