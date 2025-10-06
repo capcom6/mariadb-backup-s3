@@ -25,20 +25,9 @@
     - [FTP Storage](#ftp-storage)
     - [Filesystem Storage](#filesystem-storage)
   - [🔐 Encryption](#-encryption)
-    - [Supported Methods](#supported-methods)
-      - [AES256-GCM (Recommended)](#aes256-gcm-recommended)
     - [Security Considerations](#security-considerations)
       - [Key Management](#key-management)
       - [Key Generation](#key-generation)
-      - [Fallback Mechanism](#fallback-mechanism)
-    - [Error Handling](#error-handling)
-    - [Compliance Information](#compliance-information)
-      - [PCI-DSS](#pci-dss)
-      - [GDPR](#gdpr)
-    - [Performance Impact](#performance-impact)
-    - [Troubleshooting](#troubleshooting)
-      - [Common Issues](#common-issues)
-    - [Best Practices](#best-practices)
   - [🚀 Usage](#-usage)
     - [Command Line](#command-line)
     - [Docker](#docker-1)
@@ -147,15 +136,16 @@ AWS_REGION=us-east-1
 BACKUP__LIMITS__MAX_COUNT=30  # Keep last 30 backups
 ```
 
-| Variable                    | Default       | Description                          |
-| --------------------------- | ------------- | ------------------------------------ |
-| `MARIADB__HOST`             | localhost     | Database host address                |
-| `MARIADB__PORT`             | 3306          | Database port                        |
-| `MARIADB__USER`             | root          | Database user                        |
-| `MARIADB__PASSWORD`         | -             | Database password                    |
-| `MARIADB__BACKUP_OPTIONS`   | -             | Extra `mariabackup` options          |
-| `STORAGE__URL`              | **Required**  | Storage URL (format depends on type) |
-| `BACKUP__LIMITS__MAX_COUNT` | 0 (unlimited) | Maximum backups to retain            |
+| Variable                    | Default       | Description                                   |
+| --------------------------- | ------------- | --------------------------------------------- |
+| `MARIADB__HOST`             | localhost     | Database host address                         |
+| `MARIADB__PORT`             | 3306          | Database port                                 |
+| `MARIADB__USER`             | root          | Database user                                 |
+| `MARIADB__PASSWORD`         | -             | Database password                             |
+| `MARIADB__BACKUP_OPTIONS`   | -             | Extra `mariabackup` options                   |
+| `STORAGE__URL`              | **Required**  | Storage URL (format depends on type)          |
+| `BACKUP__LIMITS__MAX_COUNT` | 0 (unlimited) | Maximum backups to retain                     |
+| `ENCRYPTION__KEY`           | -             | Base64-encoded encryption key for AES-256-GCM |
 
 ### Command-Line Flags
 Override any configuration with flags:
@@ -175,6 +165,7 @@ Override any configuration with flags:
 | `--db-password`       | Set database password               |
 | `--db-backup-options` | Additional `mariabackup` parameters |
 | `--storage-url`       | Custom storage URL                  |
+| `--encryption-key`    | Base64-encoded AES-256-GCM key      |
 
 
 ## 📂 Storage Types
@@ -222,12 +213,7 @@ STORAGE__URL=file:///absolute/path/to/backup/directory
 
 ## 🔐 Encryption
 
-The backup system supports encryption to ensure your database backups remain confidential and secure. AES256-GCM (client-side) encryption is available.
-
-### Supported Methods
-
-#### AES256-GCM
-Client-side encryption using AES-256 in Galois/Counter Mode (GCM). This method provides both confidentiality and integrity verification.
+The backup system supports client-side encryption using AES-256 in Galois/Counter Mode (GCM) to ensure your database backups remain confidential and secure. This method provides both confidentiality and integrity verification.
 
 **Features:**
 - 256-bit key strength
@@ -236,7 +222,7 @@ Client-side encryption using AES-256 in Galois/Counter Mode (GCM). This method p
 
 **Configuration:**
 ```dotenv
-# 32-byte base64-encoded encryption key
+# base64-encoded encryption key
 ENCRYPTION__KEY=Av2cfWJ3enCHTyzPdzowfAXshvJtbEsvwgPjV46wnjc=
 ```
 
@@ -257,20 +243,6 @@ openssl rand -base64 32
 # Alternative method using /dev/urandom
 head -c 32 /dev/urandom | base64
 ```
-
-### Performance Impact
-
-- **AES256-GCM**: Minimal performance impact (typically <5% overhead)
-- Memory usage: ~64MB additional for encryption operations
-
-### Best Practices
-
-1. **Regular Key Rotation**: Rotate encryption keys quarterly for production environments
-2. **Secure Key Storage**: Use dedicated secret management systems like AWS Secrets Manager or HashiCorp Vault
-3. **Access Controls**: Implement strict access controls for encryption key management
-4. **Testing**: Regularly test encryption/decryption processes to ensure key integrity
-5. **Backup Keys**: Maintain secure offline backups of encryption keys
-6. **Compliance**: Ensure encryption practices meet your specific compliance requirements
 
 ## 🚀 Usage
 
