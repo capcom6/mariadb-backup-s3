@@ -25,15 +25,7 @@ func main() {
 		Commands: []*cli.Command{
 			backup.Command(),
 		},
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:     "storage-url",
-				Aliases:  []string{"storage"},
-				Usage:    "Storage URL (e.g., s3://bucket/path, file:///path, ftp://host/path)",
-				Required: true,
-				Sources:  cli.EnvVars("STORAGE__URL"),
-			},
-		},
+		Flags: []cli.Flag{},
 		Authors: []any{
 			"Aleksandr Soloshenko <i@capcom.me>",
 		},
