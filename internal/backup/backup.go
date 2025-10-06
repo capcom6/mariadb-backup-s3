@@ -171,12 +171,6 @@ func compress(ctx context.Context, source string, target io.Writer) error {
 }
 
 func encrypt(ctx context.Context, config EncryptionConfig, source io.Reader, target io.Writer) error {
-	log.Println("Stage 3.1: Encrypt")
-	start := time.Now()
-	defer func() {
-		log.Printf("Stage 3.1 completed in %v", time.Since(start))
-	}()
-
 	if !config.Enabled() {
 		_, err := io.Copy(target, source)
 		if err != nil {
@@ -185,6 +179,12 @@ func encrypt(ctx context.Context, config EncryptionConfig, source io.Reader, tar
 
 		return nil
 	}
+
+	log.Println("Stage 3.1: Encrypt")
+	start := time.Now()
+	defer func() {
+		log.Printf("Stage 3.1 completed in %v", time.Since(start))
+	}()
 
 	masterKey, err := config.Key()
 	if err != nil {
