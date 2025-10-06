@@ -14,6 +14,13 @@ func Command() *cli.Command {
 		Usage: "Backup MariaDB database",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
+				Name:     "storage-url",
+				Aliases:  []string{"storage"},
+				Usage:    "Storage URL (e.g., s3://bucket/path, file:///path, ftp://host/path)",
+				Required: true,
+				Sources:  cli.EnvVars("STORAGE__URL"),
+			},
+			&cli.StringFlag{
 				Name:        "db-host",
 				Aliases:     []string{"host"},
 				Usage:       "Database Host",
