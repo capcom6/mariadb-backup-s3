@@ -31,7 +31,7 @@
   - [🚀 Usage](#-usage)
     - [Command Line](#command-line)
     - [Docker](#docker-1)
-  - [⏰ Scheduling](#-scheduling)
+  - [📝 Examples](#-examples)
   - [🤝 Contributing](#-contributing)
   - [📄 License](#-license)
 
@@ -273,12 +273,13 @@ docker run --rm \
   ghcr.io/capcom6/mariadb-backup-s3
 ```
 
-## ⏰ Scheduling
+## 📝 Examples
 
 - **systemd Service Example**: [examples/systemd-service](./examples/systemd-service/)
 - **Docker Swarm CRON Example**: [examples/docker-cron-backup](./examples/docker-cron-backup/)
 - **Simple CRON Example**: [examples/simple-cron-backup](./examples/simple-cron-backup/)
 - **Advanced CRON Example**: [examples/advanced-cron-backup](./examples/advanced-cron-backup/)
+- **Encryption Example**: [examples/encryption-example](./examples/encryption-example/)
 
 ## 🤝 Contributing
 
