@@ -65,7 +65,7 @@ func NewS3Storage(u *url.URL) (StorageBackend, error) {
 }
 
 func (s *s3Storage) Upload(ctx context.Context, path string, data io.Reader) error {
-	key := s.prefix + path
+	key := s.prefix + strings.TrimPrefix(path, "/")
 
 	uploader := manager.NewUploader(s.client)
 	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
@@ -76,6 +76,29 @@ func (s *s3Storage) Upload(ctx context.Context, path string, data io.Reader) err
 	})
 	if err != nil {
 		return fmt.Errorf("failed to upload to S3: %w", err)
+	}
+
+	return nil
+}
+
+func (s *s3Storage) Download(ctx context.Context, path string, data io.Writer) error {
+	key := s.prefix + strings.TrimPrefix(path, "/")
+
+	// Use GetObject directly since downloader requires WriterAt
+	getObjectOutput, err := s.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to get object from S3: %w", err)
+	}
+	defer func() {
+		_ = getObjectOutput.Body.Close()
+	}()
+
+	_, err = io.Copy(data, getObjectOutput.Body)
+	if err != nil {
+		return fmt.Errorf("failed to copy S3 object data: %w", err)
 	}
 
 	return nil
