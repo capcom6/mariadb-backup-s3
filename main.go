@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/capcom6/mariadb-backup-s3/internal/commands/backup"
+	"github.com/capcom6/mariadb-backup-s3/internal/cli/commands/backup"
 	"github.com/capcom6/mariadb-backup-s3/internal/core/codes"
 	"github.com/joho/godotenv"
 	"github.com/urfave/cli/v3"
