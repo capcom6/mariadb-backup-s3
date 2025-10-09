@@ -155,6 +155,12 @@ func (s *AES256GCMService) Decrypt(ctx context.Context, in io.Reader, out io.Wri
 	var chunkIdx uint64 = 0
 	lenBuf := make([]byte, 4)
 	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		// read frame length
 		if _, err := io.ReadFull(in, lenBuf); err != nil {
 			if err == io.EOF {
