@@ -105,6 +105,27 @@ func (f *ftpStorage) Upload(ctx context.Context, relPath string, data io.Reader)
 	return nil
 }
 
+func (f *ftpStorage) Download(ctx context.Context, filename string, data io.Writer) error {
+	// Create full remote path (prevent escaping basePath)
+	cleanRel := strings.TrimPrefix(path.Clean("/"+filename), "/")
+	remotePath := path.Join(f.basePath, cleanRel)
+
+	// Fail fast if already canceled
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	// Download file
+	err := f.client.Retrieve(remotePath, data)
+	if err != nil {
+		return fmt.Errorf("failed to download from FTP: %w", err)
+	}
+
+	return nil
+}
+
 func (f *ftpStorage) DeleteOldBackups(ctx context.Context, maxCount int) error {
 	if maxCount == 0 {
 		return nil

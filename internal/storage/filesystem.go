@@ -21,32 +21,27 @@ func NewFilesystemStorage(u *url.URL) (StorageBackend, error) {
 		return nil, fmt.Errorf("filesystem storage requires a path")
 	}
 
-	// Ensure the directory exists
-	if err := os.MkdirAll(basePath, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create directory: %w", err)
-	}
-
 	return &filesystemStorage{
 		basePath: basePath,
 	}, nil
 }
 
-func (f *filesystemStorage) Upload(ctx context.Context, path string, data io.Reader) (err error) {
-	fullPath := filepath.Join(f.basePath, path)
+func (f *filesystemStorage) Upload(ctx context.Context, filename string, data io.Reader) error {
+	var err error
 
 	// Ensure the directory exists
-	dir := filepath.Dir(fullPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(f.basePath, 0700); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	file, err := os.Create(fullPath)
+	fullPath := filepath.Join(f.basePath, filename)
+	file, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
 	defer func() {
 		if closeErr := file.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("failed to close file: %w", closeErr)
+			err = errors.Join(err, fmt.Errorf("failed to close file: %w", closeErr))
 		}
 	}()
 
@@ -57,7 +52,31 @@ func (f *filesystemStorage) Upload(ctx context.Context, path string, data io.Rea
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
-	return nil
+	return err
+}
+
+func (f *filesystemStorage) Download(ctx context.Context, path string, data io.Writer) error {
+	var err error
+
+	fullPath := filepath.Join(f.basePath, path)
+
+	file, err := os.Open(fullPath)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = errors.Join(err, fmt.Errorf("failed to close file: %w", closeErr))
+		}
+	}()
+
+	// Use context-aware copying for cancellation support
+	if err := copyWithContext(ctx, data, file); err != nil {
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+
+	return err
 }
 
 func (f *filesystemStorage) DeleteOldBackups(ctx context.Context, maxCount int) error {
