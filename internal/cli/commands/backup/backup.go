@@ -10,14 +10,13 @@ import (
 
 func Command() *cli.Command {
 	fl := flags.Database()
-	fl = append(fl, flags.Encryption()...)
 	fl = append(fl, flags.Storage()...)
+	fl = append(fl, flags.Encryption()...)
 	fl = append(fl,
 		&cli.StringFlag{
-			Name:        "db-backup-options",
-			Usage:       "database backup options",
-			DefaultText: "mariadb-backup additional options",
-			Sources:     cli.EnvVars("MARIADB__BACKUP_OPTIONS"),
+			Name:    "db-backup-options",
+			Usage:   "mariadb-backup additional options",
+			Sources: cli.EnvVars("MARIADB__BACKUP_OPTIONS"),
 		},
 		&cli.IntFlag{
 			Name:        "backup-limits-max-count",
