@@ -18,8 +18,9 @@
     - [Docker](#docker)
     - [From Source (Advanced)](#from-source-advanced)
   - [⚙️ Configuration](#️-configuration)
-    - [Environment Variables](#environment-variables)
-    - [Command-Line Flags](#command-line-flags)
+  - [🚀 Usage](#-usage)
+    - [Backup](#backup)
+    - [Restore](#restore)
   - [📂 Storage Types](#-storage-types)
     - [S3 Storage](#s3-storage)
     - [FTP Storage](#ftp-storage)
@@ -28,9 +29,6 @@
     - [Security Considerations](#security-considerations)
       - [Key Management](#key-management)
       - [Key Generation](#key-generation)
-  - [🚀 Usage](#-usage)
-    - [Command Line](#command-line)
-    - [Docker](#docker-1)
   - [📝 Examples](#-examples)
   - [🤝 Contributing](#-contributing)
   - [📄 License](#-license)
@@ -51,13 +49,14 @@ go install github.com/capcom6/mariadb-backup-s3@latest
 # Configure & run
 cp .env.example .env
 nano .env  # Edit with your credentials
-mariadb-backup-s3
+./mariadb-backup-s3
 ```
 
 ## ✨ Features
 
 - 🛡️ Full database backups using `mariabackup`
 - 🗜️ Compression to `.tar.gz` format
+- 🔑 Optional encryption using AES-256-GCM
 - ☁️ Multiple storage backends (S3-compatible, FTP, filesystem)
 - 🔌 Pluggable storage interface for extensibility
 - 🔄 Automatic backup rotation
@@ -71,8 +70,16 @@ The backup process follows these steps:
 2. 💾 Perform MariaDB backup using `mariabackup --backup`
 3. 🔧 Prepare backup for consistency using `mariabackup --prepare`
 4. 🗜️ Compress backup to `.tar.gz` archive
-5. 🚀 Upload archive to configured storage backend
-6. 🧹 Clean up old backups based on retention policy
+5. 🔑 Encrypt archive using AES-256-GCM
+6. 🚀 Upload archive to configured storage backend
+7. 🧹 Clean up old backups based on retention policy
+
+The restore process follows these steps:
+
+1. 📥 Download the backup file from the specified storage backend
+2. 🔑 Decrypt the backup using AES-256-GCM
+3. 🗜️ Decompress the `.tar.gz` archive
+4. 🔄 Restore the database files to specified directory
 
 ## 📋 Prerequisites
 
@@ -114,58 +121,91 @@ go build -o mariadb-backup-s3
 
 ## ⚙️ Configuration
 
-### Environment Variables
-Create `.env` file with these variables:
+The tool supports loading configuration from multiple sources:
 
-```dotenv
-# MariaDB Configuration
-MARIADB__USER=root
-MARIADB__PASSWORD=your_strong_password
-MARIADB__HOST=localhost
-MARIADB__PORT=3306
+1. `.env` file in the current directory
+2. Environment variables
+3. Command-line flags
 
-# Storage Configuration
-STORAGE__URL=s3://your-bucket/backups?endpoint=https://s3.endpoint
+The priority order is: `.env` > Environment variables > Command-line flags
 
-# S3 Configuration (when using S3 storage)
-AWS_ACCESS_KEY=your_access_key
-AWS_SECRET_KEY=your_secret_key
-AWS_REGION=us-east-1
+## 🚀 Usage
 
-# Backup Settings
-BACKUP__LIMITS__MAX_COUNT=30  # Keep last 30 backups
+```bash
+mariadb-backup-s3 [global options] command [command options] [arguments...]
 ```
 
-| Variable                    | Default       | Description                                   |
-| --------------------------- | ------------- | --------------------------------------------- |
-| `MARIADB__HOST`             | localhost     | Database host address                         |
-| `MARIADB__PORT`             | 3306          | Database port                                 |
-| `MARIADB__USER`             | root          | Database user                                 |
-| `MARIADB__PASSWORD`         | -             | Database password                             |
-| `MARIADB__BACKUP_OPTIONS`   | -             | Extra `mariabackup` options                   |
-| `STORAGE__URL`              | **Required**  | Storage URL (format depends on type)          |
-| `BACKUP__LIMITS__MAX_COUNT` | 0 (unlimited) | Maximum backups to retain                     |
-| `ENCRYPTION__KEY`           | -             | Base64-encoded encryption key for AES-256-GCM |
+The tool offers the following commands:
 
-### Command-Line Flags
-Override any configuration with flags:
+| Command   | Description                                       |
+| --------- | ------------------------------------------------- |
+| `backup`  | Perform a backup of the MariaDB database          |
+| `restore` | Restore the database files to specified directory |
+
+### Backup
+
+```bash
+mariadb-backup-s3 backup [options]
+```
+
+**Options:**
+
+| Option                        | Env Var                     | Description                                      | Default value |
+| ----------------------------- | --------------------------- | ------------------------------------------------ | ------------- |
+| **Database**                  |                             |                                                  |               |
+| `--db-host`, `--host`         | `MARIADB__HOST`             | MariaDB hostname                                 | `localhost`   |
+| `--db-port`, `--port`         | `MARIADB__PORT`             | MariaDB port                                     | `3306`        |
+| `--db-user`, `--user`         | `MARIADB__USER`             | MariaDB username                                 | `root`        |
+| `--db-password`, `--password` | `MARIADB__PASSWORD`         | MariaDB password                                 | `""`          |
+| **Storage**                   |                             |                                                  |               |
+| `--storage`, `--storage-url`  | `STORAGE__URL`              | Storage URL, see [Storage Types](#storage-types) | **required**  |
+| **Encryption**                |                             |                                                  |               |
+| `--encryption-key`            | `ENCRYPTION__KEY`           | Encryption key                                   | `""`          |
+| **mariadb-backup**            |                             |                                                  |               |
+| `--db-backup-options`         | `MARIADB__BACKUP_OPTIONS`   | MariaDB backup options                           | `""`          |
+| **Retention**                 |                             |                                                  |               |
+| `--backup-limits-max-count`   | `BACKUP__LIMITS__MAX_COUNT` | Number of backups to keep, 0 = unlimited         | `0`           |
+
+**Example:**
 
 ```shell
-./mariadb-backup-s3 \
+./mariadb-backup-s3 backup \
   --db-host=mariadb.example.com \
-  --db-password=secret \
+  --db-user=backup \
   --storage-url="file:///var/backups/mariadb"
 ```
 
-| Flag                  | Description                         |
-| --------------------- | ----------------------------------- |
-| `--db-host`           | Override database host              |
-| `--db-port`           | Override database port              |
-| `--db-user`           | Specify database user               |
-| `--db-password`       | Set database password               |
-| `--db-backup-options` | Additional `mariabackup` parameters |
-| `--storage-url`       | Custom storage URL                  |
-| `--encryption-key`    | Base64-encoded AES-256-GCM key      |
+### Restore
+
+```bash
+mariadb-backup-s3 restore [options] filename
+```
+
+**Options:**
+
+| Option                       | Env Var               | Description                                      | Default value |
+| ---------------------------- | --------------------- | ------------------------------------------------ | ------------- |
+| **Storage**                  |                       |                                                  |               |
+| `--storage`, `--storage-url` | `STORAGE__URL`        | Storage URL, see [Storage Types](#storage-types) | **required**  |
+| **Encryption**               |                       |                                                  |               |
+| `--encryption-key`           | `ENCRYPTION__KEY`     | Encryption key                                   | `""`          |
+| **Restore**                  |                       |                                                  |               |
+| `--target-dir`               | `RESTORE__TARGET_DIR` | Target directory to restore files to             | **required**  |
+
+**Arguments:**
+
+| Argument   | Description      |
+| ---------- | ---------------- |
+| `filename` | Backup file name |
+
+**Example:**
+
+```shell
+./mariadb-backup-s3 restore \
+  --storage-url="file:///var/backups/mariadb" \
+  --target-dir=/var/lib/mariadb \
+  backup_name.tar.gz
+```
 
 
 ## 📂 Storage Types
@@ -242,35 +282,6 @@ openssl rand -base64 32
 
 # Alternative method using /dev/urandom
 head -c 32 /dev/urandom | base64
-```
-
-## 🚀 Usage
-
-### Command Line
-```shell
-# Configure & run
-cp .env.example .env
-nano .env  # Edit with your credentials
-
-./mariadb-backup-s3
-```
-
-### Docker
-```shell
-# Create .env file for filesystem storage
-cat > .env << EOF
-MARIADB__USER=root
-MARIADB__PASSWORD=secret
-STORAGE__URL=file:///backups/mariadb
-BACKUP__LIMITS__MAX_COUNT=7
-EOF
-
-# Run with filesystem storage
-docker run --rm \
-  -v /var/lib/mysql:/var/lib/mysql \
-  -v /var/backups:/backups \
-  --env-file .env \
-  ghcr.io/capcom6/mariadb-backup-s3
 ```
 
 ## 📝 Examples
