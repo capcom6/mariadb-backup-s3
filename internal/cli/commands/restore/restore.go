@@ -2,6 +2,7 @@ package restore
 
 import (
 	"context"
+	"errors"
 
 	"github.com/capcom6/mariadb-backup-s3/internal/cli/flags"
 	"github.com/capcom6/mariadb-backup-s3/internal/restore"
@@ -27,7 +28,6 @@ func Command() *cli.Command {
 		Arguments: []cli.Argument{
 			&cli.StringArg{
 				Name:      "backup-file",
-				Value:     "",
 				UsageText: "backup file name",
 				Config: cli.StringConfig{
 					TrimSpace: true,
@@ -44,7 +44,11 @@ func Command() *cli.Command {
 
 			cfg.Restore.TargetDir = cmd.String("target-dir")
 
-			return restore.Execute(c, cmd.String("backup-file"), cfg)
+			if cmd.StringArg("backup-file") == "" {
+				return errors.New("backup file name is required")
+			}
+
+			return restore.Execute(c, cmd.StringArg("backup-file"), cfg)
 		},
 	}
 }
