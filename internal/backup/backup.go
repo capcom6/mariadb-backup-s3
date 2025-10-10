@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/capcom6/mariadb-backup-s3/internal/config"
 	"github.com/capcom6/mariadb-backup-s3/internal/encryption"
 	"github.com/capcom6/mariadb-backup-s3/internal/sanitizer"
 	"github.com/capcom6/mariadb-backup-s3/internal/storage"
@@ -83,7 +84,7 @@ func run(ctx context.Context, args []string) error {
 	return nil
 }
 
-func backup(ctx context.Context, options MariaDBConfig, dir string) error {
+func backup(ctx context.Context, options config.MariaDB, dir string) error {
 	log.Println("Stage 1: Backup")
 	start := time.Now()
 	defer func() {
@@ -115,7 +116,7 @@ func backup(ctx context.Context, options MariaDBConfig, dir string) error {
 	return run(ctx, args)
 }
 
-func prepare(ctx context.Context, _ MariaDBConfig, dir string) error {
+func prepare(ctx context.Context, _ config.MariaDB, dir string) error {
 	log.Println("Stage 2: Prepare")
 	start := time.Now()
 	defer func() {
@@ -170,7 +171,7 @@ func compress(ctx context.Context, source string, target io.Writer) error {
 	return errors.Join(errs...)
 }
 
-func encrypt(ctx context.Context, config EncryptionConfig, source io.Reader, target io.Writer) error {
+func encrypt(ctx context.Context, config config.Encryption, source io.Reader, target io.Writer) error {
 	if !config.Enabled() {
 		_, err := io.Copy(target, source)
 		if err != nil {
@@ -196,7 +197,7 @@ func encrypt(ctx context.Context, config EncryptionConfig, source io.Reader, tar
 	return service.Encrypt(ctx, source, target)
 }
 
-func upload(ctx context.Context, backup Backup, storageConfig StorageConfig, source io.Reader, filename string) error {
+func upload(ctx context.Context, backup Backup, storageConfig config.Storage, source io.Reader, filename string) error {
 	log.Println("Stage 4: Upload")
 	start := time.Now()
 	defer func() {
