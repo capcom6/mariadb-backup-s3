@@ -81,13 +81,13 @@ jobs:
           body: |
             ## 🤖 Pull request artifacts
 
-            | Platform         | File                                                                                                                               |
-            | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+            | Platform          | File                                                                                                                               |
+            | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+            | 🐳 Docker         | [GitHub Container Registry](https://ghcr.io/${{ github.repository }}:pr-${{ github.event.pull_request.number }})                   |
             | 🍎 Darwin arm64   | [mariadb-backup-s3_Darwin_arm64.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/mariadb-backup-s3_Darwin_arm64.tar.gz)   |
             | 🍎 Darwin x86_64  | [mariadb-backup-s3_Darwin_x86_64.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/mariadb-backup-s3_Darwin_x86_64.tar.gz) |
             | 🐧 Linux arm64    | [mariadb-backup-s3_Linux_arm64.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/mariadb-backup-s3_Linux_arm64.tar.gz)     |
             | 🐧 Linux i386     | [mariadb-backup-s3_Linux_i386.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/mariadb-backup-s3_Linux_i386.tar.gz)       |
-            | 🐧 Linux x86_64   | [GitHub Container Registry](https://ghcr.io/${{ github.repository }}:pr-${{ github.event.pull_request.number }})                   |
             | 🐧 Linux x86_64   | [mariadb-backup-s3_Linux_x86_64.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/mariadb-backup-s3_Linux_x86_64.tar.gz)   |
             | 🪟 Windows arm64  | [mariadb-backup-s3_Windows_arm64.zip](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/mariadb-backup-s3_Windows_arm64.zip)       |
             | 🪟 Windows i386   | [mariadb-backup-s3_Windows_i386.zip](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/mariadb-backup-s3_Windows_i386.zip)         |
