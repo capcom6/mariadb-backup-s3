@@ -1,5 +1,7 @@
 FROM mariadb:lts
 
+ARG TARGETPLATFORM
+
 # Install pigz
 RUN apt-get update && apt-get install -y pigz && rm -rf /var/lib/apt/lists/*
 
@@ -7,7 +9,7 @@ RUN apt-get update && apt-get install -y pigz && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Copy the Pre-built binary file from GoReleaser
-COPY mariadb-backup-s3 .
+COPY $TARGETPLATFORM/mariadb-backup-s3 ./app
 
 # Command to run the executable
-ENTRYPOINT ["./mariadb-backup-s3"]
+ENTRYPOINT ["./app"]

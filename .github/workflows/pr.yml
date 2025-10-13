@@ -13,14 +13,15 @@ jobs:
   goreleaser:
     runs-on: ubuntu-latest
     steps:
+      - name: Prepare
+        run: |
+          repository=${{ github.repository }}
+          echo "PROJECT_NAME=${repository#*/}" >> $GITHUB_ENV
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: stable
 
       - name: Login to GitHub Container registry
         if: github.actor != 'dependabot[bot]'
@@ -30,8 +31,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
         with:
           # either 'goreleaser' (default) or 'goreleaser-pro'
           distribution: goreleaser
@@ -49,21 +56,30 @@ jobs:
           aws_bucket: ${{ secrets.AWS_BUCKET }}
           endpoint: ${{ secrets.AWS_ENDPOINT }}
           source_files: |
-            dist/mariadb-backup-s3_Windows_i386.zip
-            dist/mariadb-backup-s3_Linux_arm64.tar.gz
-            dist/mariadb-backup-s3_Darwin_arm64.tar.gz
-            dist/mariadb-backup-s3_Windows_x86_64.zip
-            dist/mariadb-backup-s3_Linux_x86_64.tar.gz
-            dist/mariadb-backup-s3_Windows_arm64.zip
-            dist/mariadb-backup-s3_Darwin_x86_64.tar.gz
-            dist/mariadb-backup-s3_Linux_i386.tar.gz
+            dist/${{ env.PROJECT_NAME }}_Windows_i386.zip
+            dist/${{ env.PROJECT_NAME }}_Linux_arm64.tar.gz
+            dist/${{ env.PROJECT_NAME }}_Darwin_arm64.tar.gz
+            dist/${{ env.PROJECT_NAME }}_Windows_x86_64.zip
+            dist/${{ env.PROJECT_NAME }}_Linux_x86_64.tar.gz
+            dist/${{ env.PROJECT_NAME }}_Windows_arm64.zip
+            dist/${{ env.PROJECT_NAME }}_Darwin_x86_64.tar.gz
+            dist/${{ env.PROJECT_NAME }}_Linux_i386.tar.gz
           destination_dir: ${{ github.repository }}/${{ github.event.pull_request.head.sha }}
 
       - name: Push images
         if: github.actor != 'dependabot[bot]'
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
         run: |
-          docker tag ghcr.io/${{ github.repository }}:latest ghcr.io/${{ github.repository }}:pr-${{ github.event.pull_request.number }}
-          docker push ghcr.io/${{ github.repository }}:pr-${{ github.event.pull_request.number }}
+          docker tag ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}:latest-arm64 ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}:pr-${{ github.event.pull_request.number }}-arm64
+          docker tag ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}:latest-amd64 ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}:pr-${{ github.event.pull_request.number }}-amd64
+          docker push ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}:pr-${{ github.event.pull_request.number }}-arm64
+          docker push ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}:pr-${{ github.event.pull_request.number }}-amd64
+          docker manifest create ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}:pr-${{ github.event.pull_request.number }} \
+            ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}:pr-${{ github.event.pull_request.number }}-amd64 \
+            ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}:pr-${{ github.event.pull_request.number }}-arm64
+          docker manifest push ${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}:pr-${{ github.event.pull_request.number }}
 
       - name: Find Comment
         uses: peter-evans/find-comment@v3
@@ -75,6 +91,9 @@ jobs:
 
       - name: Create or update comment
         uses: peter-evans/create-or-update-comment@v4
+        env:
+          DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
+          PROJECT_NAME: ${{ env.PROJECT_NAME }}
         with:
           comment-id: ${{ steps.fc.outputs.comment-id }}
           issue-number: ${{ github.event.pull_request.number }}
@@ -83,14 +102,14 @@ jobs:
 
             | Platform          | File                                                                                                                               |
             | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-            | 🐳 Docker         | [GitHub Container Registry](https://ghcr.io/${{ github.repository }}:pr-${{ github.event.pull_request.number }})                   |
-            | 🍎 Darwin arm64   | [mariadb-backup-s3_Darwin_arm64.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/mariadb-backup-s3_Darwin_arm64.tar.gz)   |
-            | 🍎 Darwin x86_64  | [mariadb-backup-s3_Darwin_x86_64.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/mariadb-backup-s3_Darwin_x86_64.tar.gz) |
-            | 🐧 Linux arm64    | [mariadb-backup-s3_Linux_arm64.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/mariadb-backup-s3_Linux_arm64.tar.gz)     |
-            | 🐧 Linux i386     | [mariadb-backup-s3_Linux_i386.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/mariadb-backup-s3_Linux_i386.tar.gz)       |
-            | 🐧 Linux x86_64   | [mariadb-backup-s3_Linux_x86_64.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/mariadb-backup-s3_Linux_x86_64.tar.gz)   |
-            | 🪟 Windows arm64  | [mariadb-backup-s3_Windows_arm64.zip](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/mariadb-backup-s3_Windows_arm64.zip)       |
-            | 🪟 Windows i386   | [mariadb-backup-s3_Windows_i386.zip](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/mariadb-backup-s3_Windows_i386.zip)         |
-            | 🪟 Windows x86_64 | [mariadb-backup-s3_Windows_x86_64.zip](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/mariadb-backup-s3_Windows_x86_64.zip)     |
+            | 🐳 Docker         | [GitHub Container Registry](https://${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}:pr-${{ github.event.pull_request.number }})                   |
+            | 🍎 Darwin arm64   | [${{ env.PROJECT_NAME }}_Darwin_arm64.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/${{ env.PROJECT_NAME }}_Darwin_arm64.tar.gz)   |
+            | 🍎 Darwin x86_64  | [${{ env.PROJECT_NAME }}_Darwin_x86_64.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/${{ env.PROJECT_NAME }}_Darwin_x86_64.tar.gz) |
+            | 🐧 Linux arm64    | [${{ env.PROJECT_NAME }}_Linux_arm64.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/${{ env.PROJECT_NAME }}_Linux_arm64.tar.gz)     |
+            | 🐧 Linux i386     | [${{ env.PROJECT_NAME }}_Linux_i386.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/${{ env.PROJECT_NAME }}_Linux_i386.tar.gz)       |
+            | 🐧 Linux x86_64   | [${{ env.PROJECT_NAME }}_Linux_x86_64.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/${{ env.PROJECT_NAME }}_Linux_x86_64.tar.gz)   |
+            | 🪟 Windows arm64  | [${{ env.PROJECT_NAME }}_Windows_arm64.zip](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/${{ env.PROJECT_NAME }}_Windows_arm64.zip)       |
+            | 🪟 Windows i386   | [${{ env.PROJECT_NAME }}_Windows_i386.zip](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/${{ env.PROJECT_NAME }}_Windows_i386.zip)         |
+            | 🪟 Windows x86_64 | [${{ env.PROJECT_NAME }}_Windows_x86_64.zip](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/${{ env.PROJECT_NAME }}_Windows_x86_64.zip)     |
 
           edit-mode: replace
