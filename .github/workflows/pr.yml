@@ -34,15 +34,17 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCKER_REGISTRY: ${{ vars.DOCKER_REGISTRY }}
         with:
-          # either 'goreleaser' (default) or 'goreleaser-pro'
           distribution: goreleaser
-          # 'latest', 'nightly', or a semver
           version: "~> v2"
           args: release --snapshot
 
@@ -100,9 +102,9 @@ jobs:
           body: |
             ## 🤖 Pull request artifacts
 
-            | Platform          | File                                                                                                                               |
-            | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-            | 🐳 Docker         | [GitHub Container Registry](https://${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}:pr-${{ github.event.pull_request.number }})                   |
+            | Platform         | File                                                                                                                                                                                     |
+            | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+            | 🐳 Docker         | [GitHub Container Registry](https://${{ env.DOCKER_REGISTRY }}/${{ env.PROJECT_NAME }}:pr-${{ github.event.pull_request.number }})                                                       |
             | 🍎 Darwin arm64   | [${{ env.PROJECT_NAME }}_Darwin_arm64.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/${{ env.PROJECT_NAME }}_Darwin_arm64.tar.gz)   |
             | 🍎 Darwin x86_64  | [${{ env.PROJECT_NAME }}_Darwin_x86_64.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/${{ env.PROJECT_NAME }}_Darwin_x86_64.tar.gz) |
             | 🐧 Linux arm64    | [${{ env.PROJECT_NAME }}_Linux_arm64.tar.gz](https://github.capcom.me/${{ github.repository }}/${{ github.event.pull_request.head.sha }}/${{ env.PROJECT_NAME }}_Linux_arm64.tar.gz)     |

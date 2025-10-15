@@ -51,6 +51,8 @@ dockers_v2:
     platforms:
       - linux/amd64
       - linux/arm64
+    build_args:
+      BINARY_NAME: "{{ .ProjectName }}"
 
 changelog:
   sort: asc
