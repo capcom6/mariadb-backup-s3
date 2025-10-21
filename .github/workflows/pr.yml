@@ -4,14 +4,17 @@ on:
   pull_request:
     branches: [master]
 
-permissions:
-  contents: write
-  packages: write
-  pull-requests: write
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      packages: write
     steps:
       - name: Prepare
         run: |
