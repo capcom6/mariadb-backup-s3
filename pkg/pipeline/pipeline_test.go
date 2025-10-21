@@ -1,4 +1,4 @@
-package pipeline
+package pipeline_test
 
 import (
 	"bytes"
@@ -9,23 +9,25 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/capcom6/mariadb-backup-s3/pkg/pipeline"
 )
 
 // Helper functions for test stages
 
-// identity stage that simply copies from reader to writer
+// identity stage that simply copies from reader to writer.
 func identity(_ context.Context, r io.Reader, w io.Writer) error {
 	_, err := io.Copy(w, r)
 	return err
 }
 
-// failingStage that always returns an error
+// failingStage that always returns an error.
 func failingStage(_ context.Context, _ io.Reader, _ io.Writer) error {
 	return errors.New("simulated failure")
 }
 
-// transformStage that modifies the content by appending a suffix
-func transformStage(suffix string) StageFunc {
+// transformStage that modifies the content by appending a suffix.
+func transformStage(suffix string) pipeline.StageFunc {
 	return func(_ context.Context, r io.Reader, w io.Writer) error {
 		_, err := io.Copy(w, r)
 		if err != nil {
@@ -36,14 +38,14 @@ func transformStage(suffix string) StageFunc {
 	}
 }
 
-// errorStage that returns an error with a specific message
-func errorStage(stageNum int, msg string) StageFunc {
+// errorStage that returns an error with a specific message.
+func errorStage(stageNum int, msg string) pipeline.StageFunc {
 	return func(_ context.Context, _ io.Reader, _ io.Writer) error {
 		return fmt.Errorf("stage %d error: %s", stageNum, msg)
 	}
 }
 
-// Test successful execution with no stages (direct src→dst copy)
+// Test successful execution with no stages (direct src→dst copy).
 func TestRun_NoStages(t *testing.T) {
 	input := "test data"
 	expected := input
@@ -51,7 +53,7 @@ func TestRun_NoStages(t *testing.T) {
 	var dst bytes.Buffer
 	src := strings.NewReader(input)
 
-	err := Run(context.TODO(), src, &dst)
+	err := pipeline.Run(context.TODO(), src, &dst)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -61,7 +63,7 @@ func TestRun_NoStages(t *testing.T) {
 	}
 }
 
-// Test successful execution with single stage (identity transform)
+// Test successful execution with single stage (identity transform).
 func TestRun_SingleStage(t *testing.T) {
 	input := "test data"
 	expected := input
@@ -69,7 +71,7 @@ func TestRun_SingleStage(t *testing.T) {
 	var dst bytes.Buffer
 	src := strings.NewReader(input)
 
-	err := Run(context.TODO(), src, &dst, identity)
+	err := pipeline.Run(context.TODO(), src, &dst, identity)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -79,7 +81,7 @@ func TestRun_SingleStage(t *testing.T) {
 	}
 }
 
-// Test successful execution with multiple stages (chained transforms)
+// Test successful execution with multiple stages (chained transforms).
 func TestRun_MultipleStages(t *testing.T) {
 	input := "hello"
 	expected := "hello world transformed"
@@ -87,12 +89,12 @@ func TestRun_MultipleStages(t *testing.T) {
 	var dst bytes.Buffer
 	src := strings.NewReader(input)
 
-	stages := []StageFunc{
+	stages := []pipeline.StageFunc{
 		transformStage(" world"),
 		transformStage(" transformed"),
 	}
 
-	err := Run(context.TODO(), src, &dst, stages...)
+	err := pipeline.Run(context.TODO(), src, &dst, stages...)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -102,19 +104,19 @@ func TestRun_MultipleStages(t *testing.T) {
 	}
 }
 
-// Test error propagation from intermediate stage
+// Test error propagation from intermediate stage.
 func TestRun_ErrorFromIntermediateStage(t *testing.T) {
 	input := "test data"
 	var dst bytes.Buffer
 	src := strings.NewReader(input)
 
-	stages := []StageFunc{
+	stages := []pipeline.StageFunc{
 		identity,
 		failingStage,
 		identity,
 	}
 
-	err := Run(context.TODO(), src, &dst, stages...)
+	err := pipeline.Run(context.TODO(), src, &dst, stages...)
 	if err == nil {
 		t.Fatal("Expected error, got nil")
 	}
@@ -135,13 +137,13 @@ func TestRun_ErrorFromIntermediateStage(t *testing.T) {
 	}
 }
 
-// Test error propagation from final copy operation
+// Test error propagation from final copy operation.
 func TestRun_ErrorFromFinalCopy(t *testing.T) {
 	// Create a reader that will fail on read
 	failingReader := &errorReader{err: errors.New("read failure")}
 	var dst bytes.Buffer
 
-	err := Run(context.TODO(), failingReader, &dst)
+	err := pipeline.Run(context.TODO(), failingReader, &dst)
 	if err == nil {
 		t.Fatal("Expected error, got nil")
 	}
@@ -152,14 +154,14 @@ func TestRun_ErrorFromFinalCopy(t *testing.T) {
 	}
 }
 
-// Test concurrent stage execution validation
+// Test concurrent stage execution validation.
 func TestRun_ConcurrentExecution(t *testing.T) {
 	// Test that concurrent execution doesn't cause data races
 	// by running the pipeline multiple times in goroutines
 	input := "test data"
 	expected := input + "suffix"
 
-	stages := []StageFunc{
+	stages := []pipeline.StageFunc{
 		transformStage("suffix"),
 	}
 
@@ -174,7 +176,7 @@ func TestRun_ConcurrentExecution(t *testing.T) {
 			defer wg.Done()
 			var dst bytes.Buffer
 			src := strings.NewReader(input)
-			err := Run(context.TODO(), src, &dst, stages...)
+			err := pipeline.Run(context.TODO(), src, &dst, stages...)
 			if err != nil {
 				t.Errorf("Concurrent execution failed: %v", err)
 				return
@@ -195,12 +197,12 @@ func TestRun_ConcurrentExecution(t *testing.T) {
 	}
 }
 
-// Table-driven tests for transform validation
+// Table-driven tests for transform validation.
 func TestRun_TransformValidation(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		stages   []StageFunc
+		stages   []pipeline.StageFunc
 		expected string
 		wantErr  bool
 	}{
@@ -214,42 +216,42 @@ func TestRun_TransformValidation(t *testing.T) {
 		{
 			name:     "single identity stage",
 			input:    "hello",
-			stages:   []StageFunc{identity},
+			stages:   []pipeline.StageFunc{identity},
 			expected: "hello",
 			wantErr:  false,
 		},
 		{
 			name:     "single transform stage",
 			input:    "hello",
-			stages:   []StageFunc{transformStage(" world")},
+			stages:   []pipeline.StageFunc{transformStage(" world")},
 			expected: "hello world",
 			wantErr:  false,
 		},
 		{
 			name:     "multiple transform stages",
 			input:    "hello",
-			stages:   []StageFunc{transformStage(" "), transformStage("world")},
+			stages:   []pipeline.StageFunc{transformStage(" "), transformStage("world")},
 			expected: "hello world",
 			wantErr:  false,
 		},
 		{
 			name:     "failing first stage",
 			input:    "hello",
-			stages:   []StageFunc{failingStage, identity},
+			stages:   []pipeline.StageFunc{failingStage, identity},
 			expected: "",
 			wantErr:  true,
 		},
 		{
 			name:     "failing middle stage",
 			input:    "hello",
-			stages:   []StageFunc{identity, failingStage, identity},
+			stages:   []pipeline.StageFunc{identity, failingStage, identity},
 			expected: "",
 			wantErr:  true,
 		},
 		{
 			name:     "failing last stage",
 			input:    "hello",
-			stages:   []StageFunc{identity, failingStage},
+			stages:   []pipeline.StageFunc{identity, failingStage},
 			expected: "",
 			wantErr:  true,
 		},
@@ -260,7 +262,7 @@ func TestRun_TransformValidation(t *testing.T) {
 			var dst bytes.Buffer
 			src := strings.NewReader(tt.input)
 
-			err := Run(context.TODO(), src, &dst, tt.stages...)
+			err := pipeline.Run(context.TODO(), src, &dst, tt.stages...)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Run() error = %v, wantErr %v", err, tt.wantErr)
@@ -274,26 +276,26 @@ func TestRun_TransformValidation(t *testing.T) {
 	}
 }
 
-// Test error messages contain correct stage numbers
+// Test error messages contain correct stage numbers.
 func TestRun_ErrorStageNumbers(t *testing.T) {
 	tests := []struct {
 		name        string
-		stages      []StageFunc
+		stages      []pipeline.StageFunc
 		expectedErr string
 	}{
 		{
 			name:        "first stage fails",
-			stages:      []StageFunc{failingStage, identity},
+			stages:      []pipeline.StageFunc{failingStage, identity},
 			expectedErr: "stage 0 failed",
 		},
 		{
 			name:        "second stage fails",
-			stages:      []StageFunc{identity, failingStage},
+			stages:      []pipeline.StageFunc{identity, failingStage},
 			expectedErr: "stage 1 failed",
 		},
 		{
 			name:        "third stage fails",
-			stages:      []StageFunc{identity, identity, failingStage},
+			stages:      []pipeline.StageFunc{identity, identity, failingStage},
 			expectedErr: "stage 2 failed",
 		},
 	}
@@ -303,7 +305,7 @@ func TestRun_ErrorStageNumbers(t *testing.T) {
 			var dst bytes.Buffer
 			src := strings.NewReader("test")
 
-			err := Run(context.TODO(), src, &dst, tt.stages...)
+			err := pipeline.Run(context.TODO(), src, &dst, tt.stages...)
 
 			if err == nil {
 				t.Fatal("Expected error, got nil")
@@ -316,15 +318,15 @@ func TestRun_ErrorStageNumbers(t *testing.T) {
 	}
 }
 
-// Test error wrapping with errors.Is
+// Test error wrapping with errors.Is.
 func TestRun_ErrorWrapping(t *testing.T) {
 	// Test that original error is preserved in wrapped error
 	var dst bytes.Buffer
 	src := strings.NewReader("test")
 
-	stages := []StageFunc{errorStage(0, "original error")}
+	stages := []pipeline.StageFunc{errorStage(0, "original error")}
 
-	err := Run(context.TODO(), src, &dst, stages...)
+	err := pipeline.Run(context.TODO(), src, &dst, stages...)
 	if err == nil {
 		t.Fatal("Expected error, got nil")
 	}
@@ -341,7 +343,7 @@ func TestRun_ErrorWrapping(t *testing.T) {
 	}
 }
 
-// Test large data handling
+// Test large data handling.
 func TestRun_LargeData(t *testing.T) {
 	// Create a large input (1MB)
 	input := strings.Repeat("a", 1024*1024)
@@ -350,9 +352,9 @@ func TestRun_LargeData(t *testing.T) {
 	var dst bytes.Buffer
 	src := strings.NewReader(input)
 
-	stages := []StageFunc{transformStage("suffix")}
+	stages := []pipeline.StageFunc{transformStage("suffix")}
 
-	err := Run(context.TODO(), src, &dst, stages...)
+	err := pipeline.Run(context.TODO(), src, &dst, stages...)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -362,7 +364,7 @@ func TestRun_LargeData(t *testing.T) {
 	}
 }
 
-// Test empty input
+// Test empty input.
 func TestRun_EmptyInput(t *testing.T) {
 	input := ""
 	expected := "suffix"
@@ -370,9 +372,9 @@ func TestRun_EmptyInput(t *testing.T) {
 	var dst bytes.Buffer
 	src := strings.NewReader(input)
 
-	stages := []StageFunc{transformStage("suffix")}
+	stages := []pipeline.StageFunc{transformStage("suffix")}
 
-	err := Run(context.TODO(), src, &dst, stages...)
+	err := pipeline.Run(context.TODO(), src, &dst, stages...)
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -382,11 +384,11 @@ func TestRun_EmptyInput(t *testing.T) {
 	}
 }
 
-// errorReader is a reader that always returns an error
+// errorReader is a reader that always returns an error.
 type errorReader struct {
 	err error
 }
 
-func (r *errorReader) Read(p []byte) (n int, err error) {
+func (r *errorReader) Read(_ []byte) (int, error) {
 	return 0, r.err
 }

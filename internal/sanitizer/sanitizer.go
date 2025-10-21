@@ -1,16 +1,22 @@
 package sanitizer
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
+)
+
+var (
+	ErrDangerousCharacters = errors.New("backup options contain potentially dangerous characters")
+	ErrInvalidOptionFormat = errors.New("option contains invalid characters or format")
 )
 
 func SanitizeOptions(options string) ([]string, error) {
 	// Check for dangerous characters that could lead to command injection
 	dangerousPattern := regexp.MustCompile(`[;&|$\n\r]`)
 	if dangerousPattern.MatchString(options) {
-		return nil, fmt.Errorf("backup options contain potentially dangerous characters")
+		return nil, ErrDangerousCharacters
 	}
 
 	// Split options into individual arguments
@@ -28,7 +34,7 @@ func SanitizeOptions(options string) ([]string, error) {
 	return safeArgs, nil
 }
 
-// validateOption validates a single backup option to prevent command injection
+// validateOption validates a single backup option to prevent command injection.
 func validateOption(option string) error {
 	// Basic pattern for safe options:
 	// --flag=value or --flag or --flag value
@@ -36,7 +42,7 @@ func validateOption(option string) error {
 	validPattern := regexp.MustCompile(`^--([a-zA-Z0-9_-]+)(?:=([a-zA-Z0-9_./-]+))?$`)
 
 	if !validPattern.MatchString(option) {
-		return fmt.Errorf("option contains invalid characters or format")
+		return ErrInvalidOptionFormat
 	}
 
 	return nil

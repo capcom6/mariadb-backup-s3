@@ -1,27 +1,27 @@
-# Makefile for mariadb-backup-s3 CLI tool
+.PHONY: all fmt lint test benchmark deps clean
 
-.PHONY: all build test clean release lint
+# Default target
+all: fmt lint test benchmark
 
-all: build
+fmt:
+	golangci-lint fmt
 
-# Build the binary
-build:
-	go build -o mariadb-backup-s3 .
-
-# Run all tests
-test:
-	go test -race -coverprofile=coverage.out -covermode=atomic ./...
-
-# Clean build artifacts and temporary files
-clean:
-	rm -f mariadb-backup-s3
-	go clean -cache -testcache
-	find . -type f -name "*.out" -delete
-
-# Execute goreleaser for versioned releases
-release:
-	goreleaser release --snapshot --clean
-
-# Run golangci-lint
+# Lint the code using golangci-lint
 lint:
 	golangci-lint run --timeout=5m
+
+# Run tests with coverage
+test:
+	go test -race -shuffle=on -count=1 -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
+
+# Run benchmarks
+benchmark:
+	go test -run=^$$ -bench=. -benchmem ./... | tee benchmark.txt
+
+# Download dependencies
+deps:
+	go mod download
+
+# Clean up generated files
+clean:
+	rm -f coverage.out benchmark.txt

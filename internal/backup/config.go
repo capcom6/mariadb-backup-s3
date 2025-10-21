@@ -2,12 +2,12 @@ package backup
 
 import "github.com/capcom6/mariadb-backup-s3/internal/config"
 
-type BackupLimitsConfig struct {
+type LimitsConfig struct {
 	MaxCount int
 }
 
 type Backup struct {
-	Limits BackupLimitsConfig
+	Limits LimitsConfig
 }
 
 type Config struct {
@@ -21,7 +21,7 @@ func DefaultConfig() Config {
 	return Config{
 		MariaDB: config.MariaDB{
 			Host:          "localhost",
-			Port:          3306,
+			Port:          3306, //nolint:mnd // default port
 			User:          "root",
 			Password:      "",
 			BackupOptions: "",
@@ -30,7 +30,7 @@ func DefaultConfig() Config {
 			URL: "",
 		},
 		Backup: Backup{
-			Limits: BackupLimitsConfig{MaxCount: 0},
+			Limits: LimitsConfig{MaxCount: 0},
 		},
 		Encryption: config.Encryption{
 			EncryptionKey: "",

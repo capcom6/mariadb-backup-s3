@@ -7,10 +7,10 @@ import (
 	"sync"
 )
 
-// StageFunc defines a processing step that can be canceled via context
+// StageFunc defines a processing step that can be canceled via context.
 type StageFunc func(context.Context, io.Reader, io.Writer) error
 
-// Run runs the pipeline with context for cancellation
+// Run runs the pipeline with context for cancellation.
 func Run(ctx context.Context, src io.Reader, dst io.Writer, stages ...StageFunc) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

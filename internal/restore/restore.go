@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log" //nolint:depguard // temporary
 	"os"
 	"os/exec"
 	"time"
@@ -17,32 +17,44 @@ import (
 	"github.com/capcom6/mariadb-backup-s3/pkg/pipeline"
 )
 
-func Execute(ctx context.Context, filename string, cfg Config) error {
+func Execute(
+	ctx context.Context,
+	filename string,
+	storage config.Storage,
+	encryption config.Encryption,
+	config Config,
+) error {
 	log.Println("Starting restore")
 	start := time.Now()
 	defer func() {
 		log.Printf("Restore completed in %v", time.Since(start))
 	}()
 
-	targetDir := cfg.Restore.TargetDir
+	targetDir := config.TargetDir
 	if err := os.MkdirAll(targetDir, 0700); err != nil {
 		return fmt.Errorf("failed to create target directory: %w", err)
 	}
 
-	return pipeline.Run(
+	err := pipeline.Run(
 		ctx,
 		nil,
 		nil,
-		func(ctx context.Context, r io.Reader, w io.Writer) error {
-			return download(ctx, cfg.Storage, filename, w)
+		func(ctx context.Context, _ io.Reader, w io.Writer) error {
+			return download(ctx, storage, filename, w)
 		},
 		func(ctx context.Context, r io.Reader, w io.Writer) error {
-			return decrypt(ctx, cfg.Encryption, r, w)
+			return decrypt(ctx, encryption, r, w)
 		},
-		func(ctx context.Context, r io.Reader, w io.Writer) error {
+		func(ctx context.Context, r io.Reader, _ io.Writer) error {
 			return extract(ctx, r, targetDir)
 		},
 	)
+
+	if err != nil {
+		return fmt.Errorf("failed to restore: %w", err)
+	}
+
+	return nil
 }
 
 func download(ctx context.Context, storageConfig config.Storage, filename string, target io.Writer) error {
@@ -65,9 +77,9 @@ func download(ctx context.Context, storageConfig config.Storage, filename string
 	}
 
 	// Download the backup
-	if err := storageBackend.Download(ctx, filename, target); err != nil {
-		log.Printf("Download failed for %s: %v", filename, err)
-		return fmt.Errorf("failed to download: %w", err)
+	if downErr := storageBackend.Download(ctx, filename, target); downErr != nil {
+		log.Printf("Download failed for %s: %v", filename, downErr)
+		return fmt.Errorf("failed to download: %w", downErr)
 	}
 
 	return nil
@@ -95,8 +107,8 @@ func decrypt(ctx context.Context, config config.Encryption, source io.Reader, ta
 	}
 
 	service := encryption.NewAES256GCMService(masterKey)
-	if err := service.Decrypt(ctx, source, target); err != nil {
-		return fmt.Errorf("failed to decrypt: %w", err)
+	if decErr := service.Decrypt(ctx, source, target); decErr != nil {
+		return fmt.Errorf("failed to decrypt: %w", decErr)
 	}
 
 	return nil
@@ -126,24 +138,27 @@ func extract(ctx context.Context, source io.Reader, targetdir string) error {
 	tarCmd.Stderr = &tarErr
 	pigzCmd.Stderr = &pigzErr
 
-	if err := pigzCmd.Start(); err != nil {
-		log.Printf("Decompression failed: failed to start pigz: %v", err)
-		return fmt.Errorf("failed to start pigz: %w", err)
+	if pigzErr := pigzCmd.Start(); pigzErr != nil {
+		log.Printf("Decompression failed: failed to start pigz: %v", pigzErr)
+		return fmt.Errorf("failed to start pigz: %w", pigzErr)
 	}
-	if err := tarCmd.Run(); err != nil {
-		log.Printf("Decompression failed: failed to run tar: %v", err)
-		errs = append(errs, fmt.Errorf("failed to run tar: %w", err))
+	if tarErr := tarCmd.Run(); tarErr != nil {
+		log.Printf("Decompression failed: failed to run tar: %v", tarErr)
+		errs = append(errs, fmt.Errorf("failed to run tar: %w", tarErr))
 	}
-	if err := pigzCmd.Wait(); err != nil {
-		log.Printf("Decompression failed: failed to wait for pigz: %v", err)
-		errs = append(errs, fmt.Errorf("failed to wait for pigz: %w", err))
+	if waitErr := pigzCmd.Wait(); waitErr != nil {
+		log.Printf("Decompression failed: failed to wait for pigz: %v", waitErr)
+		errs = append(errs, fmt.Errorf("failed to wait for pigz: %w", waitErr))
 	}
 
-	if len(tarErr.Bytes()) > 0 {
-		errs = append(errs, fmt.Errorf("failed to extract tar: %s", tarErr.String()))
-	}
-	if len(pigzErr.Bytes()) > 0 {
-		errs = append(errs, fmt.Errorf("failed to decompress: %s", pigzErr.String()))
+	// Attach stderr as context only if we observed command errors above.
+	if len(errs) > 0 {
+		if s := tarErr.String(); s != "" {
+			errs = append(errs, fmt.Errorf("%w: tar stderr: %s", ErrExternalCommandFailed, s))
+		}
+		if s := pigzErr.String(); s != "" {
+			errs = append(errs, fmt.Errorf("%w: pigz stderr: %s", ErrExternalCommandFailed, s))
+		}
 	}
 
 	return errors.Join(errs...)

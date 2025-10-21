@@ -6,10 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log" //nolint:depguard // temporary
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/capcom6/mariadb-backup-s3/internal/config"
@@ -19,7 +20,9 @@ import (
 	"github.com/capcom6/mariadb-backup-s3/pkg/pipeline"
 )
 
-var cores = runtime.NumCPU()
+var (
+	ErrNoArguments = errors.New("no arguments")
+)
 
 func Execute(ctx context.Context, cfg Config) error {
 	log.Println("Starting backup")
@@ -38,22 +41,22 @@ func Execute(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("failed to create tempdir: %w", err)
 	}
 	defer func() {
-		if err := os.RemoveAll(tempdir); err != nil {
-			log.Printf("failed to remove tempdir: %s", err)
+		if rmErr := os.RemoveAll(tempdir); rmErr != nil {
+			log.Printf("failed to remove tempdir: %s", rmErr)
 		}
 	}()
 
-	if err := backup(ctx, cfg.MariaDB, tempdir); err != nil {
-		return fmt.Errorf("failed to backup: %w", err)
+	if bkpErr := backup(ctx, cfg.MariaDB, tempdir); bkpErr != nil {
+		return fmt.Errorf("failed to backup: %w", bkpErr)
 	}
 	log.Printf("backup done: %s", tempdir)
 
-	if err := prepare(ctx, cfg.MariaDB, tempdir); err != nil {
-		return fmt.Errorf("failed to prepare: %w", err)
+	if prepErr := prepare(ctx, cfg.MariaDB, tempdir); prepErr != nil {
+		return fmt.Errorf("failed to prepare: %w", prepErr)
 	}
 	log.Printf("prepare done: %s", tempdir)
 
-	return pipeline.Run(ctx, nil, nil,
+	err = pipeline.Run(ctx, nil, nil,
 		func(ctx context.Context, _ io.Reader, w io.Writer) error {
 			return compress(ctx, tempdir, w)
 		},
@@ -64,22 +67,28 @@ func Execute(ctx context.Context, cfg Config) error {
 			return upload(ctx, cfg.Backup, cfg.Storage, r, targetName)
 		},
 	)
+
+	if err != nil {
+		return fmt.Errorf("failed to backup: %w", err)
+	}
+
+	return nil
 }
 
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return errors.New("no arguments")
+		return ErrNoArguments
 	}
 
 	buf := bytes.Buffer{}
 
-	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
+	cmd := exec.CommandContext(ctx, args[0], args[1:]...) //nolint:gosec // is not user input
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = &buf
 
 	if err := cmd.Run(); err != nil {
-		return errors.Join(errors.New(buf.String()), err)
+		return fmt.Errorf("%s: %w", buf.String(), err)
 	}
 	return nil
 }
@@ -94,14 +103,18 @@ func backup(ctx context.Context, options config.MariaDB, dir string) error {
 	args := []string{
 		"mariabackup",
 		"--backup",
-		"--parallel=" + fmt.Sprintf("%d", cores),
+		"--parallel=" + strconv.Itoa(runtime.NumCPU()),
 		"--target-dir=" + dir,
 		"--user=" + options.User,
 		"--password=" + options.Password,
 	}
 
 	if options.Host != "" {
-		args = append(args, "--host="+options.Host, "--port="+fmt.Sprintf("%d", options.Port))
+		args = append(args, "--host="+options.Host)
+	}
+
+	if options.Port != 0 {
+		args = append(args, "--port="+strconv.Itoa(options.Port))
 	}
 
 	if options.BackupOptions != "" {
@@ -152,20 +165,20 @@ func compress(ctx context.Context, source string, target io.Writer) error {
 	}
 	pigzCmd.Stdout = target
 
-	var tarErr, pigzErr bytes.Buffer
+	var tarBuf, pigzBuf bytes.Buffer
 	var errs []error
-	tarCmd.Stderr = &tarErr
-	pigzCmd.Stderr = &pigzErr
+	tarCmd.Stderr = &tarBuf
+	pigzCmd.Stderr = &pigzBuf
 
-	if err := pigzCmd.Start(); err != nil {
-		log.Printf("Compression failed: failed to start pigz: %v", err)
-		return fmt.Errorf("failed to start pigz: %w", err)
+	if pigzErr := pigzCmd.Start(); pigzErr != nil {
+		log.Printf("Compression failed: failed to start pigz: %v", pigzErr)
+		return fmt.Errorf("failed to start pigz: %w", pigzErr)
 	}
-	if err := tarCmd.Run(); err != nil {
-		errs = append(errs, errors.Join(errors.New(tarErr.String()), err))
+	if tarErr := tarCmd.Run(); tarErr != nil {
+		errs = append(errs, fmt.Errorf("failed to tar: %s: %w", tarBuf.String(), tarErr))
 	}
-	if err := pigzCmd.Wait(); err != nil {
-		errs = append(errs, errors.Join(errors.New(pigzErr.String()), err))
+	if waitErr := pigzCmd.Wait(); waitErr != nil {
+		errs = append(errs, fmt.Errorf("failed to compress: %s: %w", pigzBuf.String(), waitErr))
 	}
 
 	return errors.Join(errs...)
@@ -194,7 +207,11 @@ func encrypt(ctx context.Context, config config.Encryption, source io.Reader, ta
 
 	service := encryption.NewAES256GCMService(masterKey)
 
-	return service.Encrypt(ctx, source, target)
+	if encErr := service.Encrypt(ctx, source, target); encErr != nil {
+		return fmt.Errorf("failed to encrypt: %w", encErr)
+	}
+
+	return nil
 }
 
 func upload(ctx context.Context, backup Backup, storageConfig config.Storage, source io.Reader, filename string) error {
@@ -217,14 +234,14 @@ func upload(ctx context.Context, backup Backup, storageConfig config.Storage, so
 	}
 
 	// Upload the backup
-	if err := storageBackend.Upload(ctx, filename, source); err != nil {
-		log.Printf("Upload failed for %s: %v", filename, err)
-		return fmt.Errorf("failed to upload: %w", err)
+	if uploadErr := storageBackend.Upload(ctx, filename, source); uploadErr != nil {
+		log.Printf("Upload failed for %s: %v", filename, uploadErr)
+		return fmt.Errorf("failed to upload: %w", uploadErr)
 	}
 
 	// Cleanup old backups
-	if err := storageBackend.DeleteOldBackups(ctx, backup.Limits.MaxCount); err != nil {
-		log.Printf("failed to cleanup: %s", err)
+	if delErr := storageBackend.DeleteOldBackups(ctx, backup.Limits.MaxCount); delErr != nil {
+		log.Printf("failed to cleanup: %s", delErr)
 	}
 
 	return nil
