@@ -22,7 +22,7 @@ type s3Storage struct {
 	client *s3.Client
 }
 
-func NewS3Storage(u *url.URL) (StorageBackend, error) {
+func NewS3Storage(u *url.URL) (Backend, error) {
 	forcePathStyle := false
 
 	endpoint := u.Query().Get("endpoint")
@@ -109,7 +109,7 @@ func (s *s3Storage) DeleteOldBackups(ctx context.Context, maxCount int) error {
 		return nil
 	}
 	if maxCount < 0 {
-		return fmt.Errorf("invalid maxCount: %d", maxCount)
+		return fmt.Errorf("%w: maxCount must be >= 0", ErrInvalidArgument)
 	}
 
 	var err error

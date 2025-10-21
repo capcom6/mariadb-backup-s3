@@ -2,9 +2,10 @@ package restore
 
 import (
 	"context"
-	"errors"
 
 	"github.com/capcom6/mariadb-backup-s3/internal/cli/flags"
+	"github.com/capcom6/mariadb-backup-s3/internal/config"
+	"github.com/capcom6/mariadb-backup-s3/internal/core/codes"
 	"github.com/capcom6/mariadb-backup-s3/internal/restore"
 	"github.com/urfave/cli/v3"
 )
@@ -22,9 +23,10 @@ func Command() *cli.Command {
 	)
 
 	return &cli.Command{
-		Name:  "restore",
-		Usage: "Restore MariaDB database from backup",
-		Flags: fl,
+		Name:    "restore",
+		Aliases: []string{"r"},
+		Usage:   "Restore MariaDB database from backup",
+		Flags:   fl,
 		Arguments: []cli.Argument{
 			&cli.StringArg{
 				Name:      "backup-file",
@@ -36,19 +38,23 @@ func Command() *cli.Command {
 		},
 		ArgsUsage: "backup_name.tar.gz",
 		Action: func(c context.Context, cmd *cli.Command) error {
-			cfg := restore.DefaultConfig()
-
-			cfg.Storage.URL = cmd.String("storage-url")
-
-			cfg.Encryption.EncryptionKey = cmd.String("encryption-key")
-
-			cfg.Restore.TargetDir = cmd.String("target-dir")
-
 			if cmd.StringArg("backup-file") == "" {
-				return errors.New("backup file name is required")
+				return cli.Exit("backup file name is required", codes.ParamsError)
 			}
 
-			return restore.Execute(c, cmd.StringArg("backup-file"), cfg)
+			return restore.Execute(
+				c,
+				cmd.StringArg("backup-file"),
+				config.Storage{
+					URL: cmd.String("storage-url"),
+				},
+				config.Encryption{
+					EncryptionKey: cmd.String("encryption-key"),
+				},
+				restore.Config{
+					TargetDir: cmd.String("target-dir"),
+				},
+			)
 		},
 	}
 }

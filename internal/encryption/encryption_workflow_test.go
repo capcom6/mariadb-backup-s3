@@ -7,6 +7,7 @@ import (
 
 	"github.com/capcom6/mariadb-backup-s3/internal/encryption"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAES256GCMStreamingWorkflow(t *testing.T) {
@@ -23,7 +24,9 @@ func TestAES256GCMStreamingWorkflow(t *testing.T) {
 	service := encryption.NewAES256GCMService(encryptionKey)
 
 	// Test data - use larger data to test streaming behavior
-	testData := []byte("This is a test message for streaming encryption workflow verification with sufficient data to trigger chunked processing")
+	testData := []byte(
+		"This is a test message for streaming encryption workflow verification with sufficient data to trigger chunked processing",
+	)
 
 	// Test streaming encryption
 	ctx := context.Background()
@@ -31,9 +34,14 @@ func TestAES256GCMStreamingWorkflow(t *testing.T) {
 	var encrypted bytes.Buffer
 
 	err := service.Encrypt(ctx, input, &encrypted)
-	assert.NoError(t, err, "Streaming encryption failed")
+	require.NoError(t, err, "Streaming encryption failed")
 	assert.NotNil(t, encrypted, "Encrypted data should not be nil")
-	assert.Greater(t, encrypted.Len(), len(testData), "Encrypted data should be larger than original due to nonce and auth tag")
+	assert.Greater(
+		t,
+		encrypted.Len(),
+		len(testData),
+		"Encrypted data should be larger than original due to nonce and auth tag",
+	)
 
 	// Create a new service instance for decryption (since keys are zeroized)
 	decryptService := encryption.NewAES256GCMService(encryptionKey)
@@ -43,7 +51,7 @@ func TestAES256GCMStreamingWorkflow(t *testing.T) {
 	var decrypted bytes.Buffer
 
 	err = decryptService.Decrypt(ctx, encryptedReader, &decrypted)
-	assert.NoError(t, err, "Streaming decryption failed")
+	require.NoError(t, err, "Streaming decryption failed")
 	assert.Equal(t, testData, decrypted.Bytes(), "Decrypted data should match original")
 }
 
@@ -69,7 +77,7 @@ func TestAES256GCMStreamingWorkflowTamperedData(t *testing.T) {
 	var encrypted bytes.Buffer
 
 	err := service.Encrypt(ctx, input, &encrypted)
-	assert.NoError(t, err, "Streaming encryption for tampering test failed")
+	require.NoError(t, err, "Streaming encryption for tampering test failed")
 
 	// Tamper with encrypted data (flip some bits in the ciphertext part)
 	encryptedBytes := encrypted.Bytes()

@@ -44,7 +44,7 @@ func TestAES256GCMService_EncryptDecryptStreamRoundtrip(t *testing.T) {
 			var encrypted bytes.Buffer
 
 			err := service.Encrypt(context.Background(), input, &encrypted)
-			assert.NoError(t, err, "Streaming encryption failed")
+			require.NoError(t, err, "Streaming encryption failed")
 			assert.Greater(t, encrypted.Len(), len(tc.data), "Encrypted data should be larger than original")
 
 			// Test streaming decryption
@@ -52,7 +52,7 @@ func TestAES256GCMService_EncryptDecryptStreamRoundtrip(t *testing.T) {
 			var decrypted bytes.Buffer
 
 			err = service.Decrypt(context.Background(), encryptedReader, &decrypted)
-			assert.NoError(t, err, "Streaming decryption failed")
+			require.NoError(t, err, "Streaming decryption failed")
 
 			// Handle empty byte slice comparison
 			if len(tc.data) == 0 {
@@ -80,7 +80,7 @@ func TestAES256GCMService_EncryptDecryptStreamLargeData(t *testing.T) {
 	var encrypted bytes.Buffer
 
 	err := service.Encrypt(context.Background(), input, &encrypted)
-	assert.NoError(t, err, "Large data streaming encryption failed")
+	require.NoError(t, err, "Large data streaming encryption failed")
 	assert.Greater(t, encrypted.Len(), len(testData), "Encrypted data should be larger than original")
 
 	// Test streaming decryption
@@ -88,7 +88,7 @@ func TestAES256GCMService_EncryptDecryptStreamLargeData(t *testing.T) {
 	var decrypted bytes.Buffer
 
 	err = service.Decrypt(context.Background(), encryptedReader, &decrypted)
-	assert.NoError(t, err, "Large data streaming decryption failed")
+	require.NoError(t, err, "Large data streaming decryption failed")
 	assert.Equal(t, testData, decrypted.Bytes(), "Decrypted large data should match original")
 }
 
@@ -140,7 +140,7 @@ func TestAES256GCMService_DecryptStreamTamperedData(t *testing.T) {
 	var output bytes.Buffer
 
 	err = service.Decrypt(context.Background(), tamperedReader, &output)
-	assert.Error(t, err, "Decryption should fail with tampered data")
+	require.Error(t, err, "Decryption should fail with tampered data")
 	assert.Contains(t, err.Error(), "message authentication failed", "Error should indicate tag mismatch")
 }
 
@@ -189,10 +189,8 @@ func TestAES256GCMService_DecryptStreamContextCancellation(t *testing.T) {
 	var output bytes.Buffer
 
 	err = service.Decrypt(ctx, encryptedReader, &output)
-	assert.Error(t, err, "Decryption should fail with cancelled context")
-	if err != nil {
-		assert.Contains(t, err.Error(), "context canceled", "Error should indicate context cancellation")
-	}
+	require.Error(t, err, "Decryption should fail with cancelled context")
+	assert.Contains(t, err.Error(), "context canceled", "Error should indicate context cancellation")
 }
 
 func TestAES256GCMService_DecryptStreamInvalidMagic(t *testing.T) {
@@ -206,7 +204,7 @@ func TestAES256GCMService_DecryptStreamInvalidMagic(t *testing.T) {
 	var output bytes.Buffer
 
 	err := service.Decrypt(context.Background(), invalidReader, &output)
-	assert.Error(t, err, "Decryption should fail with invalid magic")
+	require.Error(t, err, "Decryption should fail with invalid magic")
 	assert.Contains(t, err.Error(), "bad magic", "Error should indicate bad magic")
 }
 
@@ -232,7 +230,7 @@ func TestAES256GCMService_DecryptStreamInvalidVersion(t *testing.T) {
 	var output bytes.Buffer
 
 	err = service.Decrypt(context.Background(), invalidReader, &output)
-	assert.Error(t, err, "Decryption should fail with invalid version")
+	require.Error(t, err, "Decryption should fail with invalid version")
 	assert.Contains(t, err.Error(), "unsupported version", "Error should indicate unsupported version")
 }
 
@@ -287,7 +285,7 @@ func TestAES256GCMService_DecryptStreamPartialChunk(t *testing.T) {
 	var decrypted bytes.Buffer
 
 	err = service.Decrypt(context.Background(), encryptedReader, &decrypted)
-	assert.NoError(t, err, "Decryption should handle partial chunks correctly")
+	require.NoError(t, err, "Decryption should handle partial chunks correctly")
 	assert.Equal(t, testData, decrypted.Bytes(), "Decrypted data should match original with partial chunks")
 }
 
@@ -314,7 +312,7 @@ func TestAES256GCMService_DecryptStreamMultipleChunks(t *testing.T) {
 	var decrypted bytes.Buffer
 
 	err = service.Decrypt(context.Background(), encryptedReader, &decrypted)
-	assert.NoError(t, err, "Decryption should handle multiple chunks correctly")
+	require.NoError(t, err, "Decryption should handle multiple chunks correctly")
 	assert.Equal(t, testData, decrypted.Bytes(), "Decrypted data should match original with multiple chunks")
 }
 
@@ -329,8 +327,7 @@ func BenchmarkAES256GCMService_DecryptStream(b *testing.B) {
 	var encrypted bytes.Buffer
 
 	// Encrypt once to get test data
-	err := service.Encrypt(context.Background(), input, &encrypted)
-	if err != nil {
+	if err := service.Encrypt(context.Background(), input, &encrypted); err != nil {
 		b.Error(err)
 		return
 	}
@@ -339,10 +336,11 @@ func BenchmarkAES256GCMService_DecryptStream(b *testing.B) {
 
 	for b.Loop() {
 		var output bytes.Buffer
-		err := service.Decrypt(context.Background(), encryptedReader, &output)
-		if err != nil {
+
+		if err := service.Decrypt(context.Background(), encryptedReader, &output); err != nil {
 			b.Error(err)
 		}
+
 		// Reset reader for next iteration
 		encryptedReader = bytes.NewReader(encrypted.Bytes())
 	}

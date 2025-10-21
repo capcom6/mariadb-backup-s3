@@ -10,6 +10,7 @@ func Storage() []cli.Flag {
 			Usage:    "storage URL (e.g., s3://bucket/path, file:///path, ftp://host/path)",
 			Required: true,
 			Sources:  cli.EnvVars("STORAGE__URL"),
+			Category: "Storage",
 		},
 	}
 }

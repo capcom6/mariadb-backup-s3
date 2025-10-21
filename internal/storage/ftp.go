@@ -9,22 +9,24 @@ import (
 	"net/url"
 	"path"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/secsy/goftp"
 )
 
+var (
+	ErrFTPHostRequired = errors.New("FTP storage requires host")
+)
+
 type ftpStorage struct {
 	host     string
-	port     int
 	username string
 	password string
 	basePath string
 	client   *goftp.Client
 }
 
-func NewFTPStorage(u *url.URL) (StorageBackend, error) {
+func NewFTPStorage(u *url.URL) (Backend, error) {
 	// Extract credentials from URL
 	var username, password string
 	if u.User != nil {
@@ -38,7 +40,7 @@ func NewFTPStorage(u *url.URL) (StorageBackend, error) {
 	// Extract host and port
 	host := u.Hostname()
 	if host == "" {
-		return nil, fmt.Errorf("FTP storage requires host")
+		return nil, ErrFTPHostRequired
 	}
 
 	port := u.Port()
@@ -67,7 +69,6 @@ func NewFTPStorage(u *url.URL) (StorageBackend, error) {
 
 	return &ftpStorage{
 		host:     host,
-		port:     func() int { p, _ := strconv.Atoi(port); return p }(),
 		username: username,
 		password: password,
 		basePath: basePath,
@@ -87,19 +88,21 @@ func (f *ftpStorage) Upload(ctx context.Context, relPath string, data io.Reader)
 	// Fail fast if already canceled
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("context canceled: %w", ctx.Err())
 	default:
 	}
 
 	// Upload file
 	tmpPath := remotePath + ".tmp"
-	err := f.client.Store(tmpPath, data)
-	if err != nil {
-		return fmt.Errorf("failed to upload to FTP: %w", err)
+	if err := f.client.Store(tmpPath, data); err != nil {
+		return fmt.Errorf("failed to upload file: %w", err)
 	}
+
 	if err := f.client.Rename(tmpPath, remotePath); err != nil {
-		_ = f.client.Delete(tmpPath)
-		return fmt.Errorf("failed to finalize upload: %w", err)
+		if delErr := f.client.Delete(tmpPath); delErr != nil {
+			return fmt.Errorf("failed to rename file and delete temporary file: %w", errors.Join(err, delErr))
+		}
+		return fmt.Errorf("failed to rename file: %w", err)
 	}
 
 	return nil
@@ -113,14 +116,14 @@ func (f *ftpStorage) Download(ctx context.Context, filename string, data io.Writ
 	// Fail fast if already canceled
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
+		return fmt.Errorf("context canceled: %w", ctx.Err())
 	default:
 	}
 
 	// Download file
 	err := f.client.Retrieve(remotePath, data)
 	if err != nil {
-		return fmt.Errorf("failed to download from FTP: %w", err)
+		return fmt.Errorf("failed to download file: %w", err)
 	}
 
 	return nil
@@ -134,7 +137,7 @@ func (f *ftpStorage) DeleteOldBackups(ctx context.Context, maxCount int) error {
 	// List files in remote directory
 	files, err := f.listRemoteFiles(f.basePath)
 	if err != nil {
-		return fmt.Errorf("failed to list remote files: %w", err)
+		return fmt.Errorf("failed to remove old backups: %w", err)
 	}
 
 	if len(files) <= maxCount {
@@ -151,28 +154,27 @@ func (f *ftpStorage) DeleteOldBackups(ctx context.Context, maxCount int) error {
 		// Check for context cancellation
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("context canceled: %w", ctx.Err())
 		default:
 		}
 
 		remotePath := path.Join(f.basePath, file)
-		if err := f.client.Delete(remotePath); err != nil {
-			errs = append(errs, fmt.Errorf("failed to delete file %s: %w", file, err))
+		if delErr := f.client.Delete(remotePath); delErr != nil {
+			errs = append(errs, fmt.Errorf("failed to delete file %s: %w", file, delErr))
 		}
 	}
 
 	return errors.Join(errs...)
 }
 
-// ensureRemoteDir ensures that a remote directory exists, creating it if necessary
+// ensureRemoteDir ensures that a remote directory exists, creating it if necessary.
 func (f *ftpStorage) ensureRemoteDir(dir string) error {
 	if dir == "" || dir == "/" {
 		return nil
 	}
 
 	// Check if directory exists
-	_, err := f.client.Stat(dir)
-	if err == nil {
+	if _, err := f.client.Stat(dir); err == nil {
 		return nil // Directory exists
 	}
 
@@ -185,19 +187,18 @@ func (f *ftpStorage) ensureRemoteDir(dir string) error {
 	}
 
 	// Create directory
-	_, err = f.client.Mkdir(dir)
-	if err != nil {
-		return fmt.Errorf("failed to create directory %s: %w", dir, err)
+	if _, err := f.client.Mkdir(dir); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
 	return nil
 }
 
-// listRemoteFiles lists files in a remote directory
+// listRemoteFiles lists files in a remote directory.
 func (f *ftpStorage) listRemoteFiles(dir string) ([]string, error) {
 	files, err := f.client.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list files in directory %s: %w", dir, err)
+		return nil, fmt.Errorf("failed to read directory: %w", err)
 	}
 
 	var fileNames []string
@@ -212,10 +213,13 @@ func (f *ftpStorage) listRemoteFiles(dir string) ([]string, error) {
 	return fileNames, nil
 }
 
-// Close closes the FTP connection
+// Close closes the FTP connection.
 func (f *ftpStorage) Close() error {
 	if f.client != nil {
-		return f.client.Close()
+		if err := f.client.Close(); err != nil {
+			return fmt.Errorf("failed to close FTP connection: %w", err)
+		}
+		f.client = nil
 	}
 	return nil
 }

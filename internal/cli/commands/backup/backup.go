@@ -27,9 +27,10 @@ func Command() *cli.Command {
 	)
 
 	return &cli.Command{
-		Name:  "backup",
-		Usage: "Backup MariaDB database",
-		Flags: fl,
+		Name:    "backup",
+		Aliases: []string{"b"},
+		Usage:   "Backup MariaDB database",
+		Flags:   fl,
 		Action: func(c context.Context, cmd *cli.Command) error {
 			cfg := backup.DefaultConfig()
 

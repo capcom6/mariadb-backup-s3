@@ -19,7 +19,12 @@ type Storage struct {
 }
 
 func (s Storage) GetURL() (*url.URL, error) {
-	return url.Parse(s.URL)
+	u, err := url.Parse(s.URL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse url: %w", err)
+	}
+
+	return u, nil
 }
 
 type Encryption struct {

@@ -5,8 +5,8 @@ import (
 	"io"
 )
 
-// StorageBackend defines the interface for pluggable storage backends
-type StorageBackend interface {
+// Backend defines the interface for pluggable storage backends.
+type Backend interface {
 	// Upload uploads data to the specified path in the storage backend
 	Upload(ctx context.Context, filename string, data io.Reader) error
 
