@@ -33,6 +33,10 @@ This document provides guidelines for contributing to the project, including dev
     - [Release Workflow](#release-workflow)
     - [Pre-Release Process](#pre-release-process)
     - [Post-Release Tasks](#post-release-tasks)
+  - [Issue and Pull Request Staleness Policy](#issue-and-pull-request-staleness-policy)
+    - [Staleness Timeline](#staleness-timeline)
+    - [Exemptions](#exemptions)
+    - [Keeping Items Active](#keeping-items-active)
   - [Getting Help](#getting-help)
   - [Recognition](#recognition)
 
@@ -283,6 +287,30 @@ After release:
 - Update documentation links if needed
 - Announce release in relevant channels
 - Plan next development cycle
+
+## Issue and Pull Request Staleness Policy
+
+To maintain an active and responsive project, we use an automated process to manage stale issues and pull requests. This policy helps ensure that only relevant and actively worked-on items remain open, while preventing unexpected closures that could cause community friction.
+
+### Staleness Timeline
+
+- **Stale after 7 days**: Issues or PRs with no activity for 7 days will be marked as stale and labeled with `stale`
+- **Closed after 14 days**: If a stale item remains inactive for an additional 7 days (14 days total), it will be automatically closed.
+
+### Exemptions
+
+- **Assigned items**: Any issue or PR that has an assignee is exempt from the staleness policy.
+
+### Keeping Items Active
+
+To prevent your issue or PR from being marked as stale:
+
+- Add a comment to the thread
+- Push new commits to the PR branch
+- Update the issue description or PR details
+- Request a review from a maintainer
+
+This automated process helps us focus on active contributions while ensuring community members understand how to keep their work visible. If you believe an item was closed in error, please comment on the closed issue/PR and a maintainer will reopen it.
 
 ---
 
