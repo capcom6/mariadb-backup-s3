@@ -1,32 +1,32 @@
-.PHONY: all fmt lint test benchmark deps clean build
+.PHONY: all fmt lint test coverage benchmark deps release clean help
 
-# Default target
-all: fmt lint test benchmark
+all: fmt lint test benchmark ## Run all tests and checks
 
-fmt:
+fmt: ## Format the code
 	golangci-lint fmt
 
-# Lint the code using golangci-lint
-lint:
+lint: ## Lint the code
 	golangci-lint run --timeout=5m
 
-# Run tests with coverage
-test:
+test: ## Run tests
 	go test -race -shuffle=on -count=1 -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
 
-# Run benchmarks
-benchmark:
+coverage: test ## Generate coverage
+	go tool cover -func=coverage.out
+	go tool cover -html=coverage.out -o coverage.html
+
+benchmark: ## Run benchmarks
 	go test -run=^$$ -bench=. -benchmem ./... | tee benchmark.txt
 
-# Download dependencies
-deps:
+deps: ## Install dependencies
 	go mod download
 
-# Execute goreleaser for snapshot
-release:
+release: ## Create release
 	goreleaser release --snapshot --clean
 
-# Clean up generated files
-clean:
-	rm -f coverage.out benchmark.txt
+clean: ## Remove build artifacts
+	rm -f coverage.* benchmark.txt
 	rm -rf dist
+
+help: ## Show this help
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
