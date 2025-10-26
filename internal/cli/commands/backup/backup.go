@@ -2,7 +2,6 @@ package backup
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/capcom6/mariadb-backup-s3/internal/backup"
 	"github.com/capcom6/mariadb-backup-s3/internal/cli/flags"
@@ -76,7 +75,11 @@ func Command() *cli.Command {
 			cfg.Encryption.EncryptionKey = cmd.String("encryption-key")
 
 			// Validate configuration
-			logger.Debug(ctx, "Validating configuration", logging.Fields{
+			if err := cfg.Validate(); err != nil {
+				logger.Error(ctx, "Invalid configuration", err)
+				return cli.Exit("backup command failed", codes.ParamsError)
+			}
+			logger.Debug(ctx, "Configuration validated successfully", logging.Fields{
 				"db_host":                 cfg.MariaDB.Host,
 				"db_port":                 cfg.MariaDB.Port,
 				"db_user":                 cfg.MariaDB.User,
@@ -94,7 +97,7 @@ func Command() *cli.Command {
 
 			if err := backup.NewOperation(cfg, logger).Run(ctx); err != nil {
 				logger.Error(ctx, "Backup command failed", err)
-				return fmt.Errorf("backup command failed: %w", err)
+				return cli.Exit("backup command failed", codes.InternalError)
 			}
 
 			logger.Info(ctx, "Backup command completed successfully")
