@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"runtime"
 
 	"github.com/capcom6/mariadb-backup-s3/internal/cli/commands/backup"
 	"github.com/capcom6/mariadb-backup-s3/internal/cli/commands/restore"
 	"github.com/capcom6/mariadb-backup-s3/internal/core/codes"
+	"github.com/capcom6/mariadb-backup-s3/internal/logging"
 	"github.com/joho/godotenv"
 	"github.com/urfave/cli/v3"
 )
@@ -23,8 +23,18 @@ var (
 )
 
 func main() {
+	logger := logging.NewDefault()
+	defer func() {
+		if err := logger.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to close logger: %v\n", err)
+		}
+	}()
+
+	ctx := logging.WithLogger(context.Background(), logger)
+
+	// Load environment variables
 	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
-		log.Fatal(err)
+		logger.Fatal(ctx, "failed to load .env", err)
 	}
 
 	//nolint:reassign // urfave/cli specific
@@ -52,6 +62,16 @@ func main() {
 			backup.Command(),
 			restore.Command(),
 		},
+		Before: func(ctx context.Context, _ *cli.Command) (context.Context, error) {
+			logger.Info(ctx, "Starting MariaDB Backup S3 application")
+
+			return ctx, nil
+		},
+		After: func(ctx context.Context, _ *cli.Command) error {
+			logger.Info(ctx, "Application completed successfully")
+
+			return nil
+		},
 		Flags: []cli.Flag{},
 		Authors: []any{
 			"Aleksandr Soloshenko <i@capcom.me>",
@@ -59,8 +79,8 @@ func main() {
 		Copyright: "License: Apache-2.0",
 	}
 
-	if err := app.Run(context.Background(), os.Args); err != nil {
-		log.Printf("failed to run: %s", err)
+	if err := app.Run(ctx, os.Args); err != nil {
+		logger.Error(ctx, "Application failed", err)
 		os.Exit(codes.InternalError)
 	}
 }
