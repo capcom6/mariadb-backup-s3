@@ -18,6 +18,7 @@
     - [Docker](#docker)
     - [From Source (Advanced)](#from-source-advanced)
   - [⚙️ Configuration](#️-configuration)
+    - [Logging Configuration](#logging-configuration)
   - [🚀 Usage](#-usage)
     - [Backup](#backup)
     - [Restore](#restore)
@@ -128,6 +129,18 @@ The tool supports loading configuration from multiple sources:
 3. Command-line flags
 
 The priority order is: `.env` > Environment variables > Command-line flags
+
+### Logging Configuration
+
+The logging system can be configured via environment variables:
+
+- `LOG_LEVEL`: Set log level (debug, info, warn, error, fatal). Default: info
+- `LOG_FORMAT`: Set format (human, json). Default: human
+- `LOG_OUTPUT`: Set output destination:
+  - `stdout` (default): Standard output
+  - `stderr`: Standard error
+  - Any file path: Write logs to the specified file
+- `NO_COLOR`: When set (any non-empty value), disables colored output for human format
 
 ## 🚀 Usage
 
