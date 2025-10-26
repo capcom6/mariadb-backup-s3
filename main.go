@@ -24,11 +24,6 @@ var (
 
 func main() {
 	logger := logging.NewDefault()
-	defer func() {
-		if err := logger.Close(); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to close logger: %v\n", err)
-		}
-	}()
 
 	ctx := logging.WithLogger(context.Background(), logger)
 
@@ -79,8 +74,15 @@ func main() {
 		Copyright: "License: Apache-2.0",
 	}
 
+	exitCode := 0
 	if err := app.Run(ctx, os.Args); err != nil {
 		logger.Error(ctx, "Application failed", err)
-		os.Exit(codes.InternalError)
+		exitCode = codes.InternalError
 	}
+
+	if err := logger.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to close logger: %v\n", err)
+	}
+
+	os.Exit(exitCode)
 }

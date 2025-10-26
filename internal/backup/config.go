@@ -1,6 +1,13 @@
 package backup
 
-import "github.com/capcom6/mariadb-backup-s3/internal/config"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/capcom6/mariadb-backup-s3/internal/config"
+)
+
+var ErrValidationFailed = errors.New("validation failed")
 
 type LimitsConfig struct {
 	MaxCount int
@@ -15,6 +22,14 @@ type Config struct {
 	Storage    config.Storage
 	Backup     Backup
 	Encryption config.Encryption
+}
+
+func (c Config) Validate() error {
+	if err := c.Storage.Validate(); err != nil {
+		return fmt.Errorf("%w: storage validation failed: %w", ErrValidationFailed, err)
+	}
+
+	return nil
 }
 
 func DefaultConfig() Config {

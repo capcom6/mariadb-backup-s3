@@ -56,11 +56,6 @@ func Command() *cli.Command {
 			}
 
 			targetDir := cmd.String("target-dir")
-			if targetDir == "" {
-				err := cli.Exit("target directory is required", codes.ParamsError)
-				logger.Error(ctx, "Target directory is required", err)
-				return err
-			}
 
 			// Log command parameters for debugging
 			logger.Debug(ctx, "Parsing command parameters", logging.Fields{
@@ -75,6 +70,18 @@ func Command() *cli.Command {
 			cfg.Storage.URL = cmd.String("storage-url")
 			cfg.Encryption.EncryptionKey = cmd.String("encryption-key")
 			cfg.TargetDir = targetDir
+
+			if err := cfg.Validate(); err != nil {
+				logger.Error(ctx, "Restore command failed", err)
+				return cli.Exit("restore command failed", codes.ParamsError)
+			}
+
+			// Validate configuration (debug visibility)
+			logger.Debug(ctx, "Configuration validated successfully", logging.Fields{
+				"target_dir":         cfg.TargetDir,
+				"storage_url":        cfg.Storage.URL,
+				"encryption_enabled": cfg.Encryption.Enabled(),
+			})
 
 			logger.Info(ctx, "Starting restore execution", logging.Fields{
 				"backup_file":        backupFile,

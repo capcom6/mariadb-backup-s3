@@ -1,10 +1,13 @@
 package restore
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/capcom6/mariadb-backup-s3/internal/config"
 )
+
+var ErrValidationFailed = errors.New("validation failed")
 
 type Config struct {
 	Storage    config.Storage
