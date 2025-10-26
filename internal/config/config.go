@@ -27,6 +27,11 @@ func (s Storage) GetURL() (*url.URL, error) {
 	return u, nil
 }
 
+func (s Storage) Validate() error {
+	_, err := s.GetURL()
+	return err
+}
+
 type Encryption struct {
 	EncryptionKey string
 }
