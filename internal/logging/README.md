@@ -100,7 +100,6 @@ ctx = logging.WithComponent(ctx, "database")
 ctx = logging.WithOperationID(ctx, "backup-123")
 
 // Add custom fields
-ctx = logging.WithField(ctx, "user_id", 123)
 ctx = logging.WithFields(ctx, logging.Fields{
     "table": "users",
     "rows": 1000,
@@ -129,7 +128,7 @@ You can add component and operation ID to the context:
 ctx = logging.WithComponent(ctx, "my-component")
 ctx = logging.WithOperationID(ctx, "op-12345")
 // or generate a new operation ID
-opID := logging.GenerateOperationID()
+opID := logging.GenerateOperationID("my-component")
 ctx = logging.WithOperationID(ctx, opID)
 ```
 
@@ -146,10 +145,9 @@ logger.Info(ctx, "Message with component and operation ID")
 ```go
 func main() {
     // Initialize logging
-    logging.InitDefault()
-
-    logger := logging.Get()
-    ctx := logging.WithComponent(context.Background(), "main")
+    logger := logging.NewDefault()
+    ctx := logging.WithLogger(context.Background(), logger)
+    ctx = logging.WithComponent(ctx, "main")
 
     logger.Info(ctx, "Application starting")
 
@@ -163,7 +161,7 @@ func main() {
 
 ```go
 func Execute(ctx context.Context, cfg Config) error {
-    logger := logging.Get()
+    logger := logging.GetLogger(ctx)
     operationID := logging.GenerateOperationID("backup")
 
     ctx = logging.WithOperationID(ctx, operationID)
