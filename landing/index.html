@@ -437,12 +437,41 @@ sudo systemctl enable --now mariadb-backup-s3.timer</code></pre>
                     <h3>Backup Settings</h3>
                     <div class="config-items">
                         <div class="config-item">
-                            <code>BACKUP__LIMITS__MAX_COUNT</code>
-                            <span>Maximum number of backups to retain (0 = unlimited)</span>
+                            <code>MARIADB__BACKUP_BINARY</code>
+                            <span>Path to `mariadb-backup` binary (default: `mariadb-backup`)</span>
+                        </div>
+                        <div class="config-item">
+                            <code>MARIADB__BACKUP_OPTIONS</code>
+                            <span>Additional `mariadb-backup` options</span>
                         </div>
                         <div class="config-item">
                             <code>ENCRYPTION__KEY</code>
                             <span>Base64-encoded encryption key for AES-256-GCM</span>
+                        </div>
+                        <div class="config-item">
+                            <code>BACKUP__LIMITS__MAX_COUNT</code>
+                            <span>Maximum number of backups to retain (0 = unlimited)</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="config-category">
+                    <h3>Logging</h3>
+                    <div class="config-items">
+                        <div class="config-item">
+                            <code>LOG_LEVEL</code>
+                            <span>Log level (e.g., debug, info, warn, error)</span>
+                        </div>
+                        <div class="config-item">
+                            <code>LOG_OUTPUT</code>
+                            <span>Log output (e.g., stdout, stderr, file path)</span>
+                        </div>
+                        <div class="config-item">
+                            <code>LOG_FORMAT</code>
+                            <span>Log format (e.g., json, human)</span>
+                        </div>
+                        <div class="config-item">
+                            <code>NO_COLOR</code>
+                            <span>Disable color output (default: unset)</span>
                         </div>
                     </div>
                 </div>
