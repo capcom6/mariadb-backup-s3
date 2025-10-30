@@ -248,7 +248,7 @@ func (s *AES256GCMService) readHeader(r io.Reader) ([]byte, []byte, error) {
 		return nil, nil, fmt.Errorf("failed to read version: %w", err)
 	}
 	if v[0] != version {
-		return nil, nil, fmt.Errorf("%w: 0x%02x", ErrUnsupportedVersion, v[0])
+		return nil, nil, fmt.Errorf("%w: 0x%02x", ErrUnsupportedVersion, v)
 	}
 	salt := make([]byte, saltSize)
 	if _, err := io.ReadFull(r, salt); err != nil {
