@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 )
 
 type Format string
@@ -29,7 +30,7 @@ func DefaultConfig() Config {
 	enableColors := true
 	timeFormat := "2006-01-02 15:04:05.000"
 
-	switch os.Getenv("LOG_LEVEL") {
+	switch strings.ToLower(os.Getenv("LOG_LEVEL")) {
 	case "debug":
 		level = LogLevelDebug
 	case "info":
@@ -42,7 +43,7 @@ func DefaultConfig() Config {
 		level = LogLevelFatal
 	}
 
-	if os.Getenv("LOG_FORMAT") == "json" {
+	if strings.ToLower(os.Getenv("LOG_FORMAT")) == "json" {
 		format = FormatJSON
 	}
 
