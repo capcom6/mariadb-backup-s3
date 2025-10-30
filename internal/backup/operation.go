@@ -105,7 +105,7 @@ func (o *Operation) backup(ctx context.Context, tempdir string) error {
 	}()
 
 	args := []string{
-		"mariabackup",
+		o.config.MariaDB.BackupBinary,
 		"--backup",
 		"--parallel=" + strconv.Itoa(runtime.NumCPU()),
 		"--target-dir=" + tempdir,
@@ -144,7 +144,7 @@ func (o *Operation) prepare(ctx context.Context, tempdir string) error {
 	}()
 
 	args := []string{
-		"mariabackup",
+		o.config.MariaDB.BackupBinary,
 		"--prepare",
 		"--target-dir=" + tempdir,
 	}

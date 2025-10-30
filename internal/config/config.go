@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/url"
+	"os/exec"
 )
 
 type MariaDB struct {
@@ -12,7 +13,31 @@ type MariaDB struct {
 	User          string
 	Password      string
 	BackupOptions string
+	BackupBinary  string
 }
+
+func (m MariaDB) Validate() error {
+	if _, err := exec.LookPath(m.BackupBinary); err != nil {
+		return fmt.Errorf("mariabackup binary '%s' not found in PATH: %w", m.BackupBinary, err)
+	}
+
+	return nil
+}
+
+func DefaultMariaDB() MariaDB {
+	const defaultPort = 3306
+
+	return MariaDB{
+		Host:          "localhost",
+		Port:          defaultPort,
+		User:          "root",
+		Password:      "",
+		BackupOptions: "",
+		BackupBinary:  "mariadb-backup",
+	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
 
 type Storage struct {
 	URL string
@@ -29,6 +54,7 @@ func (s Storage) GetURL() (*url.URL, error) {
 
 func (s Storage) Validate() error {
 	_, err := s.GetURL()
+
 	return err
 }
 

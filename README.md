@@ -163,21 +163,22 @@ mariadb-backup-s3 backup [options]
 
 **Options:**
 
-| Option                        | Env Var                     | Description                                      | Default value |
-| ----------------------------- | --------------------------- | ------------------------------------------------ | ------------- |
-| **Database**                  |                             |                                                  |               |
-| `--db-host`, `--host`         | `MARIADB__HOST`             | MariaDB hostname                                 | `localhost`   |
-| `--db-port`, `--port`         | `MARIADB__PORT`             | MariaDB port                                     | `3306`        |
-| `--db-user`, `--user`         | `MARIADB__USER`             | MariaDB username                                 | `root`        |
-| `--db-password`, `--password` | `MARIADB__PASSWORD`         | MariaDB password                                 | `""`          |
-| **Storage**                   |                             |                                                  |               |
-| `--storage`, `--storage-url`  | `STORAGE__URL`              | Storage URL, see [Storage Types](#storage-types) | **required**  |
-| **Encryption**                |                             |                                                  |               |
-| `--encryption-key`            | `ENCRYPTION__KEY`           | Encryption key                                   | `""`          |
-| **mariadb-backup**            |                             |                                                  |               |
-| `--db-backup-options`         | `MARIADB__BACKUP_OPTIONS`   | MariaDB backup options                           | `""`          |
-| **Retention**                 |                             |                                                  |               |
-| `--backup-limits-max-count`   | `BACKUP__LIMITS__MAX_COUNT` | Number of backups to keep, 0 = unlimited         | `0`           |
+| Option                        | Env Var                     | Description                                      | Default value    |
+| ----------------------------- | --------------------------- | ------------------------------------------------ | ---------------- |
+| **Database**                  |                             |                                                  |                  |
+| `--db-host`, `--host`         | `MARIADB__HOST`             | MariaDB hostname                                 | `localhost`      |
+| `--db-port`, `--port`         | `MARIADB__PORT`             | MariaDB port                                     | `3306`           |
+| `--db-user`, `--user`         | `MARIADB__USER`             | MariaDB username                                 | `root`           |
+| `--db-password`, `--password` | `MARIADB__PASSWORD`         | MariaDB password                                 | `""`             |
+| **Storage**                   |                             |                                                  |                  |
+| `--storage`, `--storage-url`  | `STORAGE__URL`              | Storage URL, see [Storage Types](#storage-types) | **required**     |
+| **Encryption**                |                             |                                                  |                  |
+| `--encryption-key`            | `ENCRYPTION__KEY`           | Encryption key                                   | `""`             |
+| **mariadb-backup**            |                             |                                                  |                  |
+| `--db-backup-binary`          | `MARIADB__BACKUP_BINARY`    | MariaDB backup binary path                       | `mariadb-backup` |
+| `--db-backup-options`         | `MARIADB__BACKUP_OPTIONS`   | MariaDB backup options                           | `""`             |
+| **Retention**                 |                             |                                                  |                  |
+| `--backup-limits-max-count`   | `BACKUP__LIMITS__MAX_COUNT` | Number of backups to keep, 0 = unlimited         | `0`              |
 
 **Example:**
 

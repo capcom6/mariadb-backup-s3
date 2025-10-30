@@ -25,6 +25,10 @@ type Config struct {
 }
 
 func (c Config) Validate() error {
+	if err := c.MariaDB.Validate(); err != nil {
+		return fmt.Errorf("%w: MariaDB validation failed: %w", ErrValidationFailed, err)
+	}
+
 	if err := c.Storage.Validate(); err != nil {
 		return fmt.Errorf("%w: storage validation failed: %w", ErrValidationFailed, err)
 	}
@@ -34,13 +38,7 @@ func (c Config) Validate() error {
 
 func DefaultConfig() Config {
 	return Config{
-		MariaDB: config.MariaDB{
-			Host:          "localhost",
-			Port:          3306, //nolint:mnd // default port
-			User:          "root",
-			Password:      "",
-			BackupOptions: "",
-		},
+		MariaDB: config.DefaultMariaDB(),
 		Storage: config.Storage{
 			URL: "",
 		},
