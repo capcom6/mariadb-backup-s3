@@ -7,6 +7,7 @@ import (
 	"github.com/capcom6/mariadb-backup-s3/internal/cli/flags"
 	"github.com/capcom6/mariadb-backup-s3/internal/core/codes"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
+	"github.com/capcom6/mariadb-backup-s3/pkg/cliutil"
 	"github.com/urfave/cli/v3"
 )
 
@@ -19,6 +20,15 @@ func Command() *cli.Command {
 			Name:    "db-backup-options",
 			Usage:   "mariadb-backup additional options",
 			Sources: cli.EnvVars("MARIADB__BACKUP_OPTIONS"),
+		},
+		&cli.StringFlag{
+			Name:        "db-backup-binary",
+			Usage:       "mariadb-backup binary path",
+			DefaultText: "mariadb-backup",
+			Sources: cli.NewValueSourceChain(
+				cli.EnvVar("MARIADB__BACKUP_BINARY"),
+				cliutil.DefaultValue("mariadb-backup"),
+			),
 		},
 		&cli.IntFlag{
 			Name:        "backup-limits-max-count",
@@ -51,6 +61,7 @@ func Command() *cli.Command {
 				"db_user":                 cmd.String("db-user"),
 				"db_password":             "***", // Don't log actual password
 				"db_backup_options":       cmd.String("db-backup-options"),
+				"db_backup_binary":        cmd.String("db-backup-binary"),
 				"backup_limits_max_count": cmd.Int("backup-limits-max-count"),
 				"storage_url":             cmd.String("storage-url"),
 				"encryption_key":          "***", // Don't log actual key
@@ -64,6 +75,7 @@ func Command() *cli.Command {
 			cfg.MariaDB.User = cmd.String("db-user")
 			cfg.MariaDB.Password = cmd.String("db-password")
 			cfg.MariaDB.BackupOptions = cmd.String("db-backup-options")
+			cfg.MariaDB.BackupBinary = cmd.String("db-backup-binary")
 
 			// Configure backup limits
 			cfg.Backup.Limits.MaxCount = cmd.Int("backup-limits-max-count")
