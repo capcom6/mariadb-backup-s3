@@ -11,6 +11,7 @@
   - [🚀 Quick Start](#-quick-start)
   - [✨ Features](#-features)
   - [🛠️ How It Works](#️-how-it-works)
+    - [Temporary Working Directory](#temporary-working-directory)
   - [📋 Prerequisites](#-prerequisites)
   - [📦 Installation](#-installation)
     - [Binary Installation (Recommended)](#binary-installation-recommended)
@@ -81,6 +82,15 @@ The restore process follows these steps:
 2. 🔑 Decrypt the backup using AES-256-GCM
 3. 🗜️ Decompress the `.tar.gz` archive
 4. 🔄 Restore the database files to specified directory
+
+### Temporary Working Directory
+
+The tool uses a temporary working directory to store intermediate files. By default, it uses the system's default temporary directory (e.g., `/tmp`). If for some reason you need to use a different directory, you can specify it via the `TMPDIR` environment variable.
+
+```bash
+export TMPDIR=/mnt/data/backup
+./mariadb-backup-s3 backup
+```
 
 ## 📋 Prerequisites
 
@@ -323,3 +333,4 @@ Apache 2.0 - See [LICENSE](LICENSE) for details.
 ---
 
 💡 **Need Help?** Open an [issue](https://github.com/capcom6/mariadb-backup-s3/issues) for support.
+

@@ -127,6 +127,7 @@ $RECYCLE.BIN/
 
 dist/
 tmp/
+dev-docs/
 
 go.work*
 coverage.*
