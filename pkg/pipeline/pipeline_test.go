@@ -126,12 +126,6 @@ func TestRun_ErrorFromIntermediateStage(t *testing.T) {
 		t.Errorf("Expected error to contain 'stage 1 failed', got: %v", err)
 	}
 
-	// Verify error wrapping
-	// Just check that the error is not nil and contains expected text
-	if err == nil {
-		t.Error("Expected error, got nil")
-	}
-
 	if !strings.Contains(err.Error(), "simulated failure") {
 		t.Errorf("Expected error to contain 'simulated failure', got: %v", err)
 	}
@@ -334,12 +328,6 @@ func TestRun_ErrorWrapping(t *testing.T) {
 	// Test that we can check for specific error types
 	if !strings.Contains(err.Error(), "original error") {
 		t.Errorf("Expected error to contain 'original error', got: %v", err)
-	}
-
-	// Test that errors.Is works with the wrapped error
-	// Just check that the error is not nil and contains expected text
-	if err == nil {
-		t.Error("Expected error, got nil")
 	}
 }
 
