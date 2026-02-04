@@ -17,13 +17,15 @@ import (
 )
 
 type s3Storage struct {
-	bucket string
-	prefix string
-	client *s3.Client
+	bucket   string
+	prefix   string
+	client   *s3.Client
+	partSize int64
 }
 
 func NewS3Storage(u *url.URL) (Backend, error) {
 	forcePathStyle := false
+	var partSize int64 = 10 * 1024 * 1024 // Default 10 MB
 
 	endpoint := u.Query().Get("endpoint")
 	forcePathStyleRaw := u.Query().Get("s3-force-path-style")
@@ -32,6 +34,18 @@ func NewS3Storage(u *url.URL) (Backend, error) {
 		forcePathStyle, err = strconv.ParseBool(forcePathStyleRaw)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse s3-force-path-style: %w", err)
+		}
+	}
+
+	partSizeRaw := u.Query().Get("part-size")
+	if partSizeRaw != "" {
+		var err error
+		partSize, err = strconv.ParseInt(partSizeRaw, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse part-size: %w", err)
+		}
+		if partSize < 5*1024*1024 {
+			return nil, fmt.Errorf("part-size must be at least 5MB (5242880 bytes)")
 		}
 	}
 
@@ -58,16 +72,19 @@ func NewS3Storage(u *url.URL) (Backend, error) {
 	}
 
 	return &s3Storage{
-		bucket: u.Host,
-		prefix: prefix,
-		client: s3.NewFromConfig(sdkConfig, s3Options...),
+		bucket:   u.Host,
+		prefix:   prefix,
+		client:   s3.NewFromConfig(sdkConfig, s3Options...),
+		partSize: partSize,
 	}, nil
 }
 
 func (s *s3Storage) Upload(ctx context.Context, path string, data io.Reader) error {
 	key := s.prefix + strings.TrimPrefix(path, "/")
 
-	uploader := manager.NewUploader(s.client)
+	uploader := manager.NewUploader(s.client, func(u *manager.Uploader) {
+		u.PartSize = s.partSize
+	})
 	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(s.bucket),
 		Key:         aws.String(key),

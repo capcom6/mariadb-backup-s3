@@ -249,6 +249,7 @@ STORAGE__URL=s3://bucket-name/path?endpoint=https://s3.example.com
 **Query Parameters:**
 - `endpoint`: S3 endpoint URL
 - `s3-force-path-style`: Set to "true" to use path-style URLs
+- `part-size`: Multipart upload part size in bytes (default: 10485760 = 10 MB, minimum: 5242880 = 5 MB)
 
 ### FTP Storage
 For FTP servers:

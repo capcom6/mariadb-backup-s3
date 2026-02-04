@@ -28,6 +28,10 @@ MARIADB__PASSWORD=your_secure_password
 MARIADB__BACKUP_OPTIONS=--skip-ssl --parallel=4
 
 # Storage configuration (S3)
+# S3 Query Parameters:
+#   - endpoint: S3 endpoint URL
+#   - s3-force-path-style: Set to "true" to use path-style URLs
+#   - part-size: Multipart upload part size in bytes (default: 10485760, min: 5242880)
 STORAGE__URL=s3://your-bucket-name/backup-path?endpoint=https://s3.example.com
 AWS_ACCESS_KEY=your_access_key
 AWS_SECRET_KEY=your_secret_key
