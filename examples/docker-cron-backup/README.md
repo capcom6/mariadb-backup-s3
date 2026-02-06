@@ -16,14 +16,14 @@ AWS_REGION=your-region
 AWS_ACCESS_KEY_ID=your-access-key
 AWS_SECRET_ACCESS_KEY=your-secret-key
 MARIADB_ROOT_PASSWORD=your-db-password
-STORAGE_URL=s3://your-bucket/backups?endpoint=https://s3.example.com
+STORAGE__URL=s3://your-bucket/backups?endpoint=https://s3.example.com
 DB_BACKUP__OPTIONS="--skip-ssl"
 DB_BACKUP__SCHEDULE="0 2 * * *"
 TIMEZONE="America/New_York"
 ```
 
 ### Storage URL Configuration
-The `STORAGE_URL` supports S3-compatible storage with the following query parameters:
+The `STORAGE__URL` supports S3-compatible storage with the following query parameters:
 - `endpoint`: S3 endpoint URL
 - `s3-force-path-style`: Set to "true" to use path-style URLs
 - `part-size`: Multipart upload part size in bytes (default: 10485760, min: 5242880)

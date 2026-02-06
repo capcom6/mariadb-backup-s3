@@ -16,16 +16,25 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
+const (
+	// DefaultPartSize is the default part size for S3 multipart uploads (10 MB)
+	DefaultPartSize int64 = 10 * 1024 * 1024
+	// MinPartSize is the minimum part size for S3 multipart uploads (5 MB)
+	MinPartSize int64 = 5 * 1024 * 1024
+	// MaxPartSize is the maximum part size for S3 multipart uploads (5 GiB)
+	MaxPartSize int64 = 5 * 1024 * 1024 * 1024
+)
+
 type s3Storage struct {
 	bucket   string
 	prefix   string
-	client   *s3.Client
 	partSize int64
+	client   *s3.Client
 }
 
 func NewS3Storage(u *url.URL) (Backend, error) {
 	forcePathStyle := false
-	var partSize int64 = 10 * 1024 * 1024 // Default 10 MB
+	partSize := DefaultPartSize
 
 	endpoint := u.Query().Get("endpoint")
 	forcePathStyleRaw := u.Query().Get("s3-force-path-style")
@@ -44,8 +53,11 @@ func NewS3Storage(u *url.URL) (Backend, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse part-size: %w", err)
 		}
-		if partSize < 5*1024*1024 {
-			return nil, fmt.Errorf("part-size must be at least 5MB (5242880 bytes)")
+		if partSize < MinPartSize {
+			return nil, fmt.Errorf("%w: part-size must be at least %d bytes", ErrInvalidArgument, MinPartSize)
+		}
+		if partSize > MaxPartSize {
+			return nil, fmt.Errorf("%w: part-size must be at most %d bytes", ErrInvalidArgument, MaxPartSize)
 		}
 	}
 
@@ -74,8 +86,8 @@ func NewS3Storage(u *url.URL) (Backend, error) {
 	return &s3Storage{
 		bucket:   u.Host,
 		prefix:   prefix,
-		client:   s3.NewFromConfig(sdkConfig, s3Options...),
 		partSize: partSize,
+		client:   s3.NewFromConfig(sdkConfig, s3Options...),
 	}, nil
 }
 
