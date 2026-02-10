@@ -16,14 +16,26 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
+const (
+	// S3DefaultPartSize is the default part size for S3 multipart uploads (10 MB).
+	S3DefaultPartSize int64 = 10 * 1024 * 1024
+	// S3MinPartSize is the minimum part size for S3 multipart uploads (5 MB).
+	S3MinPartSize int64 = 5 * 1024 * 1024
+	// S3MaxPartSize is the maximum part size for S3 multipart uploads (5 GiB).
+	S3MaxPartSize int64 = 5 * 1024 * 1024 * 1024
+)
+
 type s3Storage struct {
-	bucket string
-	prefix string
+	bucket   string
+	prefix   string
+	partSize int64
+
 	client *s3.Client
 }
 
 func NewS3Storage(u *url.URL) (Backend, error) {
 	forcePathStyle := false
+	partSize := S3DefaultPartSize
 
 	endpoint := u.Query().Get("endpoint")
 	forcePathStyleRaw := u.Query().Get("s3-force-path-style")
@@ -32,6 +44,21 @@ func NewS3Storage(u *url.URL) (Backend, error) {
 		forcePathStyle, err = strconv.ParseBool(forcePathStyleRaw)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse s3-force-path-style: %w", err)
+		}
+	}
+
+	partSizeRaw := u.Query().Get("part-size")
+	if partSizeRaw != "" {
+		var err error
+		partSize, err = strconv.ParseInt(partSizeRaw, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse part-size: %w", err)
+		}
+		if partSize < S3MinPartSize {
+			return nil, fmt.Errorf("%w: part-size must be at least %d bytes", ErrInvalidArgument, S3MinPartSize)
+		}
+		if partSize > S3MaxPartSize {
+			return nil, fmt.Errorf("%w: part-size must be at most %d bytes", ErrInvalidArgument, S3MaxPartSize)
 		}
 	}
 
@@ -58,8 +85,10 @@ func NewS3Storage(u *url.URL) (Backend, error) {
 	}
 
 	return &s3Storage{
-		bucket: u.Host,
-		prefix: prefix,
+		bucket:   u.Host,
+		prefix:   prefix,
+		partSize: partSize,
+
 		client: s3.NewFromConfig(sdkConfig, s3Options...),
 	}, nil
 }
@@ -67,7 +96,9 @@ func NewS3Storage(u *url.URL) (Backend, error) {
 func (s *s3Storage) Upload(ctx context.Context, path string, data io.Reader) error {
 	key := s.prefix + strings.TrimPrefix(path, "/")
 
-	uploader := manager.NewUploader(s.client)
+	uploader := manager.NewUploader(s.client, func(u *manager.Uploader) {
+		u.PartSize = s.partSize
+	})
 	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(s.bucket),
 		Key:         aws.String(key),
