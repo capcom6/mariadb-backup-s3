@@ -33,6 +33,7 @@
       - [Key Generation](#key-generation)
   - [📝 Examples](#-examples)
   - [🤝 Contributing](#-contributing)
+  - [👥 Contributors](#-contributors)
   - [📄 License](#-license)
 
 
@@ -326,6 +327,14 @@ We welcome contributions! Please follow these steps:
 3. 💾 Commit changes: `git commit -m 'Add amazing feature'`
 4. 🚀 Push to branch: `git push origin feat/amazing-feature`
 5. 🔀 Create a Pull Request
+
+## 👥 Contributors
+
+A big thank you to everyone who has contributed to this project!
+
+- [gslongo](https://github.com/gslongo)
+
+See the full [CONTRIBUTORS.md](CONTRIBUTORS.md) file for more information.
 
 ## 📄 License
 
