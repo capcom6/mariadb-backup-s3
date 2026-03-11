@@ -9,18 +9,10 @@ import (
 
 var ErrValidationFailed = errors.New("validation failed")
 
-type LimitsConfig struct {
-	MaxCount int
-}
-
-type Backup struct {
-	Limits LimitsConfig
-}
-
 type Config struct {
+	Version    string
 	MariaDB    config.MariaDB
 	Storage    config.Storage
-	Backup     Backup
 	Encryption config.Encryption
 }
 
@@ -38,12 +30,10 @@ func (c Config) Validate() error {
 
 func DefaultConfig() Config {
 	return Config{
+		Version: "",
 		MariaDB: config.DefaultMariaDB(),
 		Storage: config.Storage{
 			URL: "",
-		},
-		Backup: Backup{
-			Limits: LimitsConfig{MaxCount: 0},
 		},
 		Encryption: config.Encryption{
 			EncryptionKey: "",
