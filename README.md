@@ -12,6 +12,7 @@
   - [✨ Features](#-features)
   - [🛠️ How It Works](#️-how-it-works)
     - [Temporary Working Directory](#temporary-working-directory)
+    - [Backup Registry](#backup-registry)
   - [📋 Prerequisites](#-prerequisites)
   - [📦 Installation](#-installation)
     - [Binary Installation (Recommended)](#binary-installation-recommended)
@@ -23,6 +24,8 @@
   - [🚀 Usage](#-usage)
     - [Backup](#backup)
     - [Restore](#restore)
+    - [Retention](#retention)
+    - [Registry](#registry)
   - [📂 Storage Types](#-storage-types)
     - [S3 Storage](#s3-storage)
     - [FTP Storage](#ftp-storage)
@@ -62,7 +65,8 @@ nano .env  # Edit with your credentials
 - 🔑 Optional encryption using AES-256-GCM
 - ☁️ Multiple storage backends (S3-compatible, FTP, filesystem)
 - 🔌 Pluggable storage interface for extensibility
-- 🔄 Automatic backup rotation
+- 🔄 Automatic backup rotation with configurable retention policies
+- 📋 Backup registry for tracking and managing backups
 - 🐳 Docker container support
 
 ## 🛠️ How It Works
@@ -75,7 +79,8 @@ The backup process follows these steps:
 4. 🗜️ Compress backup to `.tar.gz` archive
 5. 🔑 Encrypt archive using AES-256-GCM
 6. 🚀 Upload archive to configured storage backend
-7. 🧹 Clean up old backups based on retention policy
+7. 📋 Update backup registry with new backup metadata
+8. 🧹 Clean up old backups based on retention policy (unless `--skip-retention` is set)
 
 The restore process follows these steps:
 
@@ -92,6 +97,28 @@ The tool uses a temporary working directory to store intermediate files. By defa
 export TMPDIR=/mnt/data/backup
 ./mariadb-backup-s3 backup
 ```
+
+### Backup Registry
+
+The tool maintains a backup registry (`.backup-registry.json`) in the storage backend to track all backups. This registry enables:
+
+- **Backup tracking**: Each backup is recorded with metadata including ID, filename, creation time, size, SHA256 hash, encryption status, and tool version
+- **Retention management**: The registry is used to apply retention policies and clean up old backups
+- **Backup listing**: View all available backups with their status and metadata
+
+The registry is automatically updated when backups are created or deleted. Each backup entry includes:
+
+| Field        | Description                                   |
+| ------------ | --------------------------------------------- |
+| `id`         | Unique identifier (timestamp + SHA256 prefix) |
+| `filename`   | Backup filename                               |
+| `created_at` | Creation timestamp                            |
+| `size_bytes` | File size in bytes                            |
+| `sha256`     | SHA256 hash of the backup file                |
+| `status`     | Status: `ready`, `failed`, or `deleted`       |
+| `encrypted`  | Whether the backup is encrypted               |
+| `encryption` | Encryption metadata (algorithm)               |
+| `tool`       | Tool name and version                         |
 
 ## 📋 Prerequisites
 
@@ -161,10 +188,12 @@ mariadb-backup-s3 [global options] command [command options] [arguments...]
 
 The tool offers the following commands:
 
-| Command   | Description                                       |
-| --------- | ------------------------------------------------- |
-| `backup`  | Perform a backup of the MariaDB database          |
-| `restore` | Restore the database files to specified directory |
+| Command     | Description                                       |
+| ----------- | ------------------------------------------------- |
+| `backup`    | Perform a backup of the MariaDB database          |
+| `restore`   | Restore the database files to specified directory |
+| `retention` | Apply retention policies to backups               |
+| `registry`  | Manage backup registry                            |
 
 ### Backup
 
@@ -174,22 +203,27 @@ mariadb-backup-s3 backup [options]
 
 **Options:**
 
-| Option                        | Env Var                     | Description                                      | Default value    |
-| ----------------------------- | --------------------------- | ------------------------------------------------ | ---------------- |
-| **Database**                  |                             |                                                  |                  |
-| `--db-host`, `--host`         | `MARIADB__HOST`             | MariaDB hostname                                 | `localhost`      |
-| `--db-port`, `--port`         | `MARIADB__PORT`             | MariaDB port                                     | `3306`           |
-| `--db-user`, `--user`         | `MARIADB__USER`             | MariaDB username                                 | `root`           |
-| `--db-password`, `--password` | `MARIADB__PASSWORD`         | MariaDB password                                 | `""`             |
-| **Storage**                   |                             |                                                  |                  |
-| `--storage`, `--storage-url`  | `STORAGE__URL`              | Storage URL, see [Storage Types](#storage-types) | **required**     |
-| **Encryption**                |                             |                                                  |                  |
-| `--encryption-key`            | `ENCRYPTION__KEY`           | Encryption key                                   | `""`             |
-| **mariadb-backup**            |                             |                                                  |                  |
-| `--db-backup-binary`          | `MARIADB__BACKUP_BINARY`    | MariaDB backup binary path                       | `mariadb-backup` |
-| `--db-backup-options`         | `MARIADB__BACKUP_OPTIONS`   | MariaDB backup options                           | `""`             |
-| **Retention**                 |                             |                                                  |                  |
-| `--backup-limits-max-count`   | `BACKUP__LIMITS__MAX_COUNT` | Number of backups to keep, 0 = unlimited         | `0`              |
+| Option                        | Env Var                   | Description                                       | Default value    |
+| ----------------------------- | ------------------------- | ------------------------------------------------- | ---------------- |
+| **Database**                  |                           |                                                   |                  |
+| `--db-host`, `--host`         | `MARIADB__HOST`           | MariaDB hostname                                  | `localhost`      |
+| `--db-port`, `--port`         | `MARIADB__PORT`           | MariaDB port                                      | `3306`           |
+| `--db-user`, `--user`         | `MARIADB__USER`           | MariaDB username                                  | `root`           |
+| `--db-password`, `--password` | `MARIADB__PASSWORD`       | MariaDB password                                  | `""`             |
+| **Storage**                   |                           |                                                   |                  |
+| `--storage`, `--storage-url`  | `STORAGE__URL`            | Storage URL, see [Storage Types](#-storage-types) | **required**     |
+| **Encryption**                |                           |                                                   |                  |
+| `--encryption-key`            | `ENCRYPTION__KEY`         | Encryption key                                    | `""`             |
+| **mariadb-backup**            |                           |                                                   |                  |
+| `--db-backup-binary`          | `MARIADB__BACKUP_BINARY`  | MariaDB backup binary path                        | `mariadb-backup` |
+| `--db-backup-options`         | `MARIADB__BACKUP_OPTIONS` | MariaDB backup options                            | `""`             |
+| **Retention**                 |                           |                                                   |                  |
+| `--retention-count`           | `RETENTION__COUNT`        | Number of backups to retain, 0 = unlimited        | `0`              |
+| `--max-age`                   | `RETENTION__MAX_AGE`      | Maximum age of backups to keep (e.g. 24h, 168h)   | unlimited        |
+| `--keep-daily`                | `RETENTION__KEEP_DAILY`   | Number of daily backups to keep                   | unlimited        |
+| `--keep-weekly`               | `RETENTION__KEEP_WEEKLY`  | Number of weekly backups to keep                  | unlimited        |
+| `--keep-monthly`              | `RETENTION__KEEP_MONTHLY` | Number of monthly backups to keep                 | unlimited        |
+| `--skip-retention`            | `BACKUP__SKIP_RETENTION`  | Skip retention policy after backup                | `false`          |
 
 **Example:**
 
@@ -203,19 +237,24 @@ mariadb-backup-s3 backup [options]
 ### Restore
 
 ```bash
-mariadb-backup-s3 restore [options] filename
+mariadb-backup-s3 restore [options] [backup_name.tar.gz | --latest | --backup-id=<id>]
 ```
 
 **Options:**
 
-| Option                       | Env Var               | Description                                      | Default value |
-| ---------------------------- | --------------------- | ------------------------------------------------ | ------------- |
-| **Storage**                  |                       |                                                  |               |
-| `--storage`, `--storage-url` | `STORAGE__URL`        | Storage URL, see [Storage Types](#storage-types) | **required**  |
-| **Encryption**               |                       |                                                  |               |
-| `--encryption-key`           | `ENCRYPTION__KEY`     | Encryption key                                   | `""`          |
-| **Restore**                  |                       |                                                  |               |
-| `--target-dir`               | `RESTORE__TARGET_DIR` | Target directory to restore files to             | **required**  |
+| Option                       | Env Var               | Description                                       | Default value |
+| ---------------------------- | --------------------- | ------------------------------------------------- | ------------- |
+| **Storage**                  |                       |                                                   |               |
+| `--storage`, `--storage-url` | `STORAGE__URL`        | Storage URL, see [Storage Types](#-storage-types) | **required**  |
+| **Encryption**               |                       |                                                   |               |
+| `--encryption-key`           | `ENCRYPTION__KEY`     | Encryption key                                    | `""`          |
+| **Restore**                  |                       |                                                   |               |
+| `--target-dir`               | `RESTORE__TARGET_DIR` | Target directory to restore files to              | **required**  |
+| `--latest`                   |                       | Restore latest ready backup from registry         | `false`       |
+| `--backup-id`                |                       | Restore backup by registry backup ID              | `""`          |
+
+> **Note**
+> Exactly one backup selector must be specified: either a filename argument, `--latest`, or `--backup-id`.
 
 **Arguments:**
 
@@ -232,6 +271,96 @@ mariadb-backup-s3 restore [options] filename
   backup_name.tar.gz
 ```
 
+### Retention
+
+The `retention` command applies retention policies to backups stored in the configured storage backend. This allows you to clean up old backups based on various criteria.
+
+```bash
+mariadb-backup-s3 retention [options]
+```
+
+**Options:**
+
+| Option              | Env Var                   | Description                                          | Default value |
+| ------------------- | ------------------------- | ---------------------------------------------------- | ------------- |
+| **Storage**         |                           |                                                      |               |
+| `--storage-url`     | `STORAGE__URL`            | Storage URL, see [Storage Types](#-storage-types)    | **required**  |
+| **Retention**       |                           |                                                      |               |
+| `--retention-count` | `RETENTION__COUNT`        | Number of backups to retain, 0 = unlimited           | `0`           |
+| `--max-age`         | `RETENTION__MAX_AGE`      | Maximum age of backups to keep (e.g. 24h, 168h)      | unlimited     |
+| `--keep-daily`      | `RETENTION__KEEP_DAILY`   | Number of daily backups to keep                      | unlimited     |
+| `--keep-weekly`     | `RETENTION__KEEP_WEEKLY`  | Number of weekly backups to keep                     | unlimited     |
+| `--keep-monthly`    | `RETENTION__KEEP_MONTHLY` | Number of monthly backups to keep                    | unlimited     |
+| **Options**         |                           |                                                      |               |
+| `--dry-run`         | `RETENTION__DRY_RUN`      | Show what would be deleted without actually deleting | `false`       |
+| `--force`           | `RETENTION__FORCE`        | Continue even if errors occur                        | `false`       |
+
+**Retention Policy Examples:**
+
+```shell
+# Keep only the 7 most recent backups
+./mariadb-backup-s3 retention \
+  --storage-url="s3://my-bucket/backups" \
+  --retention-count=7
+
+# Keep backups from the last 7 days
+./mariadb-backup-s3 retention \
+  --storage-url="s3://my-bucket/backups" \
+  --max-age=168h
+
+# Keep 1 daily backup for 7 days, 1 weekly for 4 weeks, 1 monthly for 12 months
+./mariadb-backup-s3 retention \
+  --storage-url="s3://my-bucket/backups" \
+  --keep-daily=7 \
+  --keep-weekly=4 \
+  --keep-monthly=12
+
+# Preview what would be deleted without actually deleting
+./mariadb-backup-s3 retention \
+  --storage-url="s3://my-bucket/backups" \
+  --retention-count=3 \
+  --dry-run
+```
+
+> **Note**
+> At least one retention policy must be enabled. The retention command will fail if no policies are specified.
+
+### Registry
+
+The `registry` command allows you to manage and view the backup registry.
+
+```bash
+mariadb-backup-s3 registry [command] [options]
+```
+
+**Subcommands:**
+
+| Command | Alias | Description                |
+| ------- | ----- | -------------------------- |
+| `list`  | `ls`  | List backups from registry |
+
+**List Command Options:**
+
+| Option          | Env Var        | Description                                       | Default value |
+| --------------- | -------------- | ------------------------------------------------- | ------------- |
+| `--storage-url` | `STORAGE__URL` | Storage URL, see [Storage Types](#-storage-types) | **required**  |
+
+**Example:**
+
+```shell
+./mariadb-backup-s3 registry list \
+  --storage-url="s3://my-bucket/backups"
+```
+
+**Output:**
+
+The list command displays all backups in the registry with the following information:
+- **ID**: Unique backup identifier
+- **Created At**: Backup creation timestamp
+- **Status**: Backup status (`ready`, `failed`, or `deleted`)
+- **Encrypted**: Whether the backup is encrypted
+- **Size**: Backup file size in bytes
+- **Filename**: Backup filename
 
 ## 📂 Storage Types
 
