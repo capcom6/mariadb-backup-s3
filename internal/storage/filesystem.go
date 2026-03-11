@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,7 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
+	"strings"
 )
 
 type filesystemStorage struct {
@@ -32,8 +33,12 @@ func (f *filesystemStorage) Upload(ctx context.Context, filename string, data io
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	fullPath := filepath.Join(f.basePath, filename)
-	file, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	fullPath, err := f.makePath(filename)
+	if err != nil {
+		return err
+	}
+
+	file, err := os.CreateTemp(f.basePath, filename)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
@@ -42,25 +47,35 @@ func (f *filesystemStorage) Upload(ctx context.Context, filename string, data io
 			err = errors.Join(err, fmt.Errorf("failed to close file: %w", closeErr))
 		}
 		if err != nil {
-			if rmErr := os.Remove(fullPath); rmErr != nil {
+			if rmErr := os.Remove(file.Name()); rmErr != nil {
 				err = errors.Join(err, fmt.Errorf("failed to remove partial file: %w", rmErr))
 			}
 		}
 	}()
 
 	// Use context-aware copying for cancellation support
-	if cpyErr := copyWithContext(ctx, file, data); cpyErr != nil {
-		err = fmt.Errorf("failed to write file: %w", cpyErr)
+	if err = copyWithContext(ctx, file, data); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
 	}
 
-	return err
+	if err = os.Rename(file.Name(), fullPath); err != nil {
+		return fmt.Errorf("failed to rename file: %w", err)
+	}
+
+	return nil
 }
 
 func (f *filesystemStorage) Download(ctx context.Context, path string, data io.Writer) (err error) {
-	fullPath := filepath.Join(f.basePath, path)
+	fullPath, err := f.makePath(path)
+	if err != nil {
+		return err
+	}
 
 	file, err := os.Open(fullPath)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("failed to open file: %w", ErrNotFound)
+		}
 		return fmt.Errorf("failed to open file: %w", err)
 	}
 
@@ -78,57 +93,75 @@ func (f *filesystemStorage) Download(ctx context.Context, path string, data io.W
 	return err
 }
 
-func (f *filesystemStorage) DeleteOldBackups(ctx context.Context, maxCount int) error {
-	if maxCount == 0 {
-		return nil
+func (f *filesystemStorage) UploadBytes(ctx context.Context, filename string, data []byte) error {
+	return f.Upload(ctx, filename, bytes.NewReader(data))
+}
+
+func (f *filesystemStorage) DownloadBytes(ctx context.Context, filename string) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := f.Download(ctx, filename, &buf); err != nil {
+		return nil, err
 	}
 
-	fullPath := f.basePath
+	return buf.Bytes(), nil
+}
 
-	// Read directory
-	entries, err := os.ReadDir(fullPath)
+func (f *filesystemStorage) Delete(ctx context.Context, filename string) error {
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("filesystem: %w", ctx.Err())
+	default:
+	}
+
+	fullPath, err := f.makePath(filename)
+	if err != nil {
+		return err
+	}
+
+	if rmErr := os.Remove(fullPath); rmErr != nil {
+		if os.IsNotExist(rmErr) {
+			return fmt.Errorf("failed to delete file: %w", ErrNotFound)
+		}
+		return fmt.Errorf("failed to delete file: %w", rmErr)
+	}
+
+	return nil
+}
+
+func (f *filesystemStorage) List(ctx context.Context) ([]string, error) {
+	entries, err := os.ReadDir(f.basePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil // Directory doesn't exist, nothing to delete
+			return []string{}, nil
 		}
-		return fmt.Errorf("failed to read directory: %w", err)
+		return nil, fmt.Errorf("failed to read directory: %w", err)
 	}
 
-	// Filter for files only
-	files := make([]os.DirEntry, 0)
+	files := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		if !entry.IsDir() {
-			files = append(files, entry)
-		}
-	}
-
-	if len(files) <= maxCount {
-		return nil
-	}
-
-	// Sort files by name (oldest first) - filenames contain sortable timestamps
-	sort.Slice(files, func(i, j int) bool {
-		return files[i].Name() < files[j].Name()
-	})
-
-	// Delete oldest files
-	errs := make([]error, 0)
-	toDelete := files[:len(files)-maxCount]
-	for _, file := range toDelete {
-		// Check for context cancellation
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("filesystem: %w", ctx.Err())
+			return nil, fmt.Errorf("filesystem: %w", ctx.Err())
 		default:
 		}
 
-		filePath := filepath.Join(fullPath, file.Name())
-		if delErr := os.Remove(filePath); delErr != nil {
-			errs = append(errs, fmt.Errorf("failed to delete file %s: %w", file.Name(), delErr))
+		if entry.IsDir() {
+			continue
 		}
+		files = append(files, entry.Name())
 	}
 
-	return errors.Join(errs...)
+	return files, nil
+}
+
+func (f *filesystemStorage) makePath(filename string) (string, error) {
+	cleanRel := strings.TrimPrefix(filepath.Clean(string(filepath.Separator)+filename), string(filepath.Separator))
+	fullPath := filepath.Join(f.basePath, cleanRel)
+	rel, err := filepath.Rel(f.basePath, fullPath)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("%w: invalid filename", ErrInvalidArgument)
+	}
+	return fullPath, nil
 }
 
 // copyWithContext performs io.Copy with context cancellation support.

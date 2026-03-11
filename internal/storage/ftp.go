@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,7 +9,6 @@ import (
 	"net"
 	"net/url"
 	"path"
-	"sort"
 	"strings"
 
 	"github.com/secsy/goftp"
@@ -123,48 +123,66 @@ func (f *ftpStorage) Download(ctx context.Context, filename string, data io.Writ
 	// Download file
 	err := f.client.Retrieve(remotePath, data)
 	if err != nil {
+		if isFTPNotFoundError(err) {
+			return fmt.Errorf("failed to download file: %w", ErrNotFound)
+		}
 		return fmt.Errorf("failed to download file: %w", err)
 	}
 
 	return nil
 }
 
-func (f *ftpStorage) DeleteOldBackups(ctx context.Context, maxCount int) error {
-	if maxCount == 0 {
-		return nil
+func (f *ftpStorage) UploadBytes(ctx context.Context, relPath string, data []byte) error {
+	return f.Upload(ctx, relPath, bytes.NewReader(data))
+}
+
+func (f *ftpStorage) DownloadBytes(ctx context.Context, filename string) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := f.Download(ctx, filename, &buf); err != nil {
+		return nil, err
 	}
 
-	// List files in remote directory
-	files, err := f.listRemoteFiles(f.basePath)
-	if err != nil {
-		return fmt.Errorf("failed to remove old backups: %w", err)
+	return buf.Bytes(), nil
+}
+
+func (f *ftpStorage) Delete(ctx context.Context, filename string) error {
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("context canceled: %w", ctx.Err())
+	default:
 	}
 
-	if len(files) <= maxCount {
-		return nil
-	}
-
-	// Sort files by name (which includes timestamp) to delete oldest
-	sort.Strings(files)
-
-	// Delete oldest files
-	errs := make([]error, 0)
-	toDelete := files[:len(files)-maxCount]
-	for _, file := range toDelete {
-		// Check for context cancellation
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("context canceled: %w", ctx.Err())
-		default:
+	cleanRel := strings.TrimPrefix(path.Clean("/"+filename), "/")
+	remotePath := path.Join(f.basePath, cleanRel)
+	if err := f.client.Delete(remotePath); err != nil {
+		if isFTPNotFoundError(err) {
+			return fmt.Errorf("failed to delete file: %w", ErrNotFound)
 		}
-
-		remotePath := path.Join(f.basePath, file)
-		if delErr := f.client.Delete(remotePath); delErr != nil {
-			errs = append(errs, fmt.Errorf("failed to delete file %s: %w", file, delErr))
-		}
+		return fmt.Errorf("failed to delete file: %w", err)
 	}
 
-	return errors.Join(errs...)
+	return nil
+}
+
+func (f *ftpStorage) List(ctx context.Context) ([]string, error) {
+	select {
+	case <-ctx.Done():
+		return nil, fmt.Errorf("context canceled: %w", ctx.Err())
+	default:
+	}
+
+	return f.listRemoteFiles(f.basePath)
+}
+
+// Close closes the FTP connection.
+func (f *ftpStorage) Close() error {
+	if f.client != nil {
+		if err := f.client.Close(); err != nil {
+			return fmt.Errorf("failed to close FTP connection: %w", err)
+		}
+		f.client = nil
+	}
+	return nil
 }
 
 // ensureRemoteDir ensures that a remote directory exists, creating it if necessary.
@@ -213,13 +231,7 @@ func (f *ftpStorage) listRemoteFiles(dir string) ([]string, error) {
 	return fileNames, nil
 }
 
-// Close closes the FTP connection.
-func (f *ftpStorage) Close() error {
-	if f.client != nil {
-		if err := f.client.Close(); err != nil {
-			return fmt.Errorf("failed to close FTP connection: %w", err)
-		}
-		f.client = nil
-	}
-	return nil
+func isFTPNotFoundError(err error) bool {
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "550") || strings.Contains(msg, "not found")
 }
