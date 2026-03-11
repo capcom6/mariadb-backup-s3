@@ -1,11 +1,14 @@
 package storage
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/url"
-	"sort"
+	"path"
 	"strconv"
 	"strings"
 
@@ -93,8 +96,14 @@ func NewS3Storage(u *url.URL) (Backend, error) {
 	}, nil
 }
 
-func (s *s3Storage) Upload(ctx context.Context, path string, data io.Reader) error {
-	key := s.prefix + strings.TrimPrefix(path, "/")
+func (s *s3Storage) Upload(ctx context.Context, p string, data io.Reader) error {
+	key := s.prefix + strings.TrimPrefix(p, "/")
+
+	extension := path.Ext(p)
+	contentType := mime.TypeByExtension(extension)
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
 
 	uploader := manager.NewUploader(s.client, func(u *manager.Uploader) {
 		u.PartSize = s.partSize
@@ -102,7 +111,7 @@ func (s *s3Storage) Upload(ctx context.Context, path string, data io.Reader) err
 	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(s.bucket),
 		Key:         aws.String(key),
-		ContentType: aws.String("application/gzip"),
+		ContentType: &contentType,
 		Body:        data,
 	})
 	if err != nil {
@@ -121,6 +130,10 @@ func (s *s3Storage) Download(ctx context.Context, path string, data io.Writer) e
 		Key:    aws.String(key),
 	})
 	if err != nil {
+		var noSuchKey *types.NoSuchKey
+		if errors.As(err, &noSuchKey) {
+			return fmt.Errorf("failed to get object from S3: %w", ErrNotFound)
+		}
 		return fmt.Errorf("failed to get object from S3: %w", err)
 	}
 	defer func() {
@@ -135,54 +148,50 @@ func (s *s3Storage) Download(ctx context.Context, path string, data io.Writer) e
 	return nil
 }
 
-func (s *s3Storage) DeleteOldBackups(ctx context.Context, maxCount int) error {
-	if maxCount == 0 {
-		return nil
-	}
-	if maxCount < 0 {
-		return fmt.Errorf("%w: maxCount must be >= 0", ErrInvalidArgument)
+func (s *s3Storage) UploadBytes(ctx context.Context, path string, data []byte) error {
+	return s.Upload(ctx, path, bytes.NewReader(data))
+}
+
+func (s *s3Storage) DownloadBytes(ctx context.Context, path string) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := s.Download(ctx, path, &buf); err != nil {
+		return nil, err
 	}
 
-	var err error
-	var output *s3.ListObjectsV2Output
+	return buf.Bytes(), nil
+}
+
+func (s *s3Storage) Delete(ctx context.Context, path string) error {
+	key := s.prefix + strings.TrimPrefix(path, "/")
+	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete object: %w", err)
+	}
+
+	return nil
+}
+
+func (s *s3Storage) List(ctx context.Context) ([]string, error) {
 	input := &s3.ListObjectsV2Input{
 		Bucket: aws.String(s.bucket),
 		Prefix: aws.String(s.prefix),
 	}
-	objects := make([]types.ObjectIdentifier, 0, maxCount+1)
-	objectPaginator := s3.NewListObjectsV2Paginator(s.client, input)
-	for objectPaginator.HasMorePages() {
-		output, err = objectPaginator.NextPage(ctx)
+
+	files := make([]string, 0)
+	p := s3.NewListObjectsV2Paginator(s.client, input)
+	for p.HasMorePages() {
+		out, err := p.NextPage(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to list objects: %w", err)
+			return nil, fmt.Errorf("failed to list objects: %w", err)
 		}
-		for _, obj := range output.Contents {
-			objects = append(objects, types.ObjectIdentifier{
-				Key: obj.Key,
-			})
+		for _, obj := range out.Contents {
+			key := aws.ToString(obj.Key)
+			files = append(files, strings.TrimPrefix(key, s.prefix))
 		}
 	}
 
-	if len(objects) <= maxCount {
-		return nil
-	}
-
-	sort.Slice(objects, func(i, j int) bool {
-		return aws.ToString(objects[i].Key) < aws.ToString(objects[j].Key)
-	})
-
-	toDelete := objects[:len(objects)-maxCount]
-
-	_, err = s.client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
-		Bucket: aws.String(s.bucket),
-		Delete: &types.Delete{
-			Objects: toDelete,
-			Quiet:   aws.Bool(true),
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("failed to delete objects: %w", err)
-	}
-
-	return nil
+	return files, nil
 }
