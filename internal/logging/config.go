@@ -56,7 +56,7 @@ func DefaultConfig() Config {
 	case "":
 		output = os.Stdout
 	default:
-		f, err := os.Create(os.Getenv("LOG_OUTPUT"))
+		f, err := os.Create(os.Getenv("LOG_OUTPUT")) //nolint:gosec // acceptable
 		if err != nil {
 			fmt.Fprintf(
 				os.Stderr,
