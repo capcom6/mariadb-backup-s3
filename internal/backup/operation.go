@@ -3,6 +3,8 @@ package backup
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -14,19 +16,36 @@ import (
 
 	"github.com/capcom6/mariadb-backup-s3/internal/encryption"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
+	"github.com/capcom6/mariadb-backup-s3/internal/registry"
 	"github.com/capcom6/mariadb-backup-s3/internal/sanitizer"
 	"github.com/capcom6/mariadb-backup-s3/internal/storage"
+	"github.com/capcom6/mariadb-backup-s3/pkg/counting"
 	"github.com/capcom6/mariadb-backup-s3/pkg/pipeline"
 )
 
 type Operation struct {
 	config Config
+
+	registrySvc *registry.Service
+
+	storage storage.Backend
+
 	logger logging.Logger
 }
 
-func NewOperation(config Config, logger logging.Logger) *Operation {
+func NewOperation(
+	config Config,
+	registrySvc *registry.Service,
+	storage storage.Backend,
+	logger logging.Logger,
+) *Operation {
 	return &Operation{
 		config: config,
+
+		registrySvc: registrySvc,
+
+		storage: storage,
+
 		logger: logger,
 	}
 }
@@ -83,13 +102,15 @@ func (o *Operation) Run(ctx context.Context) error {
 			return o.encrypt(ctx, r, w)
 		},
 		func(ctx context.Context, r io.Reader, _ io.Writer) error {
-			return o.upload(ctx, r, targetName)
+			return o.upload(ctx, r, targetName, start.UTC())
 		},
 	)
 
 	if err != nil {
 		return fmt.Errorf("failed to backup: %w", err)
 	}
+
+	//TODO: apply retention policy
 
 	return nil
 }
@@ -231,7 +252,7 @@ func (o *Operation) encrypt(ctx context.Context, r io.Reader, w io.Writer) error
 	return nil
 }
 
-func (o *Operation) upload(ctx context.Context, r io.Reader, targetName string) error {
+func (o *Operation) upload(ctx context.Context, r io.Reader, targetName string, createdAt time.Time) error {
 	o.logger.Info(ctx, "Stage 4: Upload")
 	start := time.Now()
 	defer func() {
@@ -241,37 +262,123 @@ func (o *Operation) upload(ctx context.Context, r io.Reader, targetName string) 
 		})
 	}()
 
-	u, err := o.config.Storage.GetURL()
-	if err != nil {
-		o.logger.Error(ctx, "Upload failed: failed to parse storage url", err, logging.Fields{
-			"filename": targetName,
-		})
-		return fmt.Errorf("failed to parse storage url: %w", err)
-	}
-
-	storageBackend, err := storage.New(u)
-	if err != nil {
-		o.logger.Error(ctx, "Upload failed: failed to create storage backend", err, logging.Fields{
-			"filename": targetName,
-		})
-		return fmt.Errorf("failed to create storage backend: %w", err)
-	}
+	shaSum := sha256.New()
+	counter := counting.NewWriter()
+	uploadReader := io.TeeReader(r, io.MultiWriter(shaSum, counter))
 
 	// Upload the backup
-	if uploadErr := storageBackend.Upload(ctx, targetName, r); uploadErr != nil {
+	if uploadErr := o.storage.Upload(ctx, targetName, uploadReader); uploadErr != nil {
 		o.logger.Error(ctx, "Upload failed", uploadErr, logging.Fields{
 			"filename": targetName,
 		})
 		return fmt.Errorf("failed to upload: %w", uploadErr)
 	}
 
-	// Cleanup old backups
-	if delErr := storageBackend.DeleteOldBackups(ctx, o.config.Backup.Limits.MaxCount); delErr != nil {
-		o.logger.Error(ctx, "failed to cleanup", delErr, logging.Fields{
-			"filename":  targetName,
-			"max_count": o.config.Backup.Limits.MaxCount,
+	entry := registry.NewBackupEntry(
+		targetName,
+		createdAt,
+		counter.N(),
+		hex.EncodeToString(shaSum.Sum(nil)),
+		registry.StatusReady,
+		o.config.Encryption.Enabled(),
+		nil,
+		&registry.ToolMetadata{
+			Name:    "mariadb-backup-s3",
+			Version: o.config.Version,
+		},
+	)
+
+	if o.config.Encryption.Enabled() {
+		entry.Encryption = &registry.EncryptionMetadata{Algorithm: "AES-256-GCM"}
+	}
+
+	if _, err := o.registrySvc.Append(ctx, entry); err != nil {
+		o.logger.Error(ctx, "registry append failed", err, logging.Fields{
+			"filename": targetName,
 		})
+		return fmt.Errorf("failed to append registry: %w", err)
 	}
 
 	return nil
 }
+
+// func applyRegistryRetention(ctx context.Context, storageBackend storage.Backend, maxCount int) error {
+// 	if maxCount == 0 {
+// 		return nil
+// 	}
+// 	if maxCount < 0 {
+// 		return fmt.Errorf("invalid maxCount: %d", maxCount)
+// 	}
+
+// 	reg, err := loadRegistryForRetention(ctx, storageBackend)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	ready := make([]registry.BackupEntry, 0, len(reg.Backups))
+// 	for _, b := range reg.Backups {
+// 		if b.Status == registry.StatusReady {
+// 			ready = append(ready, b)
+// 		}
+// 	}
+
+// 	if len(ready) <= maxCount {
+// 		return nil
+// 	}
+
+// 	sort.Slice(ready, func(i, j int) bool {
+// 		return ready[i].CreatedAt.After(ready[j].CreatedAt)
+// 	})
+
+// 	keep := make(map[string]struct{}, maxCount)
+// 	for _, b := range ready[:maxCount] {
+// 		keep[b.Filename] = struct{}{}
+// 	}
+
+// 	retained := make([]registry.BackupEntry, 0, len(reg.Backups))
+// 	for _, b := range reg.Backups {
+// 		if b.Status != registry.StatusReady {
+// 			retained = append(retained, b)
+// 			continue
+// 		}
+
+// 		if _, ok := keep[b.Filename]; ok {
+// 			retained = append(retained, b)
+// 			continue
+// 		}
+
+// 		if err := storageBackend.Delete(ctx, b.Filename); err != nil && !errors.Is(err, storage.ErrNotFound) {
+// 			return fmt.Errorf("failed to delete old backup %s: %w", b.Filename, err)
+// 		}
+// 	}
+
+// 	reg.Backups = retained
+// 	reg.UpdatedAt = time.Now().UTC()
+
+// 	var out bytes.Buffer
+// 	if err := reg.Write(&out); err != nil {
+// 		return fmt.Errorf("failed to serialize registry after retention: %w", err)
+// 	}
+// 	if err := storageBackend.UploadBytes(ctx, registry.FileName, out.Bytes()); err != nil {
+// 		return fmt.Errorf("failed to persist registry after retention: %w", err)
+// 	}
+
+// 	return nil
+// }
+
+// func loadRegistryForRetention(ctx context.Context, storageBackend storage.Backend) (registry.Registry, error) {
+// 	data, err := storageBackend.DownloadBytes(ctx, registry.FileName)
+// 	if err != nil {
+// 		if errors.Is(err, storage.ErrNotFound) {
+// 			return rebuildRegistryFromListing(ctx, storageBackend)
+// 		}
+// 		return registry.Registry{}, fmt.Errorf("failed to read registry: %w", err)
+// 	}
+
+// 	reg, parseErr := registry.Parse(bytes.NewReader(data))
+// 	if parseErr != nil {
+// 		return rebuildRegistryFromListing(ctx, storageBackend)
+// 	}
+
+// 	return reg, nil
+// }
