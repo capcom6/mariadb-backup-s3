@@ -195,3 +195,9 @@ func (s *s3Storage) List(ctx context.Context) ([]string, error) {
 
 	return files, nil
 }
+
+// Close closes the S3 storage backend.
+// For S3, this is a no-op as the AWS SDK client doesn't require explicit cleanup.
+func (s *s3Storage) Close() error {
+	return nil
+}

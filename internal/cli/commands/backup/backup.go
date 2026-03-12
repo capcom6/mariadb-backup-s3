@@ -91,6 +91,11 @@ func Command() *cli.Command {
 				logger.Error(ctx, "Failed to initialize storage backend", err)
 				return cli.Exit("backup command failed", codes.InternalError)
 			}
+			defer func() {
+				if closeErr := storageSvc.Close(); closeErr != nil {
+					logger.Error(ctx, "Failed to close storage backend", closeErr)
+				}
+			}()
 
 			registrySvc := registry.NewService(storageSvc)
 
