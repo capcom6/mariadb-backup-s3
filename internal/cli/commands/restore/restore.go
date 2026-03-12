@@ -148,12 +148,15 @@ func resolveBackupSelection(ctx context.Context, cmd *cli.Command) (string, erro
 	if err != nil {
 		return "", fmt.Errorf("failed to parse storage URL: %w", err)
 	}
-	backend, err := storage.New(u)
+	storageSvc, err := storage.New(u)
 	if err != nil {
 		return "", fmt.Errorf("failed to initialize storage backend: %w", err)
 	}
+	defer func() {
+		_ = storageSvc.Close()
+	}()
 
-	registrySvc := registry.NewService(backend, registry.WithRecovery())
+	registrySvc := registry.NewService(storageSvc, registry.WithRecovery())
 	reg, err := registrySvc.Load(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to load registry: %w", err)

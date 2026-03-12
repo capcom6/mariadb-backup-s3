@@ -24,4 +24,8 @@ type Backend interface {
 
 	// DownloadBytes downloads a small object from the backend into memory.
 	DownloadBytes(ctx context.Context, filename string) ([]byte, error)
+
+	// Close closes the storage backend and releases any resources.
+	// Implementations that don't require cleanup should return nil.
+	Close() error
 }

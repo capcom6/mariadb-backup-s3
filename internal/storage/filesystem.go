@@ -38,7 +38,7 @@ func (f *filesystemStorage) Upload(ctx context.Context, filename string, data io
 		return err
 	}
 
-	file, err := os.CreateTemp(f.basePath, filename)
+	file, err := os.CreateTemp(f.basePath, filepath.Base(filename))
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
@@ -189,4 +189,10 @@ func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) error {
 			}
 		}
 	}
+}
+
+// Close closes the filesystem storage backend.
+// For filesystem storage, this is a no-op as no persistent connections are held.
+func (f *filesystemStorage) Close() error {
+	return nil
 }

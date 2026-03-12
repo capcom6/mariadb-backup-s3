@@ -14,6 +14,43 @@ import (
 	"github.com/secsy/goftp"
 )
 
+// validateFilename checks if the filename is valid (not empty, not absolute, no path traversal).
+// It returns a cleaned relative path or an error if the path is invalid or escapes basePath.
+func (f *ftpStorage) validateFilename(filename string) (string, error) {
+	if filename == "" {
+		return "", fmt.Errorf("%w: filename cannot be empty", ErrInvalidArgument)
+	}
+
+	// Reject absolute paths
+	if path.IsAbs(filename) {
+		return "", fmt.Errorf("%w: filename cannot be absolute", ErrInvalidArgument)
+	}
+
+	// Clean the path and ensure it's relative
+	cleanRel := strings.TrimPrefix(path.Clean("/"+filename), "/")
+
+	// Check for path traversal attempts - if after cleaning the path still contains "..",
+	// it indicates an escape attempt
+	if strings.HasPrefix(cleanRel, "..") || strings.Contains(cleanRel, "/../") {
+		return "", fmt.Errorf("%w: filename contains path traversal", ErrInvalidArgument)
+	}
+
+	// Compute the full remote path
+	remotePath := path.Join(f.basePath, cleanRel)
+
+	// Verify the resulting path is still within basePath by checking prefix
+	// We need to ensure basePath ends with "/" for proper prefix checking
+	basePrefix := f.basePath
+	if !strings.HasSuffix(basePrefix, "/") {
+		basePrefix += "/"
+	}
+	if !strings.HasPrefix(remotePath+"/", basePrefix) && remotePath != f.basePath {
+		return "", fmt.Errorf("%w: filename escapes base path", ErrInvalidArgument)
+	}
+
+	return cleanRel, nil
+}
+
 var (
 	ErrFTPHostRequired = errors.New("FTP storage requires host")
 )
@@ -76,13 +113,17 @@ func NewFTPStorage(u *url.URL) (Backend, error) {
 	}, nil
 }
 
-func (f *ftpStorage) Upload(ctx context.Context, relPath string, data io.Reader) error {
-	// Create full remote path
-	remotePath := path.Join(f.basePath, relPath)
+func (f *ftpStorage) Upload(ctx context.Context, filename string, data io.Reader) error {
+	// Validate filename
+	cleanRel, err := f.validateFilename(filename)
+	if err != nil {
+		return err
+	}
+	remotePath := path.Join(f.basePath, cleanRel)
 
 	// Ensure remote directory exists
-	if err := f.ensureRemoteDir(path.Dir(remotePath)); err != nil {
-		return fmt.Errorf("failed to ensure remote directory: %w", err)
+	if dirErr := f.ensureRemoteDir(path.Dir(remotePath)); dirErr != nil {
+		return fmt.Errorf("failed to ensure remote directory: %w", dirErr)
 	}
 
 	// Fail fast if already canceled
@@ -94,23 +135,26 @@ func (f *ftpStorage) Upload(ctx context.Context, relPath string, data io.Reader)
 
 	// Upload file
 	tmpPath := remotePath + ".tmp"
-	if err := f.client.Store(tmpPath, data); err != nil {
-		return fmt.Errorf("failed to upload file: %w", err)
+	if stErr := f.client.Store(tmpPath, data); stErr != nil {
+		return fmt.Errorf("failed to upload file: %w", stErr)
 	}
 
-	if err := f.client.Rename(tmpPath, remotePath); err != nil {
+	if rnErr := f.client.Rename(tmpPath, remotePath); rnErr != nil {
 		if delErr := f.client.Delete(tmpPath); delErr != nil {
-			return fmt.Errorf("failed to rename file and delete temporary file: %w", errors.Join(err, delErr))
+			return fmt.Errorf("failed to rename file and delete temporary file: %w", errors.Join(rnErr, delErr))
 		}
-		return fmt.Errorf("failed to rename file: %w", err)
+		return fmt.Errorf("failed to rename file: %w", rnErr)
 	}
 
 	return nil
 }
 
 func (f *ftpStorage) Download(ctx context.Context, filename string, data io.Writer) error {
-	// Create full remote path (prevent escaping basePath)
-	cleanRel := strings.TrimPrefix(path.Clean("/"+filename), "/")
+	// Validate filename
+	cleanRel, err := f.validateFilename(filename)
+	if err != nil {
+		return err
+	}
 	remotePath := path.Join(f.basePath, cleanRel)
 
 	// Fail fast if already canceled
@@ -121,7 +165,7 @@ func (f *ftpStorage) Download(ctx context.Context, filename string, data io.Writ
 	}
 
 	// Download file
-	err := f.client.Retrieve(remotePath, data)
+	err = f.client.Retrieve(remotePath, data)
 	if err != nil {
 		if isFTPNotFoundError(err) {
 			return fmt.Errorf("failed to download file: %w", ErrNotFound)
@@ -132,8 +176,8 @@ func (f *ftpStorage) Download(ctx context.Context, filename string, data io.Writ
 	return nil
 }
 
-func (f *ftpStorage) UploadBytes(ctx context.Context, relPath string, data []byte) error {
-	return f.Upload(ctx, relPath, bytes.NewReader(data))
+func (f *ftpStorage) UploadBytes(ctx context.Context, filename string, data []byte) error {
+	return f.Upload(ctx, filename, bytes.NewReader(data))
 }
 
 func (f *ftpStorage) DownloadBytes(ctx context.Context, filename string) ([]byte, error) {
@@ -146,19 +190,24 @@ func (f *ftpStorage) DownloadBytes(ctx context.Context, filename string) ([]byte
 }
 
 func (f *ftpStorage) Delete(ctx context.Context, filename string) error {
+	// Validate filename
+	cleanRel, err := f.validateFilename(filename)
+	if err != nil {
+		return err
+	}
+	remotePath := path.Join(f.basePath, cleanRel)
+
 	select {
 	case <-ctx.Done():
 		return fmt.Errorf("context canceled: %w", ctx.Err())
 	default:
 	}
 
-	cleanRel := strings.TrimPrefix(path.Clean("/"+filename), "/")
-	remotePath := path.Join(f.basePath, cleanRel)
-	if err := f.client.Delete(remotePath); err != nil {
-		if isFTPNotFoundError(err) {
+	if delErr := f.client.Delete(remotePath); delErr != nil {
+		if isFTPNotFoundError(delErr) {
 			return fmt.Errorf("failed to delete file: %w", ErrNotFound)
 		}
-		return fmt.Errorf("failed to delete file: %w", err)
+		return fmt.Errorf("failed to delete file: %w", delErr)
 	}
 
 	return nil
@@ -231,7 +280,34 @@ func (f *ftpStorage) listRemoteFiles(dir string) ([]string, error) {
 	return fileNames, nil
 }
 
+// isFTPNotFoundError checks if the error is a true "file not found" error.
+// It inspects both the FTP error code and the message content to distinguish
+// between file not found errors and permission/authentication errors.
+// Only returns true when the error explicitly indicates a missing file
+// (e.g., contains phrases like "No such file", "file not found", "not found").
 func isFTPNotFoundError(err error) bool {
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "550") || strings.Contains(msg, "not found")
+	var ftpErr goftp.Error
+
+	if !errors.As(err, &ftpErr) || ftpErr.Code() != 550 {
+		return false
+	}
+
+	msg := strings.ToLower(ftpErr.Message())
+
+	// Check for clear "file not found" indicators
+	notFoundIndicators := []string{
+		"no such file",
+		"file not found",
+		"not found",
+		"does not exist",
+		"cannot find",
+	}
+
+	for _, indicator := range notFoundIndicators {
+		if strings.Contains(msg, indicator) {
+			return true
+		}
+	}
+
+	return false
 }
