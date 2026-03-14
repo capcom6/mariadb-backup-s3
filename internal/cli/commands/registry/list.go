@@ -1,7 +1,8 @@
-package backup
+package registry
 
 import (
 	"context"
+	"errors"
 
 	"github.com/capcom6/mariadb-backup-s3/internal/cli/flags"
 	"github.com/capcom6/mariadb-backup-s3/internal/config"
@@ -14,11 +15,18 @@ import (
 
 func ListCommand() *cli.Command {
 	fl := flags.Storage()
+	fl = append(fl, &cli.BoolFlag{
+		Name:    "rebuild",
+		Aliases: []string{"r"},
+		Usage:   "Rebuild registry from storage if missing",
+		Value:   false,
+	})
 
 	return &cli.Command{
-		Name:  "list",
-		Usage: "List backups from registry",
-		Flags: fl,
+		Name:    "list",
+		Aliases: []string{"ls"},
+		Usage:   "List backups from registry (read-only by default, use --rebuild to rebuild if missing)",
+		Flags:   fl,
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			logger := logging.GetLogger(ctx)
 			if logger == nil {
@@ -30,16 +38,33 @@ func ListCommand() *cli.Command {
 				logger.Error(ctx, "Failed to parse storage URL", err)
 				return cli.Exit("invalid storage url", codes.ParamsError)
 			}
-			backend, err := storage.New(u)
+
+			storageSvc, err := storage.New(u)
 			if err != nil {
 				logger.Error(ctx, "Failed to initialize storage backend", err)
 				return cli.Exit("failed to initialize storage backend", codes.InternalError)
 			}
+			defer func() {
+				if closeErr := storageSvc.Close(); closeErr != nil {
+					logger.Error(ctx, "Failed to close storage backend", closeErr)
+				}
+			}()
 
-			registrySvc := registry.NewService(backend, registry.WithRecovery())
+			// Conditionally enable recovery based on --rebuild flag
+			var opts []registry.Option
+			if cmd.Bool("rebuild") {
+				opts = append(opts, registry.WithRecovery())
+			}
+			registrySvc := registry.NewService(storageSvc, opts...)
 
 			reg, err := registrySvc.Load(ctx)
 			if err != nil {
+				// If registry not found and not rebuilding, return empty list
+				if errors.Is(err, storage.ErrNotFound) && !cmd.Bool("rebuild") {
+					logger.Warn(ctx, "Registry not found, returning empty list", nil)
+					printRegistryTable(ctx, logger, registry.New())
+					return nil
+				}
 				logger.Error(ctx, "Failed to load registry", err)
 				return cli.Exit("failed to load registry", codes.InternalError)
 			}
