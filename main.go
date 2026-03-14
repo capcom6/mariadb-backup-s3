@@ -8,6 +8,7 @@ import (
 
 	"github.com/capcom6/mariadb-backup-s3/internal/cli/commands/backup"
 	"github.com/capcom6/mariadb-backup-s3/internal/cli/commands/restore"
+	"github.com/capcom6/mariadb-backup-s3/internal/cli/commands/retention"
 	"github.com/capcom6/mariadb-backup-s3/internal/core/codes"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
 	"github.com/joho/godotenv"
@@ -56,6 +57,7 @@ func main() {
 		Commands: []*cli.Command{
 			backup.Command(),
 			restore.Command(),
+			retention.Command(),
 		},
 		Before: func(ctx context.Context, _ *cli.Command) (context.Context, error) {
 			logger.Info(ctx, "Starting MariaDB Backup S3 application")
