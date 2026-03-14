@@ -47,10 +47,7 @@ func Command() *cli.Command {
 		Aliases: []string{"b"},
 		Usage:   "Backup MariaDB database",
 		Flags:   fl,
-		Commands: []*cli.Command{
-			ListCommand(),
-		},
-		Action: backupAction,
+		Action:  backupAction,
 	}
 }
 
