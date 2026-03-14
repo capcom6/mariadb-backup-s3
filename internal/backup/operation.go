@@ -110,8 +110,6 @@ func (o *Operation) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to backup: %w", err)
 	}
 
-	//TODO: apply retention policy
-
 	return nil
 }
 
@@ -301,84 +299,3 @@ func (o *Operation) upload(ctx context.Context, r io.Reader, targetName string, 
 
 	return nil
 }
-
-// func applyRegistryRetention(ctx context.Context, storageBackend storage.Backend, maxCount int) error {
-// 	if maxCount == 0 {
-// 		return nil
-// 	}
-// 	if maxCount < 0 {
-// 		return fmt.Errorf("invalid maxCount: %d", maxCount)
-// 	}
-
-// 	reg, err := loadRegistryForRetention(ctx, storageBackend)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	ready := make([]registry.BackupEntry, 0, len(reg.Backups))
-// 	for _, b := range reg.Backups {
-// 		if b.Status == registry.StatusReady {
-// 			ready = append(ready, b)
-// 		}
-// 	}
-
-// 	if len(ready) <= maxCount {
-// 		return nil
-// 	}
-
-// 	sort.Slice(ready, func(i, j int) bool {
-// 		return ready[i].CreatedAt.After(ready[j].CreatedAt)
-// 	})
-
-// 	keep := make(map[string]struct{}, maxCount)
-// 	for _, b := range ready[:maxCount] {
-// 		keep[b.Filename] = struct{}{}
-// 	}
-
-// 	retained := make([]registry.BackupEntry, 0, len(reg.Backups))
-// 	for _, b := range reg.Backups {
-// 		if b.Status != registry.StatusReady {
-// 			retained = append(retained, b)
-// 			continue
-// 		}
-
-// 		if _, ok := keep[b.Filename]; ok {
-// 			retained = append(retained, b)
-// 			continue
-// 		}
-
-// 		if err := storageBackend.Delete(ctx, b.Filename); err != nil && !errors.Is(err, storage.ErrNotFound) {
-// 			return fmt.Errorf("failed to delete old backup %s: %w", b.Filename, err)
-// 		}
-// 	}
-
-// 	reg.Backups = retained
-// 	reg.UpdatedAt = time.Now().UTC()
-
-// 	var out bytes.Buffer
-// 	if err := reg.Write(&out); err != nil {
-// 		return fmt.Errorf("failed to serialize registry after retention: %w", err)
-// 	}
-// 	if err := storageBackend.UploadBytes(ctx, registry.FileName, out.Bytes()); err != nil {
-// 		return fmt.Errorf("failed to persist registry after retention: %w", err)
-// 	}
-
-// 	return nil
-// }
-
-// func loadRegistryForRetention(ctx context.Context, storageBackend storage.Backend) (registry.Registry, error) {
-// 	data, err := storageBackend.DownloadBytes(ctx, registry.FileName)
-// 	if err != nil {
-// 		if errors.Is(err, storage.ErrNotFound) {
-// 			return rebuildRegistryFromListing(ctx, storageBackend)
-// 		}
-// 		return registry.Registry{}, fmt.Errorf("failed to read registry: %w", err)
-// 	}
-
-// 	reg, parseErr := registry.Parse(bytes.NewReader(data))
-// 	if parseErr != nil {
-// 		return rebuildRegistryFromListing(ctx, storageBackend)
-// 	}
-
-// 	return reg, nil
-// }
