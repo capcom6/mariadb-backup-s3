@@ -5,6 +5,10 @@ import (
 	"io"
 )
 
+type Locker interface {
+	Unlock(ctx context.Context) error
+}
+
 // Backend defines the interface for pluggable storage backends.
 type Backend interface {
 	// Upload uploads data to the specified path in the storage backend
@@ -24,6 +28,9 @@ type Backend interface {
 
 	// DownloadBytes downloads a small object from the backend into memory.
 	DownloadBytes(ctx context.Context, filename string) ([]byte, error)
+
+	// Lock locks a file in the storage backend, preventing concurrent writes.
+	Lock(ctx context.Context, filename string) (Locker, error)
 
 	// Close closes the storage backend and releases any resources.
 	// Implementations that don't require cleanup should return nil.
