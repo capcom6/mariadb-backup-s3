@@ -36,6 +36,11 @@ type s3Storage struct {
 	client *s3.Client
 }
 
+type s3Locker struct {
+	s   *s3Storage
+	key string
+}
+
 func NewS3Storage(u *url.URL) (Backend, error) {
 	forcePathStyle := false
 	partSize := S3DefaultPartSize
@@ -194,6 +199,33 @@ func (s *s3Storage) List(ctx context.Context) ([]string, error) {
 	}
 
 	return files, nil
+}
+
+// Lock implements [Backend].
+func (s *s3Storage) Lock(ctx context.Context, filename string) (Locker, error) {
+	key := s.prefix + strings.TrimPrefix(filename, "/") + ".lock"
+	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(s.bucket),
+		Key:         aws.String(key),
+		IfNoneMatch: aws.String("*"),
+		Body:        bytes.NewReader([]byte{}),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to create lock: %w", ErrLockFailed, err)
+	}
+	return &s3Locker{s: s, key: key}, nil
+}
+
+// Unlock releases the lock by deleting the lock object.
+func (l *s3Locker) Unlock(ctx context.Context) error {
+	_, err := l.s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(l.s.bucket),
+		Key:    aws.String(l.key),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete lock: %w", err)
+	}
+	return nil
 }
 
 // Close closes the S3 storage backend.

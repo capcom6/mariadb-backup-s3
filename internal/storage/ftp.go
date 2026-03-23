@@ -9,7 +9,9 @@ import (
 	"net"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/secsy/goftp"
 )
@@ -61,6 +63,18 @@ type ftpStorage struct {
 	password string
 	basePath string
 	client   *goftp.Client
+}
+
+type ftpLock struct {
+	storage  *ftpStorage
+	lockPath string
+}
+
+func (l *ftpLock) Unlock(_ context.Context) error {
+	if err := l.storage.client.Delete(l.lockPath); err != nil {
+		return fmt.Errorf("failed to unlock: %w", err)
+	}
+	return nil
 }
 
 func NewFTPStorage(u *url.URL) (Backend, error) {
@@ -221,6 +235,54 @@ func (f *ftpStorage) List(ctx context.Context) ([]string, error) {
 	}
 
 	return f.listRemoteFiles(f.basePath)
+}
+
+// Lock implements [Backend].
+func (f *ftpStorage) Lock(ctx context.Context, filename string) (Locker, error) {
+	// Validate filename
+	cleanRel, err := f.validateFilename(filename)
+	if err != nil {
+		return nil, err
+	}
+	remotePath := path.Join(f.basePath, cleanRel)
+	lockPath := remotePath + ".lock"
+
+	// Create a unique temporary lock file name
+	tmpLockPath := remotePath + ".lock_tmp_" + strconv.FormatInt(time.Now().UnixNano(), 10)
+
+	// Fail fast if already canceled
+	select {
+	case <-ctx.Done():
+		return nil, fmt.Errorf("context canceled: %w", ctx.Err())
+	default:
+	}
+
+	// Create empty temporary lock file
+	var empty bytes.Buffer
+	if stErr := f.client.Store(tmpLockPath, &empty); stErr != nil {
+		return nil, fmt.Errorf("failed to create temporary lock file: %w", stErr)
+	}
+
+	// Check if lock already exists before attempting rename
+	if _, statErr := f.client.Stat(lockPath); statErr == nil {
+		// Lock file exists, clean up temp and fail
+		_ = f.client.Delete(tmpLockPath)
+		return nil, fmt.Errorf("%w: already held", ErrLockFailed)
+	}
+
+	// Try to rename the temporary file to the lock file (atomic operation)
+	if rnErr := f.client.Rename(tmpLockPath, lockPath); rnErr != nil {
+		// Clean up the temporary file if rename failed
+		if delErr := f.client.Delete(tmpLockPath); delErr != nil {
+			return nil, fmt.Errorf("failed to rename lock file and cleanup temp: %w", errors.Join(rnErr, delErr))
+		}
+		return nil, fmt.Errorf("failed to acquire lock: %w", rnErr)
+	}
+
+	return &ftpLock{
+		storage:  f,
+		lockPath: lockPath,
+	}, nil
 }
 
 // Close closes the FTP connection.

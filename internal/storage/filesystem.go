@@ -12,6 +12,21 @@ import (
 	"strings"
 )
 
+type fileLock struct {
+	file *os.File
+}
+
+func (l *fileLock) Unlock(_ context.Context) error {
+	if err := l.file.Close(); err != nil {
+		return fmt.Errorf("failed to close lock file: %w", err)
+	}
+	if err := os.Remove(l.file.Name()); err != nil {
+		return fmt.Errorf("failed to unlock: %w", err)
+	}
+
+	return nil
+}
+
 type filesystemStorage struct {
 	basePath string
 }
@@ -152,6 +167,24 @@ func (f *filesystemStorage) List(ctx context.Context) ([]string, error) {
 	}
 
 	return files, nil
+}
+
+// Lock implements [Backend].
+func (f *filesystemStorage) Lock(_ context.Context, filename string) (Locker, error) {
+	fullname, err := f.makePath(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	file, err := os.OpenFile(fullname+".lock", os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return nil, fmt.Errorf("%w: lock already held: %w", ErrLockFailed, err)
+		}
+		return nil, fmt.Errorf("%w: failed to create lock file: %w", ErrLockFailed, err)
+	}
+
+	return &fileLock{file: file}, nil
 }
 
 func (f *filesystemStorage) makePath(filename string) (string, error) {

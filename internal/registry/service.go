@@ -33,25 +33,27 @@ func NewService(storage storage.Backend, opts ...Option) *Service {
 }
 
 func (s *Service) Load(ctx context.Context) (*Registry, error) {
-	buf := bytes.Buffer{}
-
-	if err := s.storage.Download(ctx, fileName, &buf); err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
-			return s.rebuild(ctx)
-		}
-		return nil, fmt.Errorf("failed to download registry: %w", err)
-	}
-
-	reg, err := s.parse(&buf)
+	l, err := s.storage.Lock(ctx, fileName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create lock: %w", err)
 	}
+	defer func() {
+		_ = l.Unlock(ctx)
+	}()
 
-	return reg, nil
+	return s.load(ctx)
 }
 
 func (s *Service) Append(ctx context.Context, b BackupEntry) (*Registry, error) {
-	reg, err := s.Load(ctx)
+	l, err := s.storage.Lock(ctx, fileName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create lock: %w", err)
+	}
+	defer func() {
+		_ = l.Unlock(ctx)
+	}()
+
+	reg, err := s.load(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +68,15 @@ func (s *Service) Append(ctx context.Context, b BackupEntry) (*Registry, error) 
 }
 
 func (s *Service) MarkDeleted(ctx context.Context, id string) error {
-	reg, err := s.Load(ctx)
+	l, err := s.storage.Lock(ctx, fileName)
+	if err != nil {
+		return fmt.Errorf("failed to create lock: %w", err)
+	}
+	defer func() {
+		_ = l.Unlock(ctx)
+	}()
+
+	reg, err := s.load(ctx)
 	if err != nil {
 		return err
 	}
@@ -93,6 +103,24 @@ func (s *Service) parse(r io.Reader) (*Registry, error) {
 	}
 
 	return &reg, nil
+}
+
+func (s *Service) load(ctx context.Context) (*Registry, error) {
+	buf := bytes.Buffer{}
+
+	if downErr := s.storage.Download(ctx, fileName, &buf); downErr != nil {
+		if errors.Is(downErr, storage.ErrNotFound) {
+			return s.rebuild(ctx)
+		}
+		return nil, fmt.Errorf("failed to download registry: %w", downErr)
+	}
+
+	reg, err := s.parse(&buf)
+	if err != nil {
+		return nil, err
+	}
+
+	return reg, nil
 }
 
 func (s *Service) rebuild(ctx context.Context) (*Registry, error) {
