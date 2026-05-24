@@ -6,6 +6,11 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+const (
+	categoryRetention    = "Retention"
+	defaultTextUnlimited = "unlimited"
+)
+
 func Retention() []cli.Flag {
 	return []cli.Flag{
 		&cli.IntFlag{
@@ -13,37 +18,37 @@ func Retention() []cli.Flag {
 			Aliases:     []string{"backup-limits-max-count"},
 			Usage:       "number of backups to retain (0 = unlimited)",
 			Required:    false,
-			DefaultText: "unlimited",
+			DefaultText: defaultTextUnlimited,
 			Sources:     cli.EnvVars("RETENTION__COUNT", "BACKUP__LIMITS__MAX_COUNT"),
-			Category:    "Retention",
+			Category:    categoryRetention,
 		},
 		&cli.DurationFlag{
 			Name:        "max-age",
 			Usage:       "maximum age of backups to keep (e.g. 24h, 168h, 672h)",
-			DefaultText: "unlimited",
+			DefaultText: defaultTextUnlimited,
 			Sources:     cli.EnvVars("RETENTION__MAX_AGE"),
-			Category:    "Retention",
+			Category:    categoryRetention,
 		},
 		&cli.IntFlag{
 			Name:        "keep-daily",
 			Usage:       "number of daily backups to keep",
-			DefaultText: "unlimited",
+			DefaultText: defaultTextUnlimited,
 			Sources:     cli.EnvVars("RETENTION__KEEP_DAILY"),
-			Category:    "Retention",
+			Category:    categoryRetention,
 		},
 		&cli.IntFlag{
 			Name:        "keep-weekly",
 			Usage:       "number of weekly backups to keep",
-			DefaultText: "unlimited",
+			DefaultText: defaultTextUnlimited,
 			Sources:     cli.EnvVars("RETENTION__KEEP_WEEKLY"),
-			Category:    "Retention",
+			Category:    categoryRetention,
 		},
 		&cli.IntFlag{
 			Name:        "keep-monthly",
 			Usage:       "number of monthly backups to keep",
-			DefaultText: "unlimited",
+			DefaultText: defaultTextUnlimited,
 			Sources:     cli.EnvVars("RETENTION__KEEP_MONTHLY"),
-			Category:    "Retention",
+			Category:    categoryRetention,
 		},
 	}
 }

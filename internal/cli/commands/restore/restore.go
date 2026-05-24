@@ -15,6 +15,12 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+const (
+	logFieldTargetDir         = "target_dir"
+	logFieldStorageURL        = "storage_url"
+	logFieldEncryptionEnabled = "encryption_enabled"
+)
+
 func Command() *cli.Command {
 	fl := flags.Storage()
 	fl = append(fl, flags.Encryption()...)
@@ -63,9 +69,9 @@ func Command() *cli.Command {
 
 			// Log command parameters for debugging
 			logger.Debug(ctx, "Parsing command parameters", logging.Fields{
-				"target_dir":     cmd.String("target-dir"),
-				"storage_url":    cmd.String("storage-url"),
-				"encryption_key": "***", // Don't log actual key
+				logFieldTargetDir:  cmd.String("target-dir"),
+				logFieldStorageURL: cmd.String("storage-url"),
+				"encryption_key":   "***", // Don't log actual key
 			})
 
 			cfg, err := parseConfig(cmd)
@@ -89,16 +95,16 @@ func Command() *cli.Command {
 
 			// Validate configuration (debug visibility)
 			logger.Debug(ctx, "Configuration validated successfully", logging.Fields{
-				"target_dir":         cfg.TargetDir,
-				"storage_url":        cfg.Storage.URL,
-				"encryption_enabled": cfg.Encryption.Enabled(),
+				logFieldTargetDir:         cfg.TargetDir,
+				logFieldStorageURL:        cfg.Storage.URL,
+				logFieldEncryptionEnabled: cfg.Encryption.Enabled(),
 			})
 
 			logger.Info(ctx, "Starting restore execution", logging.Fields{
-				"backup_file":        backupFile,
-				"target_dir":         cfg.TargetDir,
-				"storage_url":        cfg.Storage.URL,
-				"encryption_enabled": cfg.Encryption.Enabled(),
+				"backup_file":             backupFile,
+				logFieldTargetDir:         cfg.TargetDir,
+				logFieldStorageURL:        cfg.Storage.URL,
+				logFieldEncryptionEnabled: cfg.Encryption.Enabled(),
 			})
 
 			if opErr := restore.NewOperation(cfg, logger).Run(ctx, backupFile); opErr != nil {

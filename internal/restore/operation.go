@@ -16,6 +16,11 @@ import (
 	"github.com/capcom6/mariadb-backup-s3/pkg/pipeline"
 )
 
+const (
+	logFieldDuration = "duration"
+	logFieldFilename = "filename"
+)
+
 type Operation struct {
 	config Config
 
@@ -37,7 +42,7 @@ func (o *Operation) Run(ctx context.Context, filename string) error {
 	defer func() {
 		duration := time.Since(start)
 		o.logger.Info(ctx, "Restore completed", logging.Fields{
-			"duration": duration.String(),
+			logFieldDuration: duration.String(),
 		})
 	}()
 
@@ -74,14 +79,14 @@ func (o *Operation) download(ctx context.Context, filename string, w io.Writer) 
 	defer func() {
 		duration := time.Since(start)
 		o.logger.Info(ctx, "Stage 1 completed", logging.Fields{
-			"duration": duration.String(),
+			logFieldDuration: duration.String(),
 		})
 	}()
 
 	u, err := o.config.Storage.GetURL()
 	if err != nil {
 		o.logger.Error(ctx, "Download failed: failed to parse storage url", err, logging.Fields{
-			"filename": filename,
+			logFieldFilename: filename,
 		})
 		return fmt.Errorf("failed to parse storage url: %w", err)
 	}
@@ -95,7 +100,7 @@ func (o *Operation) download(ctx context.Context, filename string, w io.Writer) 
 	// Download the backup
 	if downErr := storageBackend.Download(ctx, filename, w); downErr != nil {
 		o.logger.Error(ctx, "Download failed", downErr, logging.Fields{
-			"filename": filename,
+			logFieldFilename: filename,
 		})
 		return fmt.Errorf("failed to download: %w", downErr)
 	}
@@ -118,7 +123,7 @@ func (o *Operation) decrypt(ctx context.Context, r io.Reader, w io.Writer) error
 	defer func() {
 		duration := time.Since(start)
 		o.logger.Info(ctx, "Stage 1.1 completed", logging.Fields{
-			"duration": duration.String(),
+			logFieldDuration: duration.String(),
 		})
 	}()
 
@@ -143,7 +148,7 @@ func (o *Operation) extract(ctx context.Context, r io.Reader, targetDir string) 
 	defer func() {
 		duration := time.Since(start)
 		o.logger.Info(ctx, "Stage 2 completed", logging.Fields{
-			"duration": duration.String(),
+			logFieldDuration: duration.String(),
 		})
 	}()
 

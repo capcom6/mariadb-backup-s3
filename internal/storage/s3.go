@@ -14,7 +14,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
@@ -29,11 +29,11 @@ const (
 )
 
 type s3Storage struct {
-	bucket   string
-	prefix   string
-	partSize int64
+	bucket string
+	prefix string
 
-	client *s3.Client
+	client          *s3.Client
+	transferManager *transfermanager.Client
 }
 
 type s3Locker struct {
@@ -92,12 +92,14 @@ func NewS3Storage(u *url.URL) (Backend, error) {
 		})
 	}
 
-	return &s3Storage{
-		bucket:   u.Host,
-		prefix:   prefix,
-		partSize: partSize,
+	s3Client := s3.NewFromConfig(sdkConfig, s3Options...)
 
-		client: s3.NewFromConfig(sdkConfig, s3Options...),
+	return &s3Storage{
+		bucket: u.Host,
+		prefix: prefix,
+
+		client:          s3Client,
+		transferManager: transfermanager.New(s3Client, func(o *transfermanager.Options) { o.PartSizeBytes = partSize }),
 	}, nil
 }
 
@@ -110,10 +112,7 @@ func (s *s3Storage) Upload(ctx context.Context, p string, data io.Reader) error 
 		contentType = "application/octet-stream"
 	}
 
-	uploader := manager.NewUploader(s.client, func(u *manager.Uploader) {
-		u.PartSize = s.partSize
-	})
-	_, err := uploader.Upload(ctx, &s3.PutObjectInput{
+	_, err := s.transferManager.UploadObject(ctx, &transfermanager.UploadObjectInput{
 		Bucket:      aws.String(s.bucket),
 		Key:         aws.String(key),
 		ContentType: &contentType,

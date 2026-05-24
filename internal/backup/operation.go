@@ -23,6 +23,13 @@ import (
 	"github.com/capcom6/mariadb-backup-s3/pkg/pipeline"
 )
 
+const (
+	logFieldDuration = "duration"
+	logFieldFilename = "filename"
+	logFieldSource   = "source"
+	logFieldTempdir  = "tempdir"
+)
+
 type Operation struct {
 	config Config
 
@@ -59,7 +66,7 @@ func (o *Operation) Run(ctx context.Context) error {
 	defer func() {
 		duration := time.Since(start)
 		o.logger.Info(ctx, "Backup completed", logging.Fields{
-			"duration": duration.String(),
+			logFieldDuration: duration.String(),
 		})
 	}()
 
@@ -75,7 +82,7 @@ func (o *Operation) Run(ctx context.Context) error {
 	defer func() {
 		if rmErr := os.RemoveAll(tempdir); rmErr != nil {
 			o.logger.Error(ctx, "failed to remove tempdir", rmErr, logging.Fields{
-				"tempdir": tempdir,
+				logFieldTempdir: tempdir,
 			})
 		}
 	}()
@@ -84,14 +91,14 @@ func (o *Operation) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to backup: %w", bkpErr)
 	}
 	o.logger.Info(ctx, "backup done", logging.Fields{
-		"tempdir": tempdir,
+		logFieldTempdir: tempdir,
 	})
 
 	if prepErr := o.prepare(ctx, tempdir); prepErr != nil {
 		return fmt.Errorf("failed to prepare: %w", prepErr)
 	}
 	o.logger.Info(ctx, "prepare done", logging.Fields{
-		"tempdir": tempdir,
+		logFieldTempdir: tempdir,
 	})
 
 	err = pipeline.Run(ctx, nil, nil,
@@ -119,7 +126,7 @@ func (o *Operation) backup(ctx context.Context, tempdir string) error {
 	defer func() {
 		duration := time.Since(start)
 		o.logger.Info(ctx, "Stage 1 completed", logging.Fields{
-			"duration": duration.String(),
+			logFieldDuration: duration.String(),
 		})
 	}()
 
@@ -158,7 +165,7 @@ func (o *Operation) prepare(ctx context.Context, tempdir string) error {
 	defer func() {
 		duration := time.Since(start)
 		o.logger.Info(ctx, "Stage 2 completed", logging.Fields{
-			"duration": duration.String(),
+			logFieldDuration: duration.String(),
 		})
 	}()
 
@@ -177,7 +184,7 @@ func (o *Operation) compress(ctx context.Context, tempdir string, w io.Writer) e
 	defer func() {
 		duration := time.Since(start)
 		o.logger.Info(ctx, "Stage 3 completed", logging.Fields{
-			"duration": duration.String(),
+			logFieldDuration: duration.String(),
 		})
 	}()
 
@@ -190,7 +197,7 @@ func (o *Operation) compress(ctx context.Context, tempdir string, w io.Writer) e
 	pigzCmd.Stdin, err = tarCmd.StdoutPipe()
 	if err != nil {
 		o.logger.Error(ctx, "Compression failed: failed to create stdout pipe", err, logging.Fields{
-			"source": tempdir,
+			logFieldSource: tempdir,
 		})
 		return fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
@@ -203,7 +210,7 @@ func (o *Operation) compress(ctx context.Context, tempdir string, w io.Writer) e
 
 	if pigzErr := pigzCmd.Start(); pigzErr != nil {
 		o.logger.Error(ctx, "Compression failed: failed to start pigz", pigzErr, logging.Fields{
-			"source": tempdir,
+			logFieldSource: tempdir,
 		})
 		return fmt.Errorf("failed to start pigz: %w", pigzErr)
 	}
@@ -232,7 +239,7 @@ func (o *Operation) encrypt(ctx context.Context, r io.Reader, w io.Writer) error
 	defer func() {
 		duration := time.Since(start)
 		o.logger.Info(ctx, "Stage 3.1 completed", logging.Fields{
-			"duration": duration.String(),
+			logFieldDuration: duration.String(),
 		})
 	}()
 
@@ -256,7 +263,7 @@ func (o *Operation) upload(ctx context.Context, r io.Reader, targetName string, 
 	defer func() {
 		duration := time.Since(start)
 		o.logger.Info(ctx, "Stage 4 completed", logging.Fields{
-			"duration": duration.String(),
+			logFieldDuration: duration.String(),
 		})
 	}()
 
@@ -267,7 +274,7 @@ func (o *Operation) upload(ctx context.Context, r io.Reader, targetName string, 
 	// Upload the backup
 	if uploadErr := o.storage.Upload(ctx, targetName, uploadReader); uploadErr != nil {
 		o.logger.Error(ctx, "Upload failed", uploadErr, logging.Fields{
-			"filename": targetName,
+			logFieldFilename: targetName,
 		})
 		return fmt.Errorf("failed to upload: %w", uploadErr)
 	}
@@ -292,7 +299,7 @@ func (o *Operation) upload(ctx context.Context, r io.Reader, targetName string, 
 
 	if _, err := o.registrySvc.Append(ctx, entry); err != nil {
 		o.logger.Error(ctx, "registry append failed", err, logging.Fields{
-			"filename": targetName,
+			logFieldFilename: targetName,
 		})
 		return fmt.Errorf("failed to append registry: %w", err)
 	}

@@ -11,6 +11,22 @@ import (
 	"github.com/capcom6/mariadb-backup-s3/internal/storage"
 )
 
+const (
+	logFieldSizeBytes   = "size_bytes"
+	logFieldCreatedAt   = "created_at"
+	logFieldFilename    = "filename"
+	logFieldRemoveCount = "remove_count"
+	logFieldKeepCount   = "keep_count"
+	logFieldDuration    = "duration"
+	logFieldMaxCount    = "max_count"
+	logFieldMaxAge      = "max_age"
+	logFieldKeepDaily   = "keep_daily"
+	logFieldKeepWeekly  = "keep_weekly"
+	logFieldKeepMonthly = "keep_monthly"
+	logFieldDryRun      = "dry_run"
+	logFieldForce       = "force"
+)
+
 type Operation struct {
 	config Config
 
@@ -46,13 +62,13 @@ func (o *Operation) Run(ctx context.Context) error {
 	ctx = logging.WithComponent(ctx, "retention")
 
 	o.logger.Info(ctx, "Starting retention operation", logging.Fields{
-		"max_count":    o.config.MaxCount,
-		"max_age":      o.config.MaxAge.String(),
-		"keep_daily":   o.config.KeepDaily,
-		"keep_weekly":  o.config.KeepWeekly,
-		"keep_monthly": o.config.KeepMonthly,
-		"dry_run":      o.config.DryRun,
-		"force":        o.config.Force,
+		logFieldMaxCount:    o.config.MaxCount,
+		logFieldMaxAge:      o.config.MaxAge.String(),
+		logFieldKeepDaily:   o.config.KeepDaily,
+		logFieldKeepWeekly:  o.config.KeepWeekly,
+		logFieldKeepMonthly: o.config.KeepMonthly,
+		logFieldDryRun:      o.config.DryRun,
+		logFieldForce:       o.config.Force,
 	})
 
 	if o.config.IsEmpty() {
@@ -64,7 +80,7 @@ func (o *Operation) Run(ctx context.Context) error {
 	defer func() {
 		duration := time.Since(start)
 		o.logger.Info(ctx, "Retention operation completed", logging.Fields{
-			"duration": duration.String(),
+			logFieldDuration: duration.String(),
 		})
 	}()
 
@@ -109,7 +125,7 @@ func (o *Operation) loadRegistry(ctx context.Context) (*registry.Registry, error
 	defer func() {
 		duration := time.Since(start)
 		o.logger.Info(ctx, "Stage 1 completed", logging.Fields{
-			"duration": duration.String(),
+			logFieldDuration: duration.String(),
 		})
 	}()
 
@@ -136,7 +152,7 @@ func (o *Operation) filterBackups(ctx context.Context, reg *registry.Registry) (
 	defer func() {
 		duration := time.Since(start)
 		o.logger.Info(ctx, "Stage 2 completed", logging.Fields{
-			"duration": duration.String(),
+			logFieldDuration: duration.String(),
 		})
 	}()
 
@@ -166,7 +182,7 @@ func (o *Operation) applyRetentionPolicies(
 	defer func() {
 		duration := time.Since(start)
 		o.logger.Info(ctx, "Stage 3 completed", logging.Fields{
-			"duration": duration.String(),
+			logFieldDuration: duration.String(),
 		})
 	}()
 
@@ -178,9 +194,9 @@ func (o *Operation) applyRetentionPolicies(
 		keep, remove := o.applyMaxCountPolicy(ctx, backups)
 
 		o.logger.Debug(ctx, "Applied MaxCount policy", logging.Fields{
-			"keep_count":   len(keep),
-			"remove_count": len(remove),
-			"max_count":    o.config.MaxCount,
+			logFieldKeepCount:   len(keep),
+			logFieldRemoveCount: len(remove),
+			"max_count":         o.config.MaxCount,
 		})
 
 		// Add items to keep set
@@ -194,9 +210,9 @@ func (o *Operation) applyRetentionPolicies(
 		keep, remove := o.applyMaxAgePolicy(ctx, backups)
 
 		o.logger.Debug(ctx, "Applied MaxAge policy", logging.Fields{
-			"keep_count":   len(keep),
-			"remove_count": len(remove),
-			"max_age":      o.config.MaxAge.String(),
+			logFieldKeepCount:   len(keep),
+			logFieldRemoveCount: len(remove),
+			"max_age":           o.config.MaxAge.String(),
 		})
 
 		// Add items to keep set
@@ -210,11 +226,11 @@ func (o *Operation) applyRetentionPolicies(
 		keep, remove := o.applyPeriodicPolicies(ctx, backups)
 
 		o.logger.Debug(ctx, "Applied periodic policies", logging.Fields{
-			"keep_count":   len(keep),
-			"remove_count": len(remove),
-			"keep_daily":   o.config.KeepDaily,
-			"keep_weekly":  o.config.KeepWeekly,
-			"keep_monthly": o.config.KeepMonthly,
+			logFieldKeepCount:   len(keep),
+			logFieldRemoveCount: len(remove),
+			"keep_daily":        o.config.KeepDaily,
+			"keep_weekly":       o.config.KeepWeekly,
+			"keep_monthly":      o.config.KeepMonthly,
 		})
 
 		// Add items to keep set
@@ -236,9 +252,9 @@ func (o *Operation) applyRetentionPolicies(
 	}
 
 	o.logger.Info(ctx, "Retention policy application completed", logging.Fields{
-		"total_backups": len(finalKeep) + len(finalRemove),
-		"keep_count":    len(finalKeep),
-		"remove_count":  len(finalRemove),
+		"total_backups":     len(finalKeep) + len(finalRemove),
+		logFieldKeepCount:   len(finalKeep),
+		logFieldRemoveCount: len(finalRemove),
 	})
 
 	return finalRemove, nil
@@ -254,31 +270,31 @@ func (o *Operation) executeRetentionActions(
 	defer func() {
 		duration := time.Since(start)
 		o.logger.Info(ctx, "Stage 4 completed", logging.Fields{
-			"duration": duration.String(),
+			logFieldDuration: duration.String(),
 		})
 	}()
 
 	// Log summary of retention decisions
 	o.logger.Info(ctx, "Retention summary", logging.Fields{
-		"remove_count": len(backupsToRemove),
-		"dry_run":      o.config.DryRun,
+		logFieldRemoveCount: len(backupsToRemove),
+		"dry_run":           o.config.DryRun,
 	})
 
 	// Log details for each backup being removed
 	for _, backup := range backupsToRemove {
 		if o.config.DryRun {
 			o.logger.Info(ctx, "Dry run: would remove backup", logging.Fields{
-				"filename":   backup.Filename,
-				"created_at": backup.CreatedAt.Format(time.RFC3339),
-				"size_bytes": backup.SizeBytes,
-				"status":     backup.Status,
+				logFieldFilename:  backup.Filename,
+				logFieldCreatedAt: backup.CreatedAt.Format(time.RFC3339),
+				logFieldSizeBytes: backup.SizeBytes,
+				"status":          backup.Status,
 			})
 		} else {
 			o.logger.Info(ctx, "Removing backup", logging.Fields{
-				"filename":   backup.Filename,
-				"created_at": backup.CreatedAt.Format(time.RFC3339),
-				"size_bytes": backup.SizeBytes,
-				"status":     backup.Status,
+				logFieldFilename:  backup.Filename,
+				logFieldCreatedAt: backup.CreatedAt.Format(time.RFC3339),
+				logFieldSizeBytes: backup.SizeBytes,
+				"status":          backup.Status,
 			})
 		}
 	}
@@ -292,7 +308,7 @@ func (o *Operation) executeRetentionActions(
 			}
 			// In force mode, log error but continue
 			o.logger.Error(ctx, "Failed to delete backup but continuing due to force mode", err, logging.Fields{
-				"filename": backup.Filename,
+				logFieldFilename: backup.Filename,
 			})
 		} else {
 			// Only add to successfullyDeleted if deleteBackup returned nil
@@ -314,7 +330,7 @@ func (o *Operation) updateRegistry(ctx context.Context, backupsToRemove []regist
 	defer func() {
 		duration := time.Since(start)
 		o.logger.Info(ctx, "Stage 5 completed", logging.Fields{
-			"duration": duration.String(),
+			logFieldDuration: duration.String(),
 		})
 	}()
 
@@ -323,9 +339,9 @@ func (o *Operation) updateRegistry(ctx context.Context, backupsToRemove []regist
 	for _, backup := range backupsToRemove {
 		if err := o.registrySvc.MarkDeleted(ctx, backup.ID); err != nil {
 			o.logger.Error(ctx, "Failed to mark backup as deleted", err, logging.Fields{
-				"backup_id": backup.ID,
-				"filename":  backup.Filename,
-				"error":     err.Error(),
+				"backup_id":      backup.ID,
+				logFieldFilename: backup.Filename,
+				"error":          err.Error(),
 			})
 
 			if !o.config.Force {
@@ -338,8 +354,8 @@ func (o *Operation) updateRegistry(ctx context.Context, backupsToRemove []regist
 			}
 
 			o.logger.Warn(ctx, "Continuing despite registry update failure due to force mode", logging.Fields{
-				"backup_id": backup.ID,
-				"filename":  backup.Filename,
+				"backup_id":      backup.ID,
+				logFieldFilename: backup.Filename,
 			})
 		} else {
 			// Only add to successfullyMarked if MarkDeleted returned nil
@@ -514,23 +530,23 @@ func (o *Operation) selectPeriodBackups(
 func (o *Operation) deleteBackup(ctx context.Context, backup registry.BackupEntry) error {
 	if o.config.DryRun {
 		o.logger.Info(ctx, "Dry run: would delete backup", logging.Fields{
-			"filename":   backup.Filename,
-			"created_at": backup.CreatedAt.Format(time.RFC3339),
-			"size_bytes": backup.SizeBytes,
+			logFieldFilename:  backup.Filename,
+			logFieldCreatedAt: backup.CreatedAt.Format(time.RFC3339),
+			logFieldSizeBytes: backup.SizeBytes,
 		})
 		return nil
 	}
 
 	o.logger.Info(ctx, "Deleting backup", logging.Fields{
-		"filename":   backup.Filename,
-		"created_at": backup.CreatedAt.Format(time.RFC3339),
-		"size_bytes": backup.SizeBytes,
+		logFieldFilename:  backup.Filename,
+		logFieldCreatedAt: backup.CreatedAt.Format(time.RFC3339),
+		logFieldSizeBytes: backup.SizeBytes,
 	})
 
 	if err := o.storage.Delete(ctx, backup.Filename); err != nil {
 		o.logger.Error(ctx, "Failed to delete backup file", err, logging.Fields{
-			"filename": backup.Filename,
-			"error":    err.Error(),
+			logFieldFilename: backup.Filename,
+			"error":          err.Error(),
 		})
 
 		return fmt.Errorf("%w: failed to delete backup %s: %w", ErrBackupDeleteFailed, backup.Filename, err)
