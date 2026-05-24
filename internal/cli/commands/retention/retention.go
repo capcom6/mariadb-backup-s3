@@ -13,6 +13,17 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+const (
+	logFieldDryRun      = "dry_run"
+	logFieldForce       = "force"
+	logFieldKeepDaily   = "keep_daily"
+	logFieldKeepMonthly = "keep_monthly"
+	logFieldKeepWeekly  = "keep_weekly"
+	logFieldMaxAge      = "max_age"
+	logFieldMaxCount    = "max_count"
+	logFieldStorageURL  = "storage_url"
+)
+
 func Command() *cli.Command {
 	fl := flags.Storage()
 	fl = append(fl, flags.Retention()...)
@@ -53,14 +64,14 @@ func retentionAction(ctx context.Context, cmd *cli.Command) error {
 
 	// Log command parameters for debugging
 	logger.Debug(ctx, "Parsing command parameters", logging.Fields{
-		"storage_url":  cmd.String("storage-url"),
-		"max_count":    cmd.Int("retention-count"),
-		"max_age":      cmd.Duration("max-age"),
-		"keep_daily":   cmd.Int("keep-daily"),
-		"keep_weekly":  cmd.Int("keep-weekly"),
-		"keep_monthly": cmd.Int("keep-monthly"),
-		"dry_run":      cmd.Bool("dry-run"),
-		"force":        cmd.Bool("force"),
+		logFieldStorageURL:  cmd.String("storage-url"),
+		logFieldMaxCount:    cmd.Int("retention-count"),
+		logFieldMaxAge:      cmd.Duration("max-age"),
+		logFieldKeepDaily:   cmd.Int("keep-daily"),
+		logFieldKeepWeekly:  cmd.Int("keep-weekly"),
+		logFieldKeepMonthly: cmd.Int("keep-monthly"),
+		logFieldDryRun:      cmd.Bool("dry-run"),
+		logFieldForce:       cmd.Bool("force"),
 	})
 
 	cfg, err := parseConfig(cmd)
@@ -70,13 +81,13 @@ func retentionAction(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	logger.Debug(ctx, "Configuration validated successfully", logging.Fields{
-		"max_count":    cfg.MaxCount,
-		"max_age":      cfg.MaxAge.String(),
-		"keep_daily":   cfg.KeepDaily,
-		"keep_weekly":  cfg.KeepWeekly,
-		"keep_monthly": cfg.KeepMonthly,
-		"dry_run":      cfg.DryRun,
-		"force":        cfg.Force,
+		logFieldMaxCount:    cfg.MaxCount,
+		logFieldMaxAge:      cfg.MaxAge.String(),
+		logFieldKeepDaily:   cfg.KeepDaily,
+		logFieldKeepWeekly:  cfg.KeepWeekly,
+		logFieldKeepMonthly: cfg.KeepMonthly,
+		logFieldDryRun:      cfg.DryRun,
+		logFieldForce:       cfg.Force,
 	})
 
 	storageCfg := config.Storage{
@@ -102,14 +113,14 @@ func retentionAction(ctx context.Context, cmd *cli.Command) error {
 	registrySvc := registry.NewService(storageSvc)
 
 	logger.Info(ctx, "Starting retention execution", logging.Fields{
-		"storage_url":  storageCfg.URL,
-		"max_count":    cfg.MaxCount,
-		"max_age":      cfg.MaxAge.String(),
-		"keep_daily":   cfg.KeepDaily,
-		"keep_weekly":  cfg.KeepWeekly,
-		"keep_monthly": cfg.KeepMonthly,
-		"dry_run":      cfg.DryRun,
-		"force":        cfg.Force,
+		logFieldStorageURL:  storageCfg.URL,
+		logFieldMaxCount:    cfg.MaxCount,
+		logFieldMaxAge:      cfg.MaxAge.String(),
+		logFieldKeepDaily:   cfg.KeepDaily,
+		logFieldKeepWeekly:  cfg.KeepWeekly,
+		logFieldKeepMonthly: cfg.KeepMonthly,
+		logFieldDryRun:      cfg.DryRun,
+		logFieldForce:       cfg.Force,
 	})
 
 	if opErr := retention.NewOperation(cfg, registrySvc, storageSvc, logger).Run(ctx); opErr != nil {

@@ -251,24 +251,25 @@ linters:
         - ^os/exec.Cmd$
         - ^reflect.StructField$
         # public libs
-        - ^github.com/Shopify/sarama.Config$
-        - ^github.com/Shopify/sarama.ProducerMessage$
+        - ^github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager.+Input$
+        - ^github.com/aws/aws-sdk-go-v2/service/s3.+Input$
+        - ^github.com/aws/aws-sdk-go-v2/service/s3/types.ObjectIdentifier$
         - ^github.com/mitchellh/mapstructure.DecoderConfig$
         - ^github.com/prometheus/client_golang/.+Opts$
+        - ^github.com/secsy/goftp.Config$
+        - ^github.com/Shopify/sarama.Config$
+        - ^github.com/Shopify/sarama.ProducerMessage$
         - ^github.com/spf13/cobra.Command$
         - ^github.com/spf13/cobra.CompletionOptions$
         - ^github.com/stretchr/testify/mock.Mock$
         - ^github.com/testcontainers/testcontainers-go.+Request$
         - ^github.com/testcontainers/testcontainers-go.FromDockerfile$
+        - ^github.com/urfave/cli.v3.ArgumentBase$
+        - ^github.com/urfave/cli.v3.Command$
+        - ^github.com/urfave/cli.v3.FlagBase$
         - ^golang.org/x/tools/go/analysis.Analyzer$
         - ^google.golang.org/protobuf/.+Options$
         - ^gopkg.in/yaml.v3.Node$
-        - ^github.com/urfave/cli.v3.Command$
-        - ^github.com/urfave/cli.v3.ArgumentBase$
-        - ^github.com/urfave/cli.v3.FlagBase$
-        - ^github.com/aws/aws-sdk-go-v2/service/s3.+Input$
-        - ^github.com/aws/aws-sdk-go-v2/service/s3/types.ObjectIdentifier$
-        - ^github.com/secsy/goftp.Config$
       # Allows empty structures in return statements.
       # Default: false
       allow-empty-returns: true

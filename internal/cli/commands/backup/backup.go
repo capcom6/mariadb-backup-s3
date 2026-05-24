@@ -14,6 +14,14 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+const (
+	logFieldDBHost            = "db_host"
+	logFieldDBPort            = "db_port"
+	logFieldDBUser            = "db_user"
+	logFieldStorageURL        = "storage_url"
+	logFieldEncryptionEnabled = "encryption_enabled"
+)
+
 func Command() *cli.Command {
 	fl := flags.Database()
 	fl = append(fl, flags.Storage()...)
@@ -64,13 +72,13 @@ func backupAction(ctx context.Context, cmd *cli.Command) error {
 
 	// Log command parameters for debugging
 	logger.Debug(ctx, "Parsing command parameters", logging.Fields{
-		"db_host":           cmd.String("db-host"),
-		"db_port":           cmd.Int("db-port"),
-		"db_user":           cmd.String("db-user"),
+		logFieldDBHost:      cmd.String("db-host"),
+		logFieldDBPort:      cmd.Int("db-port"),
+		logFieldDBUser:      cmd.String("db-user"),
 		"db_password":       "***", // Don't log actual password
 		"db_backup_options": cmd.String("db-backup-options"),
 		"db_backup_binary":  cmd.String("db-backup-binary"),
-		"storage_url":       cmd.String("storage-url"),
+		logFieldStorageURL:  cmd.String("storage-url"),
 		"encryption_key":    "***", // Don't log actual key
 	})
 
@@ -81,11 +89,11 @@ func backupAction(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	logger.Debug(ctx, "Configuration validated successfully", logging.Fields{
-		"db_host":            cfg.MariaDB.Host,
-		"db_port":            cfg.MariaDB.Port,
-		"db_user":            cfg.MariaDB.User,
-		"storage_url":        cfg.Storage.URL,
-		"encryption_enabled": cfg.Encryption.Enabled(),
+		logFieldDBHost:            cfg.MariaDB.Host,
+		logFieldDBPort:            cfg.MariaDB.Port,
+		logFieldDBUser:            cfg.MariaDB.User,
+		logFieldStorageURL:        cfg.Storage.URL,
+		logFieldEncryptionEnabled: cfg.Encryption.Enabled(),
 	})
 
 	u, err := cfg.Storage.GetURL()
@@ -108,9 +116,9 @@ func backupAction(ctx context.Context, cmd *cli.Command) error {
 	registrySvc := registry.NewService(storageSvc)
 
 	logger.Info(ctx, "Starting backup execution", logging.Fields{
-		"db_host":            cfg.MariaDB.Host,
-		"db_port":            cfg.MariaDB.Port,
-		"encryption_enabled": cfg.Encryption.Enabled(),
+		logFieldDBHost:            cfg.MariaDB.Host,
+		logFieldDBPort:            cfg.MariaDB.Port,
+		logFieldEncryptionEnabled: cfg.Encryption.Enabled(),
 	})
 
 	if opErr := backup.NewOperation(cfg, registrySvc, storageSvc, logger).Run(ctx); opErr != nil {

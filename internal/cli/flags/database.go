@@ -5,6 +5,8 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+const categoryDatabase = "Database"
+
 func Database() []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{
@@ -13,7 +15,7 @@ func Database() []cli.Flag {
 			Usage:       "database host",
 			DefaultText: "localhost",
 			Sources:     cli.NewValueSourceChain(cli.EnvVar("MARIADB__HOST"), cliutil.DefaultValue("localhost")),
-			Category:    "Database",
+			Category:    categoryDatabase,
 		},
 		&cli.IntFlag{
 			Name:        "db-port",
@@ -21,7 +23,7 @@ func Database() []cli.Flag {
 			Usage:       "database port",
 			DefaultText: "3306",
 			Sources:     cli.NewValueSourceChain(cli.EnvVar("MARIADB__PORT"), cliutil.DefaultValue("3306")),
-			Category:    "Database",
+			Category:    categoryDatabase,
 		},
 		&cli.StringFlag{
 			Name:        "db-user",
@@ -29,14 +31,14 @@ func Database() []cli.Flag {
 			Usage:       "database user",
 			DefaultText: "root",
 			Sources:     cli.NewValueSourceChain(cli.EnvVar("MARIADB__USER"), cliutil.DefaultValue("root")),
-			Category:    "Database",
+			Category:    categoryDatabase,
 		},
 		&cli.StringFlag{
 			Name:     "db-password",
 			Aliases:  []string{"password"},
 			Usage:    "database password",
 			Sources:  cli.EnvVars("MARIADB__PASSWORD"),
-			Category: "Database",
+			Category: categoryDatabase,
 		},
 	}
 }
