@@ -13,7 +13,7 @@ var (
 	ErrNoArguments = errors.New("no arguments")
 )
 
-func run(ctx context.Context, args []string) error {
+func run(ctx context.Context, args []string, extraEnv map[string]string) error {
 	if len(args) == 0 {
 		return ErrNoArguments
 	}
@@ -22,6 +22,10 @@ func run(ctx context.Context, args []string) error {
 
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...) //nolint:gosec // is not user input
 
+	cmd.Env = os.Environ()
+	for k, v := range extraEnv {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = &buf
 
