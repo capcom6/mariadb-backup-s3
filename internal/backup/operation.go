@@ -136,7 +136,6 @@ func (o *Operation) backup(ctx context.Context, tempdir string) error {
 		"--parallel=" + strconv.Itoa(runtime.NumCPU()),
 		"--target-dir=" + tempdir,
 		"--user=" + o.config.MariaDB.User,
-		"--password=" + o.config.MariaDB.Password,
 	}
 
 	if o.config.MariaDB.Host != "" {
@@ -156,7 +155,7 @@ func (o *Operation) backup(ctx context.Context, tempdir string) error {
 		args = append(args, opts...)
 	}
 
-	return run(ctx, args)
+	return run(ctx, args, map[string]string{"MYSQL_PWD": o.config.MariaDB.Password})
 }
 
 func (o *Operation) prepare(ctx context.Context, tempdir string) error {
@@ -175,7 +174,7 @@ func (o *Operation) prepare(ctx context.Context, tempdir string) error {
 		"--target-dir=" + tempdir,
 	}
 
-	return run(ctx, args)
+	return run(ctx, args, nil)
 }
 
 func (o *Operation) compress(ctx context.Context, tempdir string, w io.Writer) error {
