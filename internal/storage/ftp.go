@@ -342,34 +342,32 @@ func (f *ftpStorage) listRemoteFiles(dir string) ([]string, error) {
 	return fileNames, nil
 }
 
-// isFTPNotFoundError checks if the error is a true "file not found" error.
-// It inspects both the FTP error code and the message content to distinguish
-// between file not found errors and permission/authentication errors.
-// Only returns true when the error explicitly indicates a missing file
-// (e.g., contains phrases like "No such file", "file not found", "not found").
+// isFTPNotFoundError checks if the error indicates a file was not found on the FTP server.
+// RFC 959 defines code 550 as "Requested action not taken. File unavailable",
+// which covers both missing files and permission/access denials.
+// We disambiguate by checking the response message text.
 func isFTPNotFoundError(err error) bool {
 	var ftpErr goftp.Error
-
 	if !errors.As(err, &ftpErr) || ftpErr.Code() != 550 {
 		return false
 	}
 
 	msg := strings.ToLower(ftpErr.Message())
-
-	// Check for clear "file not found" indicators
-	notFoundIndicators := []string{
-		"no such file",
-		"file not found",
-		"not found",
-		"does not exist",
-		"cannot find",
+	switch {
+	case strings.Contains(msg, "not found"),
+		strings.Contains(msg, "no such"),
+		strings.Contains(msg, "cannot find"),
+		strings.Contains(msg, "doesn't exist"),
+		strings.Contains(msg, "does not exist"):
+		return true
+	case strings.Contains(msg, "denied"),
+		strings.Contains(msg, "permission"),
+		strings.Contains(msg, "access"):
+		return false
+	default:
+		// For unrecognized messages (e.g., non-English servers),
+		// err on the side of not treating as NotFound to avoid
+		// unintended registry rebuilds on permission errors.
+		return false
 	}
-
-	for _, indicator := range notFoundIndicators {
-		if strings.Contains(msg, indicator) {
-			return true
-		}
-	}
-
-	return false
 }
