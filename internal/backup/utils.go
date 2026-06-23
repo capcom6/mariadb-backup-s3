@@ -18,10 +18,14 @@ func run(ctx context.Context, args []string, extraEnv map[string]string) error {
 		return ErrNoArguments
 	}
 
+	binaryPath, err := exec.LookPath(args[0])
+	if err != nil {
+		return fmt.Errorf("binary '%s' not found: %w", args[0], err)
+	}
+
 	buf := bytes.Buffer{}
 
-	cmd := exec.CommandContext(ctx, args[0], args[1:]...) //nolint:gosec // is not user input
-
+	cmd := exec.CommandContext(ctx, binaryPath, args[1:]...)
 	cmd.Env = os.Environ()
 	for k, v := range extraEnv {
 		cmd.Env = append(cmd.Env, k+"="+v)
@@ -29,8 +33,8 @@ func run(ctx context.Context, args []string, extraEnv map[string]string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = &buf
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("%s: %w", buf.String(), err)
+	if runErr := cmd.Run(); runErr != nil {
+		return fmt.Errorf("%s: %w", buf.String(), runErr)
 	}
 	return nil
 }
