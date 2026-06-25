@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -68,9 +69,12 @@ func Run(ctx context.Context, src io.Reader, dst io.Writer, stages ...StageFunc)
 	wg.Wait()
 	close(errCh)
 
-	// Return first error encountered
+	// Collect errors from all stages for richer diagnostics
+	var errs []error
 	for err := range errCh {
-		return err
+		if err != nil {
+			errs = append(errs, err)
+		}
 	}
-	return nil
+	return errors.Join(errs...)
 }

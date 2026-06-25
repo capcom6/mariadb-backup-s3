@@ -372,6 +372,65 @@ func TestRun_EmptyInput(t *testing.T) {
 	}
 }
 
+// Test that errors from multiple failed stages are all collected.
+func TestRun_MultipleErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		stages     []pipeline.StageFunc
+		wantErrors []string
+	}{
+		{
+			name: "two stages fail independently",
+			stages: []pipeline.StageFunc{
+				errorStage(0, "first failure"),
+			},
+			wantErrors: []string{"stage 0 error: first failure"},
+		},
+		{
+			name: "two stages fail (cascade)",
+			stages: []pipeline.StageFunc{
+				failingStage,
+				identity,
+			},
+			wantErrors: []string{
+				"stage 0 failed",
+				"stage 1 failed",
+			},
+		},
+		{
+			name: "all stages fail",
+			stages: []pipeline.StageFunc{
+				failingStage,
+				failingStage,
+				failingStage,
+			},
+			wantErrors: []string{
+				"stage 0 failed",
+				"stage 1 failed",
+				"stage 2 failed",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var dst bytes.Buffer
+			src := strings.NewReader("test")
+
+			err := pipeline.Run(context.TODO(), src, &dst, tt.stages...)
+			if err == nil {
+				t.Fatal("Expected error, got nil")
+			}
+
+			for _, want := range tt.wantErrors {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("Expected error to contain %q, got: %v", want, err)
+				}
+			}
+		})
+	}
+}
+
 // errorReader is a reader that always returns an error.
 type errorReader struct {
 	err error
