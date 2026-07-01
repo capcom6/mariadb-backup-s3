@@ -199,33 +199,36 @@ func (f *filesystemStorage) makePath(filename string) (string, error) {
 
 // copyWithContext performs io.Copy with context cancellation support.
 func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) error {
-	// Create a buffer for efficient copying
 	const bufferSize = 64 * 1024
-	buf := make([]byte, bufferSize) // 64KB buffer
+	buf := make([]byte, bufferSize)
 
-	for {
-		select {
-		case <-ctx.Done():
-			return fmt.Errorf("copy: %w", ctx.Err())
-		default:
-			n, err := src.Read(buf)
-			if n > 0 {
-				if _, writeErr := dst.Write(buf[:n]); writeErr != nil {
-					return fmt.Errorf("write error: %w", writeErr)
-				}
-			}
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					return nil
-				}
-				return fmt.Errorf("read error: %w", err)
-			}
-		}
+	_, err := io.CopyBuffer(dst, &contextReader{ctx: ctx, r: src}, buf)
+	if err != nil {
+		return fmt.Errorf("copy: %w", err)
 	}
+	if cerr := ctx.Err(); cerr != nil {
+		return fmt.Errorf("copy: %w", cerr)
+	}
+	return nil
 }
 
 // Close closes the filesystem storage backend.
 // For filesystem storage, this is a no-op as no persistent connections are held.
 func (f *filesystemStorage) Close() error {
 	return nil
+}
+
+type contextReader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+//nolint:wrapcheck // errors must pass through unwrapped for io.CopyBuffer EOF detection
+func (cr *contextReader) Read(p []byte) (int, error) {
+	select {
+	case <-cr.ctx.Done():
+		return 0, cr.ctx.Err()
+	default:
+	}
+	return cr.r.Read(p)
 }

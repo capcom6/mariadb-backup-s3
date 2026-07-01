@@ -2,6 +2,9 @@
 
 This example demonstrates a minimal setup for automated MariaDB backups using system CRON with the mariadb-backup-s3 tool.
 
+> **Recommendation**
+> The built-in scheduler (`mariadb-backup-s3 scheduler run --config scheduler.yaml`) provides a better alternative with persistent state, built-in safety features, and no need for external cron configuration. See [examples/scheduler](../scheduler/) for details.
+
 ## 📁 Files Structure
 
 ```
@@ -29,7 +32,7 @@ sudo adduser --system --group --home /var/backups backup
 
 ### 2. Configure Environment
 
-Copy the environment template to the backup user’s home directory:
+Copy the environment template to the backup user's home directory:
 
 ```bash
 sudo install -m 600 -o backup -g backup .env.example /var/backups/.env

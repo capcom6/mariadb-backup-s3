@@ -1,0 +1,36 @@
+[Unit]
+Description=MariaDB Backup Scheduler Daemon
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/default/mariadb-backup-s3
+ExecStart=/usr/local/bin/mariadb-backup-s3 scheduler run --config ${SCHEDULER__CONFIG} --state-file ${SCHEDULER__STATE_FILE}
+User=backup-user
+Group=backup-user
+UMask=0077
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=4h
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=tmpfs
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+LockPersonality=yes
+ReadWritePaths=/var/lib/mariadb-backup-s3 /tmp
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target

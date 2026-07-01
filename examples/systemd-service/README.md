@@ -35,6 +35,10 @@ AWS_REGION=us-east-1
 
 # Backup retention
 BACKUP__LIMITS__MAX_COUNT=30
+
+# Scheduler configuration (only needed for the scheduler daemon)
+SCHEDULER__CONFIG=/etc/mariadb-backup-s3/scheduler.yaml
+SCHEDULER__STATE_FILE=/var/lib/mariadb-backup-s3/state.json
 ```
 
 Set appropriate permissions:
@@ -98,6 +102,26 @@ After changing the timer, reload systemd:
 sudo systemctl daemon-reload
 sudo systemctl restart mariadb-backup-s3.timer
 ```
+
+## Alternative: Built-in Scheduler Daemon
+
+The tool includes a built-in scheduler that runs as a long-lived daemon, which can replace the oneshot+timer pattern entirely:
+
+```bash
+# Create scheduler config (see examples/scheduler/) first
+# Then run
+mariadb-backup-s3 scheduler run --config /etc/mariadb-backup-s3/scheduler.yaml
+```
+
+A systemd service for the scheduler daemon is available at `mariadb-backup-s3-scheduler.service`:
+
+```bash
+sudo install -m 0644 mariadb-backup-s3-scheduler.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now mariadb-backup-s3-scheduler.service
+```
+
+The daemon manages both backups and retention automatically based on the YAML configuration. See [examples/scheduler](../scheduler/) for a complete guide.
 
 ## Security Notes
 - The service runs with restricted privileges using systemd's security features
