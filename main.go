@@ -2,14 +2,18 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 	"runtime"
+	"syscall"
 
 	"github.com/capcom6/mariadb-backup-s3/internal/cli/commands/backup"
 	"github.com/capcom6/mariadb-backup-s3/internal/cli/commands/registry"
 	"github.com/capcom6/mariadb-backup-s3/internal/cli/commands/restore"
 	"github.com/capcom6/mariadb-backup-s3/internal/cli/commands/retention"
+	"github.com/capcom6/mariadb-backup-s3/internal/cli/commands/scheduler"
 	"github.com/capcom6/mariadb-backup-s3/internal/core/codes"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
 	"github.com/joho/godotenv"
@@ -27,7 +31,8 @@ var (
 func main() {
 	logger := logging.NewDefault()
 
-	ctx := logging.WithLogger(context.Background(), logger)
+	ctx, _ := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx = logging.WithLogger(ctx, logger)
 
 	// Load environment variables
 	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
@@ -60,6 +65,7 @@ func main() {
 			restore.Command(),
 			retention.Command(),
 			registry.Command(),
+			scheduler.Command(),
 		},
 		Before: func(ctx context.Context, _ *cli.Command) (context.Context, error) {
 			logger.Info(ctx, "Starting MariaDB Backup S3 application")
@@ -80,8 +86,13 @@ func main() {
 
 	exitCode := 0
 	if err := app.Run(ctx, os.Args); err != nil {
-		logger.Error(ctx, "Application failed", err)
-		exitCode = codes.InternalError
+		var exitErr cli.ExitCoder
+		if errors.As(err, &exitErr) {
+			exitCode = exitErr.ExitCode()
+		} else {
+			logger.Error(ctx, "Application failed", err)
+			exitCode = codes.InternalError
+		}
 	}
 
 	if err := logger.Close(); err != nil {

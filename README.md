@@ -26,6 +26,7 @@
     - [Restore](#restore)
     - [Retention](#retention)
     - [Registry](#registry)
+    - [Scheduler](#scheduler)
   - [📂 Storage Types](#-storage-types)
     - [S3 Storage](#s3-storage)
     - [FTP Storage](#ftp-storage)
@@ -68,6 +69,7 @@ nano .env  # Edit with your credentials
 - 🔄 Automatic backup rotation with configurable retention policies
 - 📋 Backup registry for tracking and managing backups
 - 🐳 Docker container support
+- ⏰ Built-in scheduler — run scheduled backups as a long-running daemon, no external cron needed
 
 ## 🛠️ How It Works
 
@@ -188,12 +190,13 @@ mariadb-backup-s3 [global options] command [command options] [arguments...]
 
 The tool offers the following commands:
 
-| Command     | Description                                       |
-| ----------- | ------------------------------------------------- |
-| `backup`    | Perform a backup of the MariaDB database          |
-| `restore`   | Restore the database files to specified directory |
-| `retention` | Apply retention policies to backups               |
-| `registry`  | Manage backup registry                            |
+| Command              | Description                                       |
+| -------------------- | ------------------------------------------------- |
+| `backup`             | Perform a backup of the MariaDB database          |
+| `restore`            | Restore the database files to specified directory |
+| `retention`          | Apply retention policies to backups               |
+| `registry`           | Manage backup registry                            |
+| `scheduler`, `sched` | Run the backup scheduler daemon                   |
 
 ### Backup
 
@@ -362,6 +365,79 @@ The list command displays all backups in the registry with the following informa
 - **Size**: Backup file size in bytes
 - **Filename**: Backup filename
 
+### Scheduler
+
+The `scheduler` command runs a built-in cron daemon that executes backup and retention jobs on a schedule without relying on external cron or systemd timers.
+
+```bash
+mariadb-backup-s3 scheduler [command] [options]
+```
+
+**Subcommands:**
+
+| Command  | Description                           |
+| -------- | ------------------------------------- |
+| `run`    | Start the scheduler daemon            |
+| `status` | Show the status of scheduled jobs     |
+| `check`  | Validate a scheduler YAML config file |
+
+**Common Options:**
+
+| Option     | Env Var             | Description                        | Default value |
+| ---------- | ------------------- | ---------------------------------- | ------------- |
+| `--config` | `SCHEDULER__CONFIG` | Path to scheduler YAML config file | **required**  |
+
+**Scheduler Run Options:**
+
+| Option         | Env Var                 | Description                     | Default value |
+| -------------- | ----------------------- | ------------------------------- | ------------- |
+| `--state-file` | `SCHEDULER__STATE_FILE` | Path to persistent state file   | from config   |
+| `--once`       |                         | Run all due jobs once then exit | `false`       |
+
+**Scheduler Status Options:**
+
+| Option         | Env Var                 | Description                   | Default value            |
+| -------------- | ----------------------- | ----------------------------- | ------------------------ |
+| `--state-file` | `SCHEDULER__STATE_FILE` | Path to persistent state file | `/tmp/mariadb-scheduler-state.json` |
+
+**Example:**
+
+```yaml
+# scheduler.yaml
+state_file: /var/lib/mariadb-backup-s3/state.json
+jobs:
+  - name: nightly-full-backup
+    schedule: "0 2 * * *"
+    command: backup
+    timeout: 4h
+    storage:
+      url: s3://my-bucket/backups?endpoint=https://s3.custom.com
+    mariadb:
+      host: localhost
+      port: 3306
+      user: root
+      password: ${MARIADB__PASSWORD}
+    retention:
+      max_count: 7
+```
+
+```bash
+# Validate the config
+mariadb-backup-s3 scheduler check --config scheduler.yaml
+
+# Run the scheduler daemon
+mariadb-backup-s3 scheduler run --config scheduler.yaml
+
+# Run all due jobs once and exit
+mariadb-backup-s3 scheduler run --config scheduler.yaml --once
+
+# Check job status
+mariadb-backup-s3 scheduler status --state-file /var/lib/mariadb-backup-s3/state.json
+```
+
+> **Note**
+> The scheduler replaces the need for external cron, systemd timers, or shell scripts. See [examples/scheduler](./examples/scheduler/) for a complete setup guide.
+
 ## 📂 Storage Types
 
 ### S3 Storage
@@ -446,6 +522,7 @@ head -c 32 /dev/urandom | base64
 - **Simple CRON Example**: [examples/simple-cron-backup](./examples/simple-cron-backup/)
 - **Advanced CRON Example**: [examples/advanced-cron-backup](./examples/advanced-cron-backup/)
 - **Encryption Example**: [examples/encryption-example](./examples/encryption-example/)
+- **Scheduler Example**: [examples/scheduler](./examples/scheduler/)
 
 ## 🤝 Contributing
 

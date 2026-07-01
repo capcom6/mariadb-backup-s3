@@ -2,6 +2,9 @@
 
 This example demonstrates how to set up automated MariaDB backups using system CRON with the mariadb-backup-s3 tool.
 
+> **Recommendation**
+> The built-in scheduler (`mariadb-backup-s3 scheduler run --config scheduler.yaml`) provides a better alternative with persistent state, built-in safety features, and no need for external cron configuration. See [examples/scheduler](../scheduler/) for details.
+
 ## 📁 Files Structure
 
 ```

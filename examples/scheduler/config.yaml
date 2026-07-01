@@ -1,0 +1,75 @@
+# Scheduler Configuration for mariadb-backup-s3
+# =============================================================================
+# Copy this file and customize it for your environment:
+#   cp examples/scheduler/config.yaml /etc/mariadb-backup-s3/scheduler.yaml
+#
+# Validate the config first:
+#   mariadb-backup-s3 scheduler check --config /etc/mariadb-backup-s3/scheduler.yaml
+#
+# Then run:
+#   mariadb-backup-s3 scheduler run --config /etc/mariadb-backup-s3/scheduler.yaml
+# =============================================================================
+
+# Path to the persistent state file (created automatically)
+state_file: /var/lib/mariadb-backup-s3/state.json
+
+# Global webhook URL for job notifications (sends CloudEvents v1.0)
+webhook:
+  url: https://hooks.slack.com/services/...
+  timeout: 30s
+
+# List of scheduled jobs
+jobs:
+  # ---------------------------------------------------------------------------
+  # Nightly full backup with retention
+  # Runs every day at 2:00 AM UTC, keeps 7 latest backups
+  # ---------------------------------------------------------------------------
+  - name: nightly-full-backup
+    schedule: "0 2 * * *"
+    command: backup
+    timeout: 4h
+    storage:
+      url: s3://my-bucket/backups?endpoint=https://s3.custom.com
+    mariadb:
+      host: localhost
+      port: 3306
+      user: root
+      password: ${MARIADB__PASSWORD}
+    encrypt:
+      key: ${ENCRYPTION__KEY}
+    retention:
+      max_count: 7
+      keep_daily: 7
+      keep_weekly: 4
+      keep_monthly: 12
+
+  # ---------------------------------------------------------------------------
+  # Weekly retention cleanup
+  # Runs every Sunday at 3:00 AM UTC, removes backups older than 30 days
+  # ---------------------------------------------------------------------------
+  - name: weekly-retention
+    schedule: "0 3 * * 0"
+    command: retention
+    timeout: 30m
+    storage:
+      url: s3://my-bucket/backups?endpoint=https://s3.custom.com
+    retention:
+      max_age: 720h  # 30 days
+
+  # ---------------------------------------------------------------------------
+  # Hourly backup with daily retention
+  # Runs every 2 hours, keeps the last 3 days
+  # ---------------------------------------------------------------------------
+  - name: hourly-backup
+    schedule: "0 */2 * * *"
+    command: backup
+    timeout: 4h
+    storage:
+      url: s3://my-bucket/backups?endpoint=https://s3.custom.com
+    mariadb:
+      host: localhost
+      port: 3306
+      user: backup_user
+      password: ${MARIADB__PASSWORD}
+    retention:
+      keep_daily: 3
