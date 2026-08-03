@@ -161,7 +161,7 @@ func (m *Method) listDatabases(ctx context.Context) ([]string, error) {
 	databases := make([]string, 0)
 	for db := range strings.SplitSeq(raw, "\n") {
 		switch db {
-		case "information_schema", "performance_schema":
+		case "information_schema", "performance_schema", "sys":
 			continue
 		default:
 			databases = append(databases, db)

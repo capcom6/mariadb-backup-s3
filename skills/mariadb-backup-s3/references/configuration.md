@@ -10,8 +10,10 @@ Config loaded from: CLI flags > env vars > `.env` file (in working directory).
 | `--db-port`, `--port` | `MARIADB__PORT` | `3306` | MariaDB port |
 | `--db-user`, `--user` | `MARIADB__USER` | `root` | MariaDB username |
 | `--db-password`, `--password` | `MARIADB__PASSWORD` | `""` | MariaDB password |
-| `--db-backup-binary` | `MARIADB__BACKUP_BINARY` | `mariadb-backup` | Path to mariabackup binary |
-| `--db-backup-options` | `MARIADB__BACKUP_OPTIONS` | `""` | Extra mariabackup options (sanitized) |
+| `--backup-method` | `MARIADB__BACKUP_METHOD` | `mariadb-backup` | Backup method: `mariadb-backup` (physical) or `mariadb-dump` (logical) |
+| `--db-backup-binary` | `MARIADB__BACKUP_BINARY` | auto-derived | Path to backup binary (auto-derived from `--backup-method` if not set) |
+| `--db-client-binary` | `MARIADB__CLIENT_BINARY` | `mariadb` | Path to mariadb client binary (used to list databases for logical backup) |
+| `--db-backup-options` | `MARIADB__BACKUP_OPTIONS` | `""` | Extra backup options (sanitized) |
 
 ## Storage
 
@@ -102,6 +104,7 @@ MARIADB__HOST=db.example.com
 MARIADB__PORT=3306
 MARIADB__USER=backup
 MARIADB__PASSWORD=secret
+MARIADB__BACKUP_METHOD=mariadb-backup
 
 STORAGE__URL=s3://my-bucket/backups?endpoint=https://s3.eu-west-1.amazonaws.com
 

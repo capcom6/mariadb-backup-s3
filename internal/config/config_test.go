@@ -16,6 +16,9 @@ func TestDefaultMariaDB(t *testing.T) {
 	assert.Equal(t, 3306, cfg.Port)
 	assert.Equal(t, "root", cfg.User)
 	assert.Equal(t, "mariadb-backup", cfg.BackupBinary)
+	assert.Equal(t, "mariadb", cfg.ClientBinary)
+	assert.Equal(t, config.BackupMethodPhysical, cfg.BackupMethod)
+	assert.False(t, cfg.IsLogical())
 }
 
 func TestMariaDB_Validate_BinaryFound(t *testing.T) {
@@ -23,12 +26,8 @@ func TestMariaDB_Validate_BinaryFound(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg := config.MariaDB{
-		Host:          "",
-		Port:          0,
-		User:          "",
-		Password:      "",
-		BackupOptions: "",
-		BackupBinary:  exe,
+		BackupBinary: exe,
+		BackupMethod: config.BackupMethodPhysical,
 	}
 	err = cfg.Validate()
 	assert.NoError(t, err)
@@ -36,15 +35,58 @@ func TestMariaDB_Validate_BinaryFound(t *testing.T) {
 
 func TestMariaDB_Validate_BinaryNotFound(t *testing.T) {
 	cfg := config.MariaDB{
-		Host:          "",
-		Port:          0,
-		User:          "",
-		Password:      "",
-		BackupOptions: "",
-		BackupBinary:  "nonexistent-binary-12345",
+		BackupBinary: "nonexistent-binary-12345",
+		BackupMethod: config.BackupMethodPhysical,
 	}
 	err := cfg.Validate()
 	assert.Error(t, err)
+}
+
+func TestMariaDB_Validate_InvalidMethod(t *testing.T) {
+	exe, err := os.Executable()
+	require.NoError(t, err)
+
+	cfg := config.MariaDB{
+		BackupBinary: exe,
+		BackupMethod: "invalid-method",
+	}
+	err = cfg.Validate()
+	require.Error(t, err)
+	assert.ErrorIs(t, err, config.ErrInvalidBackupMethod)
+}
+
+func TestMariaDB_Validate_LogicalMethod(t *testing.T) {
+	exe, err := os.Executable()
+	require.NoError(t, err)
+
+	cfg := config.MariaDB{
+		BackupBinary: exe,
+		ClientBinary: exe,
+		BackupMethod: config.BackupMethodLogical,
+	}
+	err = cfg.Validate()
+	assert.NoError(t, err)
+}
+
+func TestMariaDB_Validate_LogicalMethod_ClientBinaryNotFound(t *testing.T) {
+	exe, err := os.Executable()
+	require.NoError(t, err)
+
+	cfg := config.MariaDB{
+		BackupBinary: exe,
+		ClientBinary: "nonexistent-client-binary-12345",
+		BackupMethod: config.BackupMethodLogical,
+	}
+	err = cfg.Validate()
+	assert.Error(t, err)
+}
+
+func TestMariaDB_IsLogical(t *testing.T) {
+	physical := config.MariaDB{BackupMethod: config.BackupMethodPhysical}
+	assert.False(t, physical.IsLogical())
+
+	logical := config.MariaDB{BackupMethod: config.BackupMethodLogical}
+	assert.True(t, logical.IsLogical())
 }
 
 func TestStorage_Validate_ValidURL(t *testing.T) {

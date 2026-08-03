@@ -408,12 +408,29 @@ func (s *Scheduler) buildMariaDB(job repository.Job) config.MariaDB {
 	if m.Password != "" {
 		cfg.Password = m.Password
 	}
+	if m.BackupMethod != "" {
+		cfg.BackupMethod = m.BackupMethod
+	}
 	if m.BackupBinary != "" {
 		cfg.BackupBinary = m.BackupBinary
+	} else {
+		cfg.BackupBinary = defaultBinaryForMethod(cfg.BackupMethod)
+	}
+	if m.ClientBinary != "" {
+		cfg.ClientBinary = m.ClientBinary
 	}
 	if m.BackupOptions != "" {
 		cfg.BackupOptions = m.BackupOptions
 	}
 
 	return cfg
+}
+
+func defaultBinaryForMethod(method string) string {
+	switch method {
+	case config.BackupMethodLogical:
+		return "mariadb-dump"
+	default:
+		return "mariadb-backup"
+	}
 }

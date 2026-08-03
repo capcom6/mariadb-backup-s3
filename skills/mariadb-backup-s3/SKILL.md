@@ -13,7 +13,8 @@ license: Apache-2.0
 
 # mariadb-backup-s3
 
-CLI tool that runs `mariadb-backup`, compresses (pigz/gzip), optionally encrypts
+CLI tool that backs up MariaDB using either `mariadb-backup` (physical) or
+`mariadb-dump` (logical), compresses (pigz/gzip), optionally encrypts
 (AES-256-GCM), and uploads to S3-compatible, FTP, or local filesystem storage.
 
 ## Subcommands
@@ -38,6 +39,35 @@ mariadb-backup-s3 backup \
   --db-user=backup \
   --retention-count=14 \
   --keep-daily=7
+```
+
+### Logical backup (mariadb-dump)
+
+```shell
+mariadb-backup-s3 backup \
+  --backup-method=mariadb-dump \
+  --storage-url="s3://bucket/path" \
+  --db-host=db.example.com \
+  --db-user=backup
+```
+
+Logical backup dumps each database as a separate `.sql` file, skipping the
+virtual `information_schema` and `performance_schema` schemas. Dumps use
+`mariadb-dump`'s default per-table locking for consistency across all storage
+engines; writes are briefly blocked while each table is dumped. For
+non-blocking dumps (InnoDB only), add `--single-transaction` via
+`MARIADB__BACKUP_OPTIONS`, accepting that non-transactional tables are then
+not guaranteed consistent. Restore by importing the `.sql` files you need:
+
+```shell
+# Extract the backup
+mariadb-backup-s3 restore \
+  --storage-url="s3://bucket/path" \
+  --target-dir=/tmp/restore \
+  --latest
+
+# Import a specific database
+mysql -u root -p < /tmp/restore/mydb.sql
 ```
 
 Minimal (env-only):
@@ -95,7 +125,7 @@ Preview with `--dry-run` before deleting.
 
 ## Requirements
 
-- **External binaries**: `mariadb-backup`, `pigz` (or `gzip`), `tar` — must be in PATH
+- **External binaries**: `mariadb-backup` or `mariadb-dump` — available via PATH or configured full path; `pigz` (or `gzip`), `tar` — must be in PATH
 - **Temp space**: ~2× database size in `$TMPDIR` (default `/tmp`)
 - **Storage**: S3 (AWS SDK v2 — reads `AWS_*` env vars), FTP, or local `file://` URL
 

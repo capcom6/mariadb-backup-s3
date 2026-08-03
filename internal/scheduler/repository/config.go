@@ -51,7 +51,9 @@ type MariaDB struct {
 	Port          int    `yaml:"port,omitempty"`
 	User          string `yaml:"user,omitempty"`
 	Password      string `yaml:"password,omitempty"`
+	BackupMethod  string `yaml:"backup_method,omitempty"`
 	BackupBinary  string `yaml:"backup_binary,omitempty"`
+	ClientBinary  string `yaml:"client_binary,omitempty"`
 	BackupOptions string `yaml:"backup_options,omitempty"`
 }
 
@@ -145,7 +147,7 @@ func (j Job) EncryptionKey() string {
 	return j.Encrypt.Key
 }
 
-func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (d *Duration) UnmarshalYAML(unmarshal func(any) error) error {
 	var s string
 	if err := unmarshal(&s); err != nil {
 		return fmt.Errorf("unmarshal duration: %w", err)
