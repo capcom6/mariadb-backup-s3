@@ -165,9 +165,7 @@ func TestRun_ConcurrentExecution(t *testing.T) {
 
 	// Run pipeline concurrently
 	for range 5 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			var dst bytes.Buffer
 			src := strings.NewReader(input)
 			err := pipeline.Run(context.TODO(), src, &dst, stages...)
@@ -176,7 +174,7 @@ func TestRun_ConcurrentExecution(t *testing.T) {
 				return
 			}
 			results <- dst.String()
-		}()
+		})
 	}
 
 	// Wait for all goroutines to complete
@@ -312,7 +310,7 @@ func TestRun_ErrorStageNumbers(t *testing.T) {
 	}
 }
 
-// Test error wrapping with errors.Is.
+// Test error wrapping with [errors.Is].
 func TestRun_ErrorWrapping(t *testing.T) {
 	// Test that original error is preserved in wrapped error
 	var dst bytes.Buffer
