@@ -1,325 +1,309 @@
-# 🗄️ MariaDB Backup to S3
+<a id="readme-top"></a>
 
-![Go Version](https://img.shields.io/github/go-mod/go-version/capcom6/mariadb-backup-s3)
-![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)
+<!-- PROJECT SHIELDS -->
+[![Contributors][contributors-shield]][contributors-url]
+[![Forks][forks-shield]][forks-url]
+[![Stargazers][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+[![License][license-shield]][license-url]
+![Go Version][go-version-shield]
 
-🔁 Automated MariaDB database backups with S3-compatible storage integration
+<!-- PROJECT HEADER -->
+<br />
+<div align="center">
+  <h1>MariaDB Backup to S3</h1>
+  <p>
+    Automated MariaDB backups with S3-compatible storage support.<br />
+    Physical (<code>mariadb-backup</code>) or logical (<code>mariadb-dump</code>) backups, compressed, optionally encrypted, stored locally or in S3/FTP.
+  </p>
 
-## Table of Contents
-- [🗄️ MariaDB Backup to S3](#️-mariadb-backup-to-s3)
-  - [Table of Contents](#table-of-contents)
-  - [🚀 Quick Start](#-quick-start)
-  - [✨ Features](#-features)
-  - [🛠️ How It Works](#️-how-it-works)
-    - [Temporary Working Directory](#temporary-working-directory)
-    - [Backup Registry](#backup-registry)
-  - [📋 Prerequisites](#-prerequisites)
-  - [📦 Installation](#-installation)
-    - [Binary Installation (Recommended)](#binary-installation-recommended)
-    - [Using Go Install](#using-go-install)
-    - [Docker](#docker)
-    - [From Source (Advanced)](#from-source-advanced)
-  - [⚙️ Configuration](#️-configuration)
-    - [Logging Configuration](#logging-configuration)
-  - [🚀 Usage](#-usage)
-    - [Backup](#backup)
-    - [Restore](#restore)
-    - [Retention](#retention)
-    - [Registry](#registry)
-    - [Scheduler](#scheduler)
-  - [📂 Storage Types](#-storage-types)
-    - [S3 Storage](#s3-storage)
-    - [FTP Storage](#ftp-storage)
-    - [Filesystem Storage](#filesystem-storage)
-  - [🔐 Encryption](#-encryption)
-    - [Security Considerations](#security-considerations)
-      - [Key Management](#key-management)
-      - [Key Generation](#key-generation)
-  - [📝 Examples](#-examples)
-  - [🤝 Contributing](#-contributing)
-  - [👥 Contributors](#-contributors)
-  - [📄 License](#-license)
+  <a href="https://github.com/capcom6/mariadb-backup-s3/releases/latest">Download</a>
+  &middot;
+  <a href="https://github.com/capcom6/mariadb-backup-s3/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
+  &middot;
+  <a href="https://github.com/capcom6/mariadb-backup-s3/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
+</div>
+
+<!-- TABLE OF CONTENTS -->
+- [About The Project](#about-the-project)
+  - [Built With](#built-with)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+- [Usage](#usage)
+  - [Backup](#backup)
+  - [Restore](#restore)
+  - [Retention](#retention)
+  - [Registry](#registry)
+  - [Scheduler](#scheduler)
+- [Storage Types](#storage-types)
+  - [S3 Storage](#s3-storage)
+  - [FTP Storage](#ftp-storage)
+  - [Filesystem Storage](#filesystem-storage)
+- [Encryption](#encryption)
+- [Examples](#examples)
+- [Contributing](#contributing)
+- [License](#license)
+- [Contact](#contact)
+- [Acknowledgments](#acknowledgments)
 
 
-## 🚀 Quick Start
+<!-- ABOUT THE PROJECT -->
+## About The Project
 
-```shell
-# Using pre-built binary (check Releases page for latest version)
-curl -LO https://github.com/capcom6/mariadb-backup-s3/releases/latest/download/mariadb-backup-s3_Linux_x86_64.tar.gz
-tar -xzf mariadb-backup-s3_Linux_x86_64.tar.gz
-chmod +x mariadb-backup-s3
-./mariadb-backup-s3 --help
+MariaDB Backup to S3 is a CLI tool that backs up MariaDB databases, compresses them, optionally encrypts them with AES-256-GCM, and uploads to S3-compatible, FTP, or local filesystem storage.
 
-# Or via go install
-go install github.com/capcom6/mariadb-backup-s3@latest
+**Two backup methods are supported:**
 
-# Configure & run
-cp .env.example .env
-nano .env  # Edit with your credentials
-./mariadb-backup-s3
-```
+| Method                 | Binary           | Description                                                                                                             |
+| ---------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| **Physical** (default) | `mariadb-backup` | Hot backup at the storage engine level. Produces a tar.gz archive. Restore by copying files back to the data directory. |
+| **Logical**            | `mariadb-dump`   | SQL dump of each database as a separate `.sql` file, tarred together. Restore by importing the `.sql` files you need.   |
 
-## ✨ Features
+**Key features:**
 
-- 🛡️ Full database backups using `mariabackup`
-- 🗜️ Compression to `.tar.gz` format
-- 🔑 Optional encryption using AES-256-GCM
-- ☁️ Multiple storage backends (S3-compatible, FTP, filesystem)
-- 🔌 Pluggable storage interface for extensibility
-- 🔄 Automatic backup rotation with configurable retention policies
-- 📋 Backup registry for tracking and managing backups
-- 🐳 Docker container support
-- ⏰ Built-in scheduler — run scheduled backups as a long-running daemon, no external cron needed
+- Compress backups with pigz (parallel gzip)
+- Optional AES-256-GCM client-side encryption
+- Multiple storage backends: S3-compatible, FTP, filesystem
+- Automatic backup rotation with configurable retention policies
+- Backup registry for tracking and managing backups
+- Built-in scheduler daemon for automated scheduled backups without external cron
+- Docker container support
 
-## 🛠️ How It Works
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-The backup process follows these steps:
+### Built With
 
-1. 📂 Create temporary working directory
-2. 💾 Perform MariaDB backup using `mariabackup --backup`
-3. 🔧 Prepare backup for consistency using `mariabackup --prepare`
-4. 🗜️ Compress backup to `.tar.gz` archive
-5. 🔑 Encrypt archive using AES-256-GCM
-6. 🚀 Upload archive to configured storage backend
-7. 📋 Update backup registry with new backup metadata
-8. 🧹 Clean up old backups based on retention policy (unless `--skip-retention` is set)
+- [Go](https://go.dev/)
+- [mariadb-backup](https://mariadb.com/docs/server/server-usage/backup-and-restore/backup-and-restore-overview#mariadb-backup) / [mariadb-dump](https://mariadb.com/docs/server/server-usage/backup-and-restore/backup-and-restore-overview#mariadb-dump)
+- [AWS SDK for Go v2](https://aws.github.io/aws-sdk-go-v2/)
+- [pigz](https://zlib.net/pigz/) (parallel gzip)
 
-The restore process follows these steps:
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-1. 📥 Download the backup file from the specified storage backend
-2. 🔑 Decrypt the backup using AES-256-GCM
-3. 🗜️ Decompress the `.tar.gz` archive
-4. 🔄 Restore the database files to specified directory
+<!-- GETTING STARTED -->
+## Getting Started
 
-### Temporary Working Directory
+### Prerequisites
 
-The tool uses a temporary working directory to store intermediate files. By default, it uses the system's default temporary directory (e.g., `/tmp`). If for some reason you need to use a different directory, you can specify it via the `TMPDIR` environment variable.
-
-```bash
-export TMPDIR=/mnt/data/backup
-./mariadb-backup-s3 backup
-```
-
-### Backup Registry
-
-The tool maintains a backup registry (`.backup-registry.json`) in the storage backend to track all backups. This registry enables:
-
-- **Backup tracking**: Each backup is recorded with metadata including ID, filename, creation time, size, SHA256 hash, encryption status, and tool version
-- **Retention management**: The registry is used to apply retention policies and clean up old backups
-- **Backup listing**: View all available backups with their status and metadata
-
-The registry is automatically updated when backups are created or deleted. Each backup entry includes:
-
-| Field        | Description                                   |
-| ------------ | --------------------------------------------- |
-| `id`         | Unique identifier (timestamp + SHA256 prefix) |
-| `filename`   | Backup filename                               |
-| `created_at` | Creation timestamp                            |
-| `size_bytes` | File size in bytes                            |
-| `sha256`     | SHA256 hash of the backup file                |
-| `status`     | Status: `ready`, `failed`, or `deleted`       |
-| `encrypted`  | Whether the backup is encrypted               |
-| `encryption` | Encryption metadata (algorithm)               |
-| `tool`       | Tool name and version                         |
-
-## 📋 Prerequisites
-
-- Go 1.23+ (for building from source)
-- MariaDB server
-- At least 2x the actual database size in free space (for successful backup)
+- Go 1.25+ (for building from source)
+- MariaDB server with `mariadb-backup` (for physical) or `mariadb-dump` (for logical) available in PATH, and `mariadb` client binary for listing databases (logical backup only)
+- `pigz` in PATH
+- `tar` in PATH
+- At least 2x the database size in free temp space
 - Storage backend credentials (depending on chosen storage type)
 
-## 📦 Installation
+### Installation
 
-### Binary Installation (Recommended)
+**Binary (recommended):**
+
 1. Visit the [Releases page](https://github.com/capcom6/mariadb-backup-s3/releases/latest)
 2. Download the appropriate binary for your OS
-3. Make executable: `chmod +x mariadb-backup-s3`
-4. Move to PATH: `sudo mv mariadb-backup-s3 /usr/local/bin/`
+3. Make executable and move to PATH:
+   ```sh
+   chmod +x mariadb-backup-s3
+   sudo mv mariadb-backup-s3 /usr/local/bin/
+   ```
 
-### Using Go Install
-```shell
+**Go install:**
+
+```sh
 go install github.com/capcom6/mariadb-backup-s3@latest
 ```
 
-### Docker
-```shell
+**Docker:**
+
+```sh
 docker pull ghcr.io/capcom6/mariadb-backup-s3:latest
 ```
 
 > **Note**
-> The Docker image uses MariaDB's `lts` version. For specific versions:
-> 1. Clone the repository
-> 2. Modify `Dockerfile` base image
-> 3. Build custom image: `docker build -t custom-backup-image .`
+> The Docker image uses MariaDB's `lts` version. For specific versions, clone the repo, modify `Dockerfile.goreleaser` base image, and build a custom image.
 
-### From Source (Advanced)
-```shell
+**From source:**
+
+```sh
 git clone https://github.com/capcom6/mariadb-backup-s3.git
 cd mariadb-backup-s3
 go build -o mariadb-backup-s3
 ```
 
-## ⚙️ Configuration
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-The tool supports loading configuration from multiple sources:
+<!-- USAGE -->
+## Usage
 
-1. `.env` file in the current directory
-2. Environment variables
-3. Command-line flags
-
-The priority order is: `.env` > Environment variables > Command-line flags
-
-### Logging Configuration
-
-The logging system can be configured via environment variables:
-
-- `LOG_LEVEL`: Set log level (debug, info, warn, error, fatal). Default: info
-- `LOG_FORMAT`: Set format (human, json). Default: human
-- `LOG_OUTPUT`: Set output destination:
-  - `stdout` (default): Standard output
-  - `stderr`: Standard error
-  - Any file path: Write logs to the specified file
-- `NO_COLOR`: When set (any non-empty value), disables colored output for human format
-
-## 🚀 Usage
-
-```bash
+```sh
 mariadb-backup-s3 [global options] command [command options] [arguments...]
 ```
 
-The tool offers the following commands:
-
-| Command              | Description                                       |
-| -------------------- | ------------------------------------------------- |
-| `backup`             | Perform a backup of the MariaDB database          |
-| `restore`            | Restore the database files to specified directory |
-| `retention`          | Apply retention policies to backups               |
-| `registry`           | Manage backup registry                            |
-| `scheduler`, `sched` | Run the backup scheduler daemon                   |
+Configuration is loaded from (highest priority first): CLI flags > environment variables > `.env` file in the current directory.
 
 ### Backup
 
-```bash
+```sh
 mariadb-backup-s3 backup [options]
 ```
 
 **Options:**
 
-| Option                        | Env Var                   | Description                                       | Default value    |
-| ----------------------------- | ------------------------- | ------------------------------------------------- | ---------------- |
-| **Database**                  |                           |                                                   |                  |
-| `--db-host`, `--host`         | `MARIADB__HOST`           | MariaDB hostname                                  | `localhost`      |
-| `--db-port`, `--port`         | `MARIADB__PORT`           | MariaDB port                                      | `3306`           |
-| `--db-user`, `--user`         | `MARIADB__USER`           | MariaDB username                                  | `root`           |
-| `--db-password`, `--password` | `MARIADB__PASSWORD`       | MariaDB password                                  | `""`             |
-| **Storage**                   |                           |                                                   |                  |
-| `--storage`, `--storage-url`  | `STORAGE__URL`            | Storage URL, see [Storage Types](#-storage-types) | **required**     |
-| **Encryption**                |                           |                                                   |                  |
-| `--encryption-key`            | `ENCRYPTION__KEY`         | Encryption key                                    | `""`             |
-| **mariadb-backup**            |                           |                                                   |                  |
-| `--db-backup-binary`          | `MARIADB__BACKUP_BINARY`  | MariaDB backup binary path                        | `mariadb-backup` |
-| `--db-backup-options`         | `MARIADB__BACKUP_OPTIONS` | MariaDB backup options                            | `""`             |
-| **Retention**                 |                           |                                                   |                  |
-| `--retention-count`           | `RETENTION__COUNT`        | Number of backups to retain, 0 = unlimited        | `0`              |
-| `--max-age`                   | `RETENTION__MAX_AGE`      | Maximum age of backups to keep (e.g. 24h, 168h)   | unlimited        |
-| `--keep-daily`                | `RETENTION__KEEP_DAILY`   | Number of daily backups to keep                   | unlimited        |
-| `--keep-weekly`               | `RETENTION__KEEP_WEEKLY`  | Number of weekly backups to keep                  | unlimited        |
-| `--keep-monthly`              | `RETENTION__KEEP_MONTHLY` | Number of monthly backups to keep                 | unlimited        |
-| `--skip-retention`            | `BACKUP__SKIP_RETENTION`  | Skip retention policy after backup                | `false`          |
+| Option                        | Env Var                   | Description                                                | Default                             |
+| ----------------------------- | ------------------------- | ---------------------------------------------------------- | ----------------------------------- |
+| **Database**                  |                           |                                                            |                                     |
+| `--db-host`, `--host`         | `MARIADB__HOST`           | MariaDB hostname                                           | `localhost`                         |
+| `--db-port`, `--port`         | `MARIADB__PORT`           | MariaDB port                                               | `3306`                              |
+| `--db-user`, `--user`         | `MARIADB__USER`           | MariaDB username                                           | `root`                              |
+| `--db-password`, `--password` | `MARIADB__PASSWORD`       | MariaDB password                                           | `""`                                |
+| `--backup-method`             | `MARIADB__BACKUP_METHOD`  | `mariadb-backup` (physical) or `mariadb-dump` (logical)    | `mariadb-backup`                    |
+| `--db-backup-binary`          | `MARIADB__BACKUP_BINARY`  | Backup binary path                                         | auto-derived from `--backup-method` |
+| `--db-client-binary`          | `MARIADB__CLIENT_BINARY`  | mariadb client binary (lists databases for logical backup) | `mariadb`                           |
+| `--db-backup-options`         | `MARIADB__BACKUP_OPTIONS` | Extra backup options                                       | `""`                                |
+| **Storage**                   |                           |                                                            |                                     |
+| `--storage-url`, `--storage`  | `STORAGE__URL`            | Storage URL (see [Storage Types](#storage-types))          | **required**                        |
+| **Encryption**                |                           |                                                            |                                     |
+| `--encryption-key`            | `ENCRYPTION__KEY`         | Base64-encoded AES-256 key                                 | `""`                                |
+| **Retention**                 |                           |                                                            |                                     |
+| `--retention-count`           | `RETENTION__COUNT`        | Number of backups to retain (0 = unlimited)                | `0`                                 |
+| `--max-age`                   | `RETENTION__MAX_AGE`      | Maximum age of backups (e.g. `24h`, `168h`)                | unlimited                           |
+| `--keep-daily`                | `RETENTION__KEEP_DAILY`   | Number of daily backups to keep                            | `0` (disabled)                      |
+| `--keep-weekly`               | `RETENTION__KEEP_WEEKLY`  | Number of weekly backups to keep                           | `0` (disabled)                      |
+| `--keep-monthly`              | `RETENTION__KEEP_MONTHLY` | Number of monthly backups to keep                          | `0` (disabled)                      |
+| `--skip-retention`            | `BACKUP__SKIP_RETENTION`  | Skip retention policy after backup                         | `false`                             |
 
-**Example:**
+**Physical backup example:**
 
-```shell
-./mariadb-backup-s3 backup \
+```sh
+mariadb-backup-s3 backup \
   --db-host=mariadb.example.com \
   --db-user=backup \
-  --storage-url="file:///var/backups/mariadb"
+  --storage-url="s3://my-bucket/backups?endpoint=https://s3.eu-west-1.amazonaws.com" \
+  --retention-count=14 \
+  --keep-daily=7
 ```
+
+**Logical backup example:**
+
+```sh
+mariadb-backup-s3 backup \
+  --backup-method=mariadb-dump \
+  --db-host=mariadb.example.com \
+  --db-user=backup \
+  --storage-url="s3://my-bucket/backups"
+```
+
+By default `mariadb-dump` locks tables per database using `READ LOCAL` locks, so concurrent inserts into non-transactional tables (e.g. MyISAM/Aria) may still occur while a table is dumped, and cross-database consistency is not guaranteed. Each database is dumped in a separate invocation, so the generated `.sql` files are not point-in-time consistent with each other; as a result, logical (`mariadb-dump`) backups do not provide a global snapshot of all databases. The virtual schemas `information_schema` and `performance_schema` are skipped. For non-blocking dumps (InnoDB only), use `--db-backup-options="--single-transaction"`, accepting that non-transactional tables are then not guaranteed consistent.
+
+**Environment-only (minimal):**
+
+```sh
+export MARIADB__HOST=localhost
+export MARIADB__USER=root
+export MARIADB__PASSWORD=secret
+export MARIADB__BACKUP_METHOD=mariadb-backup
+export STORAGE__URL=s3://my-bucket/backups
+export AWS_REGION=eu-west-1
+export AWS_ACCESS_KEY_ID=xxx
+export AWS_SECRET_ACCESS_KEY=yyy
+mariadb-backup-s3
+```
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Restore
 
-```bash
+```sh
 mariadb-backup-s3 restore [options] [backup_name.tar.gz | --latest | --backup-id=<id>]
 ```
 
+Exactly one backup selector must be specified: a filename argument, `--latest`, or `--backup-id`.
+
 **Options:**
 
-| Option                       | Env Var               | Description                                       | Default value |
-| ---------------------------- | --------------------- | ------------------------------------------------- | ------------- |
-| **Storage**                  |                       |                                                   |               |
-| `--storage`, `--storage-url` | `STORAGE__URL`        | Storage URL, see [Storage Types](#-storage-types) | **required**  |
-| **Encryption**               |                       |                                                   |               |
-| `--encryption-key`           | `ENCRYPTION__KEY`     | Encryption key                                    | `""`          |
-| **Restore**                  |                       |                                                   |               |
-| `--target-dir`               | `RESTORE__TARGET_DIR` | Target directory to restore files to              | **required**  |
-| `--latest`                   |                       | Restore latest ready backup from registry         | `false`       |
-| `--backup-id`                |                       | Restore backup by registry backup ID              | `""`          |
+| Option                       | Env Var               | Description                               | Default      |
+| ---------------------------- | --------------------- | ----------------------------------------- | ------------ |
+| `--storage-url`, `--storage` | `STORAGE__URL`        | Storage URL                               | **required** |
+| `--encryption-key`           | `ENCRYPTION__KEY`     | Encryption key                            | `""`         |
+| `--target-dir`               | `RESTORE__TARGET_DIR` | Target directory to restore to            | **required** |
+| `--latest`                   |                       | Restore latest ready backup from registry | `false`      |
+| `--backup-id`                |                       | Restore backup by registry ID             | `""`         |
+
+**Restore latest backup:**
+
+```sh
+mariadb-backup-s3 restore \
+  --storage-url="s3://bucket/path" \
+  --target-dir=/var/lib/mysql \
+  --latest
+```
+
+**Restore by filename or ID:**
+
+```sh
+mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
+  --target-dir=/tmp/restore \
+  2026-07-03-12-00-00.tar.gz
+
+mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
+  --target-dir=/tmp/restore \
+  2026-07-03-12-00-00.tar.gz.enc  # .enc suffix for encrypted backups
+
+mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
+  --target-dir=/tmp/restore \
+  --backup-id="2026-07-03-12-00-00-a1b2c3d4"
+```
 
 > **Note**
-> Exactly one backup selector must be specified: either a filename argument, `--latest`, or `--backup-id`.
+> Logical backups (`mariadb-dump`) restore by extracting `.sql` files from the archive. Import them manually:
+> ```sh
+> mariadb-backup-s3 restore --storage-url="s3://bucket/path" --target-dir=/tmp/restore --latest
+> mariadb -u root -p < /tmp/restore/mydb.sql
+> ```
 
-**Arguments:**
-
-| Argument   | Description      |
-| ---------- | ---------------- |
-| `filename` | Backup file name |
-
-**Example:**
-
-```shell
-./mariadb-backup-s3 restore \
-  --storage-url="file:///var/backups/mariadb" \
-  --target-dir=/var/lib/mariadb \
-  backup_name.tar.gz
-```
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Retention
 
-The `retention` command applies retention policies to backups stored in the configured storage backend. This allows you to clean up old backups based on various criteria.
+Apply retention policies to prune old backups.
 
-```bash
+```sh
 mariadb-backup-s3 retention [options]
 ```
 
 **Options:**
 
-| Option              | Env Var                   | Description                                          | Default value |
-| ------------------- | ------------------------- | ---------------------------------------------------- | ------------- |
-| **Storage**         |                           |                                                      |               |
-| `--storage-url`     | `STORAGE__URL`            | Storage URL, see [Storage Types](#-storage-types)    | **required**  |
-| **Retention**       |                           |                                                      |               |
-| `--retention-count` | `RETENTION__COUNT`        | Number of backups to retain, 0 = unlimited           | `0`           |
-| `--max-age`         | `RETENTION__MAX_AGE`      | Maximum age of backups to keep (e.g. 24h, 168h)      | unlimited     |
-| `--keep-daily`      | `RETENTION__KEEP_DAILY`   | Number of daily backups to keep                      | unlimited     |
-| `--keep-weekly`     | `RETENTION__KEEP_WEEKLY`  | Number of weekly backups to keep                     | unlimited     |
-| `--keep-monthly`    | `RETENTION__KEEP_MONTHLY` | Number of monthly backups to keep                    | unlimited     |
-| **Options**         |                           |                                                      |               |
-| `--dry-run`         | `RETENTION__DRY_RUN`      | Show what would be deleted without actually deleting | `false`       |
-| `--force`           | `RETENTION__FORCE`        | Continue even if errors occur                        | `false`       |
+| Option              | Env Var                   | Description                      | Default        |
+| ------------------- | ------------------------- | -------------------------------- | -------------- |
+| `--storage-url`     | `STORAGE__URL`            | Storage URL                      | **required**   |
+| `--retention-count` | `RETENTION__COUNT`        | Number of backups to retain      | `0`            |
+| `--max-age`         | `RETENTION__MAX_AGE`      | Maximum age (e.g. `24h`, `168h`) | unlimited      |
+| `--keep-daily`      | `RETENTION__KEEP_DAILY`   | Keep N per day                   | `0` (disabled) |
+| `--keep-weekly`     | `RETENTION__KEEP_WEEKLY`  | Keep N per week                  | `0` (disabled) |
+| `--keep-monthly`    | `RETENTION__KEEP_MONTHLY` | Keep N per month                 | `0` (disabled) |
+| `--dry-run`         | `RETENTION__DRY_RUN`      | Preview without deleting         | `false`        |
+| `--force`           | `RETENTION__FORCE`        | Continue despite errors          | `false`        |
 
-**Retention Policy Examples:**
+**Examples:**
 
-```shell
+```sh
 # Keep only the 7 most recent backups
-./mariadb-backup-s3 retention \
+mariadb-backup-s3 retention \
   --storage-url="s3://my-bucket/backups" \
   --retention-count=7
 
 # Keep backups from the last 7 days
-./mariadb-backup-s3 retention \
+mariadb-backup-s3 retention \
   --storage-url="s3://my-bucket/backups" \
   --max-age=168h
 
-# Keep 1 daily backup for 7 days, 1 weekly for 4 weeks, 1 monthly for 12 months
-./mariadb-backup-s3 retention \
+# Keep 1 daily for 7 days, 1 weekly for 4 weeks, 1 monthly for 12 months
+mariadb-backup-s3 retention \
   --storage-url="s3://my-bucket/backups" \
   --keep-daily=7 \
   --keep-weekly=4 \
   --keep-monthly=12
 
-# Preview what would be deleted without actually deleting
-./mariadb-backup-s3 retention \
+# Preview what would be deleted
+mariadb-backup-s3 retention \
   --storage-url="s3://my-bucket/backups" \
   --retention-count=3 \
   --dry-run
@@ -328,49 +312,52 @@ mariadb-backup-s3 retention [options]
 > **Note**
 > At least one retention policy must be enabled. The retention command will fail if no policies are specified.
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 ### Registry
 
-The `registry` command allows you to manage and view the backup registry.
+View and manage the backup registry.
 
-```bash
-mariadb-backup-s3 registry [command] [options]
+```sh
+mariadb-backup-s3 registry list [options]
 ```
 
-**Subcommands:**
+| Option          | Env Var        | Description                                               | Default      |
+| --------------- | -------------- | --------------------------------------------------------- | ------------ |
+| `--storage-url` | `STORAGE__URL` | Storage URL                                               | **required** |
+| `--rebuild`     |                | Rebuild the registry from stored backups if it is missing | `false`      |
 
-| Command | Alias | Description                |
-| ------- | ----- | -------------------------- |
-| `list`  | `ls`  | List backups from registry |
-
-**List Command Options:**
-
-| Option          | Env Var        | Description                                       | Default value |
-| --------------- | -------------- | ------------------------------------------------- | ------------- |
-| `--storage-url` | `STORAGE__URL` | Storage URL, see [Storage Types](#-storage-types) | **required**  |
-
-**Example:**
-
-```shell
-./mariadb-backup-s3 registry list \
+```sh
+mariadb-backup-s3 registry list \
   --storage-url="s3://my-bucket/backups"
 ```
 
-**Output:**
+**Registry entry fields:**
 
-The list command displays all backups in the registry with the following information:
-- **ID**: Unique backup identifier
-- **Created At**: Backup creation timestamp
-- **Status**: Backup status (`ready`, `failed`, or `deleted`)
-- **Encrypted**: Whether the backup is encrypted
-- **Size**: Backup file size in bytes
-- **Filename**: Backup filename
+| Field                       | Description                                       |
+| --------------------------- | ------------------------------------------------- |
+| `id`                        | Unique identifier (timestamp + SHA256 prefix)     |
+| `filename`                  | Backup filename                                   |
+| `created_at`                | Creation timestamp                                |
+| `size_bytes`                | File size in bytes                                |
+| `sha256`                    | SHA256 hash of the backup file                    |
+| `status`                    | `ready`, `failed`, or `deleted`                   |
+| `encrypted`                 | Whether the backup is encrypted                   |
+| `encryption`                | Encryption metadata (algorithm)                   |
+| `tool.name`, `tool.version` | Tool name and version                             |
+| `tool.method`               | Backup method: `mariadb-backup` or `mariadb-dump` |
+
+> **Note**
+> Entries rebuilt with `--rebuild` use timestamp-only IDs, set `sha256` to `"unknown"`, and have an empty `tool.method`.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Scheduler
 
-The `scheduler` command runs a built-in cron daemon that executes backup and retention jobs on a schedule without relying on external cron or systemd timers.
+Built-in cron daemon that executes backup and retention jobs on a schedule without external cron or systemd timers.
 
-```bash
-mariadb-backup-s3 scheduler [command] [options]
+```sh
+mariadb-backup-s3 scheduler <command> [options]
 ```
 
 **Subcommands:**
@@ -381,26 +368,15 @@ mariadb-backup-s3 scheduler [command] [options]
 | `status` | Show the status of scheduled jobs     |
 | `check`  | Validate a scheduler YAML config file |
 
-**Common Options:**
+**Options:**
 
-| Option     | Env Var             | Description                        | Default value |
-| ---------- | ------------------- | ---------------------------------- | ------------- |
-| `--config` | `SCHEDULER__CONFIG` | Path to scheduler YAML config file | **required**  |
+| Option         | Env Var                 | Description                         | Default      |
+| -------------- | ----------------------- | ----------------------------------- | ------------ |
+| `--config`     | `SCHEDULER__CONFIG`     | Path to scheduler YAML config       | **required** |
+| `--state-file` | `SCHEDULER__STATE_FILE` | Path to persistent state file       | from config  |
+| `--once`       |                         | Run all enabled jobs once then exit | `false`      |
 
-**Scheduler Run Options:**
-
-| Option         | Env Var                 | Description                     | Default value |
-| -------------- | ----------------------- | ------------------------------- | ------------- |
-| `--state-file` | `SCHEDULER__STATE_FILE` | Path to persistent state file   | from config   |
-| `--once`       |                         | Run all due jobs once then exit | `false`       |
-
-**Scheduler Status Options:**
-
-| Option         | Env Var                 | Description                   | Default value            |
-| -------------- | ----------------------- | ----------------------------- | ------------------------ |
-| `--state-file` | `SCHEDULER__STATE_FILE` | Path to persistent state file | `/tmp/mariadb-scheduler-state.json` |
-
-**Example:**
+**Example scheduler config:**
 
 ```yaml
 # scheduler.yaml
@@ -417,136 +393,178 @@ jobs:
       port: 3306
       user: root
       password: ${MARIADB__PASSWORD}
+      backup_method: mariadb-backup
     retention:
       max_count: 7
 ```
 
-```bash
+```sh
 # Validate the config
 mariadb-backup-s3 scheduler check --config scheduler.yaml
 
 # Run the scheduler daemon
 mariadb-backup-s3 scheduler run --config scheduler.yaml
 
-# Run all due jobs once and exit
+# Run all enabled jobs once and exit
 mariadb-backup-s3 scheduler run --config scheduler.yaml --once
 
 # Check job status
-mariadb-backup-s3 scheduler status --state-file /var/lib/mariadb-backup-s3/state.json
+mariadb-backup-s3 scheduler status --config scheduler.yaml --state-file /var/lib/mariadb-backup-s3/state.json
 ```
 
 > **Note**
-> The scheduler replaces the need for external cron, systemd timers, or shell scripts. See [examples/scheduler](./examples/scheduler/) for a complete setup guide.
+> See [examples/scheduler](./examples/scheduler/) for a complete setup guide.
 
-## 📂 Storage Types
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- STORAGE TYPES -->
+## Storage Types
 
 ### S3 Storage
-For S3-compatible storage (including AWS S3, MinIO, DigitalOcean Spaces, etc.):
+
+For S3-compatible storage (AWS S3, MinIO, DigitalOcean Spaces, etc.):
 
 ```dotenv
 STORAGE__URL=s3://bucket-name/path?endpoint=https://s3.example.com
 ```
 
-**Required for S3:**
-- `AWS_ACCESS_KEY`: Your access key
-- `AWS_SECRET_KEY`: Your secret key
-- `AWS_REGION`: AWS region (or any region for non-AWS S3)
+**Required environment variables:**
 
-**Query Parameters:**
-- `endpoint`: S3 endpoint URL
-- `s3-force-path-style`: Set to "true" to use path-style URLs
-- `part-size`: Multipart upload part size in bytes (default: 10485760 = 10 MB, minimum: 5242880 = 5 MB)
+| Env Var                 | Description |
+| ----------------------- | ----------- |
+| `AWS_REGION`            | AWS region  |
+| `AWS_ACCESS_KEY_ID`     | Access key  |
+| `AWS_SECRET_ACCESS_KEY` | Secret key  |
+
+**Query parameters:**
+
+| Parameter             | Description                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| `endpoint`            | S3 endpoint URL                                                                      |
+| `s3-force-path-style` | Set to `true` to use path-style URLs                                                 |
+| `part-size`           | Multipart upload part size in bytes (default: 10485760 = 10 MB, min: 5242880 = 5 MB) |
 
 ### FTP Storage
-For FTP servers:
 
 ```dotenv
 STORAGE__URL=ftp://username:password@host:port/path
 ```
 
-**Required for FTP:**
-- `username`: FTP username (defaults to "anonymous" if not provided)
-- `password`: FTP password (optional for anonymous)
-- `host`: FTP server hostname
-- `port`: FTP port (defaults to 21)
+Username defaults to `anonymous`.
 
 ### Filesystem Storage
-For local or mounted filesystem storage:
 
 ```dotenv
 STORAGE__URL=file:///absolute/path/to/backup/directory
 ```
 
-**Examples:**
+Examples:
 - Linux/macOS: `file:///var/backups/mariadb`
-- Windows: `file://C:/backups/mariadb`
+- Windows: `file:///C:/backups/mariadb`
 - Docker volume: `file:///data/backups`
 
-## 🔐 Encryption
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-The backup system supports client-side encryption using AES-256 in Galois/Counter Mode (GCM) to ensure your database backups remain confidential and secure. This method provides both confidentiality and integrity verification.
+<!-- ENCRYPTION -->
+## Encryption
+
+Client-side encryption using AES-256-GCM for confidentiality and integrity verification.
 
 **Features:**
 - 256-bit key strength
-- Authenticated encryption with additional data (AEAD)
-- Automatic nonce generation for each backup
+- Authenticated encryption with associated data (AEAD)
+- Automatic nonce generation per backup
+- HKDF-SHA256 key derivation
 
 **Configuration:**
+
 ```dotenv
 # base64-encoded encryption key
-ENCRYPTION__KEY=Av2cfWJ3enCHTyzPdzowfAXshvJtbEsvwgPjV46wnjc=
+# Replace with a unique value generated by: openssl rand -base64 32
+ENCRYPTION__KEY=REPLACE_WITH_A_UNIQUE_BASE64_KEY
 ```
 
-### Security Considerations
+**Key generation:**
 
-#### Key Management
-- **Never commit encryption keys to version control**
-- Store keys in secure environment variables or dedicated secret management systems
-- Implement proper access controls for key storage
-
-#### Key Generation
-Generate secure encryption keys using cryptographically secure methods:
-
-```bash
-# Generate a 32-byte (256-bit) key for AES256-GCM
+```sh
+# Generate a 32-byte (256-bit) key
 openssl rand -base64 32
 
-# Alternative method using /dev/urandom
+# Alternative
 head -c 32 /dev/urandom | base64
 ```
 
-## 📝 Examples
+**Security considerations:**
 
-- **systemd Service Example**: [examples/systemd-service](./examples/systemd-service/)
-- **Docker Swarm CRON Example**: [examples/docker-cron-backup](./examples/docker-cron-backup/)
-- **Simple CRON Example**: [examples/simple-cron-backup](./examples/simple-cron-backup/)
-- **Advanced CRON Example**: [examples/advanced-cron-backup](./examples/advanced-cron-backup/)
-- **Encryption Example**: [examples/encryption-example](./examples/encryption-example/)
-- **Scheduler Example**: [examples/scheduler](./examples/scheduler/)
+- Never commit encryption keys to version control
+- Store keys in secure environment variables or dedicated secret management systems
+- Implement proper access controls for key storage
 
-## 🤝 Contributing
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-We welcome contributions! Please follow these steps:
+<!-- EXAMPLES -->
+## Examples
 
-1. 🍴 Fork the repository
-2. 🌿 Create a feature branch: `git checkout -b feat/amazing-feature`
-3. 💾 Commit changes: `git commit -m 'Add amazing feature'`
-4. 🚀 Push to branch: `git push origin feat/amazing-feature`
-5. 🔀 Create a Pull Request
+- [systemd Service](./examples/systemd-service/) -- Run as a systemd service
+- [Docker Swarm CRON](./examples/docker-cron-backup/) -- Scheduled backups in Docker Swarm
+- [Simple CRON](./examples/simple-cron-backup/) -- Basic cron-based scheduling
+- [Advanced CRON](./examples/advanced-cron-backup/) -- Advanced cron with logging and notifications
+- [Encryption](./examples/encryption-example/) -- Encrypted backup setup
+- [Scheduler](./examples/scheduler/) -- Built-in scheduler daemon
 
-## 👥 Contributors
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-A big thank you to everyone who has contributed to this project!
+<!-- CONTRIBUTING -->
+## Contributing
 
-- [gslongo](https://github.com/gslongo)
+Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
 
-See the full [CONTRIBUTORS.md](CONTRIBUTORS.md) file for more information.
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/amazing-feature`)
+3. Commit your Changes (`git commit -m 'Add amazing feature'`)
+4. Push to the Branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## 📄 License
+See [CONTRIBUTORS.md](CONTRIBUTORS.md) for a list of contributors.
 
-Apache 2.0 - See [LICENSE](LICENSE) for details.
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
 
----
+<!-- LICENSE -->
+## License
 
-💡 **Need Help?** Open an [issue](https://github.com/capcom6/mariadb-backup-s3/issues) for support.
+Distributed under the Apache 2.0 License. See [LICENSE](LICENSE) for details.
 
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- CONTACT -->
+## Contact
+
+- [Report a bug](https://github.com/capcom6/mariadb-backup-s3/issues/new?labels=bug&template=bug-report---.md)
+- [Request a feature](https://github.com/capcom6/mariadb-backup-s3/issues/new?labels=enhancement&template=feature-request---.md)
+- [View all issues](https://github.com/capcom6/mariadb-backup-s3/issues)
+
+Project Link: [https://github.com/capcom6/mariadb-backup-s3](https://github.com/capcom6/mariadb-backup-s3)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- ACKNOWLEDGMENTS -->
+## Acknowledgments
+
+- [Choose an Open Source License](https://choosealicense.com)
+- [Img Shields](https://shields.io)
+- [Best-README-Template](https://github.com/othneildrew/Best-README-Template)
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+<!-- MARKDOWN LINKS & IMAGES -->
+[contributors-shield]: https://img.shields.io/github/contributors/capcom6/mariadb-backup-s3.svg?style=for-the-badge
+[contributors-url]: https://github.com/capcom6/mariadb-backup-s3/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/capcom6/mariadb-backup-s3.svg?style=for-the-badge
+[forks-url]: https://github.com/capcom6/mariadb-backup-s3/network/members
+[stars-shield]: https://img.shields.io/github/stars/capcom6/mariadb-backup-s3.svg?style=for-the-badge
+[stars-url]: https://github.com/capcom6/mariadb-backup-s3/stargazers
+[issues-shield]: https://img.shields.io/github/issues/capcom6/mariadb-backup-s3.svg?style=for-the-badge
+[issues-url]: https://github.com/capcom6/mariadb-backup-s3/issues
+[license-shield]: https://img.shields.io/github/license/capcom6/mariadb-backup-s3.svg?style=for-the-badge
+[license-url]: https://github.com/capcom6/mariadb-backup-s3/blob/master/LICENSE
+[go-version-shield]: https://img.shields.io/github/go-mod/go-version/capcom6/mariadb-backup-s3?style=for-the-badge
