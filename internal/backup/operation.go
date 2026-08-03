@@ -9,15 +9,15 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
-	"runtime"
-	"strconv"
+	osexec "os/exec"
 	"time"
 
+	"github.com/capcom6/mariadb-backup-s3/internal/backup/method"
+	"github.com/capcom6/mariadb-backup-s3/internal/backup/method/logical"
+	"github.com/capcom6/mariadb-backup-s3/internal/backup/method/physical"
 	"github.com/capcom6/mariadb-backup-s3/internal/encryption"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
 	"github.com/capcom6/mariadb-backup-s3/internal/registry"
-	"github.com/capcom6/mariadb-backup-s3/internal/sanitizer"
 	"github.com/capcom6/mariadb-backup-s3/internal/storage"
 	"github.com/capcom6/mariadb-backup-s3/pkg/counting"
 	"github.com/capcom6/mariadb-backup-s3/pkg/pipeline"
@@ -33,6 +33,8 @@ const (
 type Operation struct {
 	config Config
 
+	method method.Method
+
 	registrySvc *registry.Service
 
 	storage storage.Backend
@@ -46,8 +48,26 @@ func NewOperation(
 	storage storage.Backend,
 	logger logging.Logger,
 ) *Operation {
+	var m method.Method
+	mConfig := method.Config{
+		Host:          config.MariaDB.Host,
+		Port:          config.MariaDB.Port,
+		User:          config.MariaDB.User,
+		Password:      config.MariaDB.Password,
+		BackupOptions: config.MariaDB.BackupOptions,
+		BackupBinary:  config.MariaDB.BackupBinary,
+		ClientBinary:  config.MariaDB.ClientBinary,
+	}
+	if config.MariaDB.IsLogical() {
+		m = logical.New(mConfig)
+	} else {
+		m = physical.New(mConfig)
+	}
+
 	return &Operation{
 		config: config,
+
+		method: m,
 
 		registrySvc: registrySvc,
 
@@ -87,14 +107,14 @@ func (o *Operation) Run(ctx context.Context) error {
 		}
 	}()
 
-	if bkpErr := o.backup(ctx, tempdir); bkpErr != nil {
+	if bkpErr := o.method.Backup(ctx, tempdir, o.logger); bkpErr != nil {
 		return fmt.Errorf("failed to backup: %w", bkpErr)
 	}
 	o.logger.Info(ctx, "backup done", logging.Fields{
 		logFieldTempdir: tempdir,
 	})
 
-	if prepErr := o.prepare(ctx, tempdir); prepErr != nil {
+	if prepErr := o.method.Prepare(ctx, tempdir, o.logger); prepErr != nil {
 		return fmt.Errorf("failed to prepare: %w", prepErr)
 	}
 	o.logger.Info(ctx, "prepare done", logging.Fields{
@@ -120,63 +140,6 @@ func (o *Operation) Run(ctx context.Context) error {
 	return nil
 }
 
-func (o *Operation) backup(ctx context.Context, tempdir string) error {
-	o.logger.Info(ctx, "Stage 1: Backup")
-	start := time.Now()
-	defer func() {
-		duration := time.Since(start)
-		o.logger.Info(ctx, "Stage 1 completed", logging.Fields{
-			logFieldDuration: duration.String(),
-		})
-	}()
-
-	args := []string{
-		o.config.MariaDB.BackupBinary,
-		"--backup",
-		"--parallel=" + strconv.Itoa(runtime.NumCPU()),
-		"--target-dir=" + tempdir,
-		"--user=" + o.config.MariaDB.User,
-	}
-
-	if o.config.MariaDB.Host != "" {
-		args = append(args, "--host="+o.config.MariaDB.Host)
-	}
-
-	if o.config.MariaDB.Port != 0 {
-		args = append(args, "--port="+strconv.Itoa(o.config.MariaDB.Port))
-	}
-
-	if o.config.MariaDB.BackupOptions != "" {
-		opts, err := sanitizer.SanitizeOptions(o.config.MariaDB.BackupOptions)
-		if err != nil {
-			return fmt.Errorf("failed to sanitize options: %w", err)
-		}
-
-		args = append(args, opts...)
-	}
-
-	return run(ctx, args, map[string]string{"MYSQL_PWD": o.config.MariaDB.Password})
-}
-
-func (o *Operation) prepare(ctx context.Context, tempdir string) error {
-	o.logger.Info(ctx, "Stage 2: Prepare")
-	start := time.Now()
-	defer func() {
-		duration := time.Since(start)
-		o.logger.Info(ctx, "Stage 2 completed", logging.Fields{
-			logFieldDuration: duration.String(),
-		})
-	}()
-
-	args := []string{
-		o.config.MariaDB.BackupBinary,
-		"--prepare",
-		"--target-dir=" + tempdir,
-	}
-
-	return run(ctx, args, nil)
-}
-
 func (o *Operation) compress(ctx context.Context, tempdir string, w io.Writer) error {
 	o.logger.Info(ctx, "Stage 3: Compress")
 	start := time.Now()
@@ -188,8 +151,8 @@ func (o *Operation) compress(ctx context.Context, tempdir string, w io.Writer) e
 	}()
 
 	// Create tar command
-	tarCmd := exec.CommandContext(ctx, "tar", "-C", tempdir, "-cf", "-", ".")
-	pigzCmd := exec.CommandContext(ctx, "pigz")
+	tarCmd := osexec.CommandContext(ctx, "tar", "-C", tempdir, "-cf", "-", ".")
+	pigzCmd := osexec.CommandContext(ctx, "pigz")
 
 	// Set up piping
 	var err error
@@ -289,6 +252,7 @@ func (o *Operation) upload(ctx context.Context, r io.Reader, targetName string, 
 		&registry.ToolMetadata{
 			Name:    "mariadb-backup-s3",
 			Version: o.config.Version,
+			Method:  o.method.MethodName(),
 		},
 	)
 

@@ -2,9 +2,19 @@ package config
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/url"
 	"os/exec"
+)
+
+const (
+	BackupMethodPhysical = "mariadb-backup"
+	BackupMethodLogical  = "mariadb-dump"
+)
+
+var (
+	ErrInvalidBackupMethod = errors.New("invalid backup method")
 )
 
 type MariaDB struct {
@@ -14,11 +24,30 @@ type MariaDB struct {
 	Password      string
 	BackupOptions string
 	BackupBinary  string
+	ClientBinary  string
+	BackupMethod  string
+}
+
+func (m MariaDB) IsLogical() bool {
+	return m.BackupMethod == BackupMethodLogical
 }
 
 func (m MariaDB) Validate() error {
+	if m.BackupMethod != BackupMethodPhysical && m.BackupMethod != BackupMethodLogical {
+		return fmt.Errorf(
+			"%w: %q: must be %q or %q",
+			ErrInvalidBackupMethod, m.BackupMethod, BackupMethodPhysical, BackupMethodLogical,
+		)
+	}
+
 	if _, err := exec.LookPath(m.BackupBinary); err != nil {
-		return fmt.Errorf("mariabackup binary '%s' not found in PATH: %w", m.BackupBinary, err)
+		return fmt.Errorf("binary '%s' not found in PATH: %w", m.BackupBinary, err)
+	}
+
+	if m.IsLogical() {
+		if _, err := exec.LookPath(m.ClientBinary); err != nil {
+			return fmt.Errorf("client binary '%s' not found in PATH: %w", m.ClientBinary, err)
+		}
 	}
 
 	return nil
@@ -34,6 +63,8 @@ func DefaultMariaDB() MariaDB {
 		Password:      "",
 		BackupOptions: "",
 		BackupBinary:  "mariadb-backup",
+		ClientBinary:  "mariadb",
+		BackupMethod:  BackupMethodPhysical,
 	}
 }
 

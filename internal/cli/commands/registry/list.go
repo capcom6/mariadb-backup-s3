@@ -85,6 +85,11 @@ func printRegistryTable(ctx context.Context, logger logging.Logger, reg *registr
 	})
 
 	for _, v := range reg.Backups {
+		method := ""
+		if v.Tool != nil {
+			method = v.Tool.Method
+		}
+
 		logger.Info(ctx, "Backup", logging.Fields{
 			"id":         v.ID,
 			"created_at": v.CreatedAt,
@@ -92,6 +97,7 @@ func printRegistryTable(ctx context.Context, logger logging.Logger, reg *registr
 			"encrypted":  v.Encrypted,
 			"size":       v.SizeBytes,
 			"filename":   v.Filename,
+			"method":     method,
 		})
 	}
 }

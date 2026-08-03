@@ -197,7 +197,7 @@ func (f *filesystemStorage) makePath(filename string) (string, error) {
 	return fullPath, nil
 }
 
-// copyWithContext performs io.Copy with context cancellation support.
+// copyWithContext performs [io.Copy] with context cancellation support.
 func copyWithContext(ctx context.Context, dst io.Writer, src io.Reader) error {
 	const bufferSize = 64 * 1024
 	buf := make([]byte, bufferSize)

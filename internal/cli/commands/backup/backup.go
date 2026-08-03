@@ -5,6 +5,7 @@ import (
 
 	"github.com/capcom6/mariadb-backup-s3/internal/backup"
 	"github.com/capcom6/mariadb-backup-s3/internal/cli/flags"
+	"github.com/capcom6/mariadb-backup-s3/internal/config"
 	"github.com/capcom6/mariadb-backup-s3/internal/core/codes"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
 	"github.com/capcom6/mariadb-backup-s3/internal/registry"
@@ -35,11 +36,23 @@ func Command() *cli.Command {
 		},
 		&cli.StringFlag{
 			Name:        "db-backup-binary",
-			Usage:       "mariadb-backup binary path",
-			DefaultText: "mariadb-backup",
+			Usage:       "backup binary path (auto-derived from --backup-method if not set)",
+			DefaultText: "auto-derived from --backup-method",
+			Sources:     cli.EnvVars("MARIADB__BACKUP_BINARY"),
+		},
+		&cli.StringFlag{
+			Name:        "db-client-binary",
+			Usage:       "mariadb client binary path for listing databases",
+			DefaultText: "mariadb",
+			Sources:     cli.EnvVars("MARIADB__CLIENT_BINARY"),
+		},
+		&cli.StringFlag{
+			Name:        "backup-method",
+			Usage:       "backup method: mariadb-backup (physical) or mariadb-dump (logical)",
+			DefaultText: config.BackupMethodPhysical,
 			Sources: cli.NewValueSourceChain(
-				cli.EnvVar("MARIADB__BACKUP_BINARY"),
-				cliutil.DefaultValue("mariadb-backup"),
+				cli.EnvVar("MARIADB__BACKUP_METHOD"),
+				cliutil.DefaultValue(config.BackupMethodPhysical),
 			),
 		},
 
@@ -78,6 +91,7 @@ func backupAction(ctx context.Context, cmd *cli.Command) error {
 		"db_password":       "***", // Don't log actual password
 		"db_backup_options": cmd.String("db-backup-options"),
 		"db_backup_binary":  cmd.String("db-backup-binary"),
+		"backup_method":     cmd.String("backup-method"),
 		logFieldStorageURL:  cmd.String("storage-url"),
 		"encryption_key":    "***", // Don't log actual key
 	})

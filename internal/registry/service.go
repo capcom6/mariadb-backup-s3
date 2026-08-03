@@ -156,6 +156,7 @@ func (s *Service) rebuild(ctx context.Context) (*Registry, error) {
 			Tool: &ToolMetadata{
 				Name:    "mariadb-backup-s3",
 				Version: "unknown",
+				Method:  "",
 			},
 			Encryption: nil,
 		})

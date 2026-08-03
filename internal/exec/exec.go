@@ -1,10 +1,11 @@
-package backup
+package exec
 
 import (
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 )
@@ -13,7 +14,9 @@ var (
 	ErrNoArguments = errors.New("no arguments")
 )
 
-func run(ctx context.Context, args []string, extraEnv map[string]string) error {
+// Run executes an external command with optional extra environment variables.
+// stdout is forwarded to [os.Stdout]; stderr is captured and returned on failure.
+func Run(ctx context.Context, args []string, extraEnv map[string]string, stdout io.Writer) error {
 	if len(args) == 0 {
 		return ErrNoArguments
 	}
@@ -30,7 +33,7 @@ func run(ctx context.Context, args []string, extraEnv map[string]string) error {
 	for k, v := range extraEnv {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
-	cmd.Stdout = os.Stdout
+	cmd.Stdout = stdout
 	cmd.Stderr = &buf
 
 	if runErr := cmd.Run(); runErr != nil {

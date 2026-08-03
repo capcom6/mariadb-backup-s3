@@ -639,6 +639,52 @@ func TestNewBackupEntry_WithEncryption(t *testing.T) {
 	assert.Equal(t, "test-tool", e.Tool.Name)
 }
 
+func TestNewBackupEntry_WithMethod(t *testing.T) {
+	now := fixedNow()
+	tool := &registry.ToolMetadata{
+		Name:    "mariadb-backup-s3",
+		Version: "1.0.0",
+		Method:  "mariadb-dump",
+	}
+	e := registry.NewBackupEntry(
+		"backup.tar.gz", now, 1024, "abcdef1234567890",
+		registry.StatusReady, false, nil, tool,
+	)
+	require.NotNil(t, e.Tool)
+	assert.Equal(t, "mariadb-dump", e.Tool.Method)
+}
+
+func TestToolMetadata_Method_SerializationRoundTrip(t *testing.T) {
+	now := fixedNow()
+	reg := registry.New()
+	reg.UpdatedAt = now
+	reg.Backups = []registry.BackupEntry{
+		{
+			ID:        "id1",
+			Filename:  "backup.tar.gz",
+			CreatedAt: now,
+			SizeBytes: 1024,
+			SHA256:    "abcdef1234567890",
+			Status:    registry.StatusReady,
+			Tool: &registry.ToolMetadata{
+				Name:    "mariadb-backup-s3",
+				Version: "1.0.0",
+				Method:  "mariadb-dump",
+			},
+		},
+	}
+
+	data, err := json.Marshal(reg)
+	require.NoError(t, err)
+
+	var decoded registry.Registry
+	err = json.Unmarshal(data, &decoded)
+	require.NoError(t, err)
+	require.Len(t, decoded.Backups, 1)
+	require.NotNil(t, decoded.Backups[0].Tool)
+	assert.Equal(t, "mariadb-dump", decoded.Backups[0].Tool.Method)
+}
+
 func TestRegistryValidate_EmptyBackupsOK(t *testing.T) {
 	reg := registry.New()
 	reg.UpdatedAt = fixedNow()

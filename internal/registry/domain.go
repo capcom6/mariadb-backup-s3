@@ -64,6 +64,7 @@ type EncryptionMetadata struct {
 type ToolMetadata struct {
 	Name    string `json:"name,omitempty"`
 	Version string `json:"version,omitempty"`
+	Method  string `json:"method,omitempty"`
 }
 
 func New() *Registry {

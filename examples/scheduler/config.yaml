@@ -73,3 +73,23 @@ jobs:
       password: ${MARIADB__PASSWORD}
     retention:
       keep_daily: 3
+
+  # ---------------------------------------------------------------------------
+  # Daily logical backup (mariadb-dump)
+  # Runs every day at 4:00 AM UTC, produces per-database .sql files
+  # Restore by importing: mysql < file.sql
+  # ---------------------------------------------------------------------------
+  - name: daily-logical-backup
+    schedule: "0 4 * * *"
+    command: backup
+    timeout: 4h
+    storage:
+      url: s3://my-bucket/backups?endpoint=https://s3.custom.com
+    mariadb:
+      host: localhost
+      port: 3306
+      user: root
+      password: ${MARIADB__PASSWORD}
+      backup_method: mariadb-dump
+    retention:
+      max_count: 7
