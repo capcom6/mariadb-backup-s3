@@ -69,7 +69,7 @@ All optional. If none set, retention is skipped.
 
 | Flag | Env var | Default | Description |
 |---|---|---|---|
-| `--retention-count` | `RETENTION__COUNT`, `BACKUP__LIMITS__MAX_COUNT` | unlimited | Number of most recent backups to keep |
+| `--retention-count` | `RETENTION__COUNT` (deprecated alias: `BACKUP__LIMITS__MAX_COUNT`) | unlimited | Number of most recent backups to keep |
 | `--max-age` | `RETENTION__MAX_AGE` | unlimited | Max age (e.g. `24h`, `168h`) |
 | `--keep-daily` | `RETENTION__KEEP_DAILY` | unlimited | Keep N per day |
 | `--keep-weekly` | `RETENTION__KEEP_WEEKLY` | unlimited | Keep N per ISO week |

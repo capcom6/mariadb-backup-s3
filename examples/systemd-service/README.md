@@ -29,12 +29,12 @@ MARIADB__BACKUP_OPTIONS=--skip-ssl --parallel=4
 
 # Storage configuration (S3)
 STORAGE__URL=s3://your-bucket-name/backup-path?endpoint=https://s3.example.com
-AWS_ACCESS_KEY=your_access_key
-AWS_SECRET_KEY=your_secret_key
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
 AWS_REGION=us-east-1
 
 # Backup retention
-BACKUP__LIMITS__MAX_COUNT=30
+RETENTION__COUNT=30
 
 # Scheduler configuration (only needed for the scheduler daemon)
 SCHEDULER__CONFIG=/etc/mariadb-backup-s3/scheduler.yaml

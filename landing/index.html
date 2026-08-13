@@ -111,13 +111,14 @@
                 <div class="feature">
                     <div class="feature-icon">🔄</div>
                     <h3>Flexible Scheduling</h3>
-                    <p>Run on-demand or integrate with cron or systemd timers for automated backup
-                        schedules.</p>
+                    <p>Run on-demand, integrate with cron or systemd timers, or use the built-in
+                        scheduler daemon for fully automated backup schedules.</p>
                 </div>
                 <div class="feature">
                     <div class="feature-icon">☁️</div>
-                    <h3>S3-Compatible Storage</h3>
-                    <p>Works with AWS S3, MinIO, DigitalOcean Spaces, and any S3-compatible storage provider.</p>
+                    <h3>Multi-Storage Support</h3>
+                    <p>Supports S3-compatible providers, including AWS S3, MinIO, and DigitalOcean Spaces,
+                        plus FTP and local filesystem storage.</p>
                 </div>
                 <div class="feature">
                     <div class="feature-icon">🐳</div>
@@ -137,9 +138,21 @@
                 </div>
                 <div class="feature">
                     <div class="feature-icon">📁</div>
-                    <h3>Filesystem-Level Backups</h3>
+                    <h3>Physical Backups</h3>
                     <p>Uses mariabackup for high-performance, hot backups with direct filesystem access to MariaDB data
                         directory for maximum reliability and speed.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🗄️</div>
+                    <h3>Logical Backups</h3>
+                    <p>Uses mariadb-dump to export each database as a separate .sql file. No filesystem access
+                        required - ideal for containerized and managed deployments.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">⏰</div>
+                    <h3>Built-in Scheduler</h3>
+                    <p>Cron-compatible scheduler daemon with YAML configuration, persistent state, and CloudEvents
+                        webhook notifications - no external cron or systemd timers needed.</p>
                 </div>
                 <div class="feature">
                     <div class="feature-icon">🔒</div>
@@ -158,43 +171,42 @@
         </div>
     </section>
 
-    <!-- Why Filesystem Access is Required -->
+    <!-- Physical vs Logical Backups -->
     <section class="filesystem-access">
         <div class="container">
             <div class="section-header">
-                <h2>Why Filesystem Access is Required</h2>
-                <p>Understanding the technical requirements for reliable MariaDB backups</p>
+                <h2>Physical vs Logical Backups</h2>
+                <p>Two backup methods for different deployment scenarios</p>
             </div>
             <div class="explanation-content">
                 <div class="explanation-item">
+                    <div class="explanation-icon">⚖️</div>
+                    <h3>Two Backup Methods</h3>
+                    <p>mariadb-backup-s3 supports <strong>two methods</strong>: physical (<code>mariadb-backup</code>,
+                        the default) which copies database files at the storage engine level, and logical
+                        (<code>mariadb-dump</code>) which exports each database as a separate <code>.sql</code> file.
+                        Select the method with <code>MARIADB__BACKUP_METHOD</code>.</p>
+                </div>
+                <div class="explanation-item">
                     <div class="explanation-icon">📁</div>
-                    <h3>mariabackup Technology</h3>
-                    <p>mariadb-backup-s3 uses <strong>mariabackup</strong>, high-performance backup tool for
-                        MariaDB.
-                        Unlike mysqldump which exports data through SQL queries, mariabackup works at the filesystem
-                        level
-                        by copying database files directly.</p>
+                    <h3>Physical: Filesystem Access</h3>
+                    <p><strong>mariabackup</strong> performs <strong>hot backups</strong> - it can backup your database
+                        while it's running without significant performance impact. This requires direct, read-only
+                        access to the MariaDB data files located in <code>/var/lib/mysql</code>.</p>
                 </div>
                 <div class="explanation-item">
-                    <div class="explanation-icon">🔄</div>
-                    <h3>Hot Backups Without Locking</h3>
-                    <p>mariabackup performs <strong>hot backups</strong> - it can backup your database while it's
-                        running
-                        without significant performance impact. This requires direct access to the MariaDB data files
-                        located in <code>/var/lib/mysql</code>.</p>
-                </div>
-                <div class="explanation-item">
-                    <div class="explanation-icon">⚡</div>
-                    <h3>Performance & Reliability</h3>
-                    <p>Direct filesystem access enables faster backups and restores compared to SQL-based methods.
-                        This approach ensures data consistency and provides better performance for larger databases.</p>
+                    <div class="explanation-icon">🗄️</div>
+                    <h3>Logical: No Filesystem Access</h3>
+                    <p><strong>mariadb-dump</strong> exports SQL dumps over the network using the <code>mariadb</code>
+                        client to list databases. No filesystem access is required, making it ideal for containerized
+                        and managed deployments - at the cost of per-database consistency and slower restores.</p>
                 </div>
                 <div class="explanation-item">
                     <div class="explanation-icon">🔒</div>
                     <h3>Security Considerations</h3>
-                    <p>The backup process requires read access to database files, but never needs write access.
-                        This allows for secure, least-privilege configurations where backup users have minimal
-                        permissions.</p>
+                    <p>Physical backups need read access to database files, but never write access. Logical backups
+                        only need database credentials. Both allow secure, least-privilege configurations where backup
+                        users have minimal permissions.</p>
                 </div>
             </div>
         </div>
@@ -251,7 +263,7 @@ services:
       - AWS_ACCESS_KEY_ID=your-access-key
       - AWS_SECRET_ACCESS_KEY=your-secret-key
       - AWS_REGION=us-east-1
-      - BACKUP__LIMITS__MAX_COUNT=30
+      - RETENTION__COUNT=30
     volumes:
       - mariadb-data:/var/lib/mysql
     deploy:
@@ -307,7 +319,7 @@ STORAGE__URL=s3://your-bucket/backups
 AWS_ACCESS_KEY_ID=your-access-key
 AWS_SECRET_ACCESS_KEY=your-secret-key
 AWS_REGION=us-east-1
-BACKUP__LIMITS__MAX_COUNT=30
+RETENTION__COUNT=30
 EOF
 sudo chmod 600 /etc/default/mariadb-backup-s3
 
@@ -407,6 +419,14 @@ sudo systemctl enable --now mariadb-backup-s3.timer</code></pre>
                             <span>Database password</span>
                         </div>
                         <div class="config-item">
+                            <code>MARIADB__BACKUP_METHOD</code>
+                            <span>Backup method: mariadb-backup (physical) or mariadb-dump (logical)</span>
+                        </div>
+                        <div class="config-item">
+                            <code>MARIADB__CLIENT_BINARY</code>
+                            <span>mariadb client binary (lists databases for logical backups)</span>
+                        </div>
+                        <div class="config-item">
                             <code>MARIADB__BACKUP_OPTIONS</code>
                             <span>Additional mariabackup options (e.g., --parallel=4)</span>
                         </div>
@@ -434,23 +454,65 @@ sudo systemctl enable --now mariadb-backup-s3.timer</code></pre>
                     </div>
                 </div>
                 <div class="config-category">
-                    <h3>Backup Settings</h3>
+                    <h3>Backup & Retention Settings</h3>
                     <div class="config-items">
-                        <div class="config-item">
-                            <code>MARIADB__BACKUP_BINARY</code>
-                            <span>Path to `mariadb-backup` binary (default: `mariadb-backup`)</span>
-                        </div>
-                        <div class="config-item">
-                            <code>MARIADB__BACKUP_OPTIONS</code>
-                            <span>Additional `mariadb-backup` options</span>
-                        </div>
                         <div class="config-item">
                             <code>ENCRYPTION__KEY</code>
                             <span>Base64-encoded encryption key for AES-256-GCM</span>
                         </div>
                         <div class="config-item">
-                            <code>BACKUP__LIMITS__MAX_COUNT</code>
+                            <code>RETENTION__COUNT</code>
                             <span>Maximum number of backups to retain (0 = unlimited)</span>
+                        </div>
+                        <div class="config-item">
+                            <code>RETENTION__MAX_AGE</code>
+                            <span>Maximum age of backups (e.g., 24h, 168h)</span>
+                        </div>
+                        <div class="config-item">
+                            <code>RETENTION__KEEP_DAILY</code>
+                            <span>Number of daily backups to keep (0 = disabled)</span>
+                        </div>
+                        <div class="config-item">
+                            <code>RETENTION__KEEP_WEEKLY</code>
+                            <span>Number of weekly backups to keep (0 = disabled)</span>
+                        </div>
+                        <div class="config-item">
+                            <code>RETENTION__KEEP_MONTHLY</code>
+                            <span>Number of monthly backups to keep (0 = disabled)</span>
+                        </div>
+                        <div class="config-item">
+                            <code>RETENTION__DRY_RUN</code>
+                            <span>Preview retention policy without deleting (retention command)</span>
+                        </div>
+                        <div class="config-item">
+                            <code>RETENTION__FORCE</code>
+                            <span>Continue retention despite errors (retention command)</span>
+                        </div>
+                        <div class="config-item">
+                            <code>BACKUP__SKIP_RETENTION</code>
+                            <span>Skip retention policy after backup</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="config-category">
+                    <h3>Restore</h3>
+                    <div class="config-items">
+                        <div class="config-item">
+                            <code>RESTORE__TARGET_DIR</code>
+                            <span>Target directory to restore to</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="config-category">
+                    <h3>Scheduler</h3>
+                    <div class="config-items">
+                        <div class="config-item">
+                            <code>SCHEDULER__CONFIG</code>
+                            <span>Path to scheduler YAML config file</span>
+                        </div>
+                        <div class="config-item">
+                            <code>SCHEDULER__STATE_FILE</code>
+                            <span>Path to persistent scheduler state file</span>
                         </div>
                     </div>
                 </div>
@@ -531,6 +593,20 @@ sudo systemctl enable --now mariadb-backup-s3.timer</code></pre>
                             <td class="check">✓ Native</td>
                             <td class="cross">✗ Manual</td>
                             <td class="check">✓ Native</td>
+                            <td class="cross">✗ Custom</td>
+                        </tr>
+                        <tr>
+                            <td>Logical Backup Support</td>
+                            <td class="check">✓ Native</td>
+                            <td class="check">✓ Native</td>
+                            <td class="cross">✗ Not supported</td>
+                            <td class="cross">✗ Custom</td>
+                        </tr>
+                        <tr>
+                            <td>Built-in Scheduler</td>
+                            <td class="check">✓ Native</td>
+                            <td class="cross">✗ Not included</td>
+                            <td class="cross">✗ Not included</td>
                             <td class="cross">✗ Custom</td>
                         </tr>
                     </tbody>
