@@ -28,8 +28,8 @@ services:
     image: ghcr.io/capcom6/mariadb-backup-s3:latest
     environment:
       - AWS_REGION=${AWS_REGION}
-      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - MARIADB__HOST=db
       - MARIADB__USER=root
       - MARIADB__PASSWORD=${MARIADB_ROOT_PASSWORD}

@@ -326,7 +326,7 @@ ping your-bucket.s3.amazonaws.com
 
 ## 🔄 Backup Rotation
 
-The mariadb-backup-s3 tool automatically handles backup rotation based on the `BACKUP__LIMITS__MAX_COUNT` setting. Older encrypted backups are automatically removed when this limit is exceeded.
+The mariadb-backup-s3 tool automatically handles backup rotation based on the `RETENTION__COUNT` setting. Older encrypted backups are automatically removed when this limit is exceeded.
 
 ## 📊 Monitoring
 

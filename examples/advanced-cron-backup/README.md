@@ -119,12 +119,12 @@ MARIADB__PORT=3306
 STORAGE__URL=s3://your-bucket/backups?endpoint=https://s3.endpoint
 
 # S3 Configuration (when using S3 storage)
-AWS_ACCESS_KEY=your_access_key
-AWS_SECRET_KEY=your_secret_key
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
 AWS_REGION=us-east-1
 
 # Backup Settings
-BACKUP__LIMITS__MAX_COUNT=30  # Keep last 30 backups
+RETENTION__COUNT=30  # Keep last 30 backups
 ```
 
 ### Backup Script Options
@@ -190,7 +190,7 @@ tail -f /var/log/mariadb-backup-error.log
 
 ## 📋 Best Practices
 
-1. **Backup Retention**: Configure `BACKUP__LIMITS__MAX_COUNT` to keep an appropriate number of backups
+1. **Backup Retention**: Configure `RETENTION__COUNT` to keep an appropriate number of backups
 2. **Monitoring**: Set up log monitoring to alert on backup failures
 3. **Testing**: Regularly test backup restoration process
 4. **Security**: Restrict access to backup files and environment variables
@@ -198,7 +198,7 @@ tail -f /var/log/mariadb-backup-error.log
 
 ## 🔄 Rotation and Cleanup
 
-The mariadb-backup-s3 tool automatically handles backup rotation based on the `BACKUP__LIMITS__MAX_COUNT` setting. Older backups are automatically removed when this limit is exceeded.
+The mariadb-backup-s3 tool automatically handles backup rotation based on the `RETENTION__COUNT` setting. Older backups are automatically removed when this limit is exceeded.
 
 ## 📊 Monitoring
 
