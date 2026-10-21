@@ -14,6 +14,10 @@ type Config struct {
 	MariaDB    config.MariaDB
 	Storage    config.Storage
 	Encryption config.Encryption
+
+	// Stream makes the backup produce its output as a stream, instead of
+	// writing files into a temp directory. Only logical backups support it.
+	Stream bool
 }
 
 func (c Config) Validate() error {
@@ -23,6 +27,10 @@ func (c Config) Validate() error {
 
 	if err := c.Storage.Validate(); err != nil {
 		return fmt.Errorf("%w: storage validation failed: %w", ErrValidationFailed, err)
+	}
+
+	if c.Stream && !c.MariaDB.IsLogical() {
+		return fmt.Errorf("%w: streaming is supported by the logical backup method only", ErrValidationFailed)
 	}
 
 	return nil
@@ -38,5 +46,6 @@ func DefaultConfig() Config {
 		Encryption: config.Encryption{
 			EncryptionKey: "",
 		},
+		Stream: false,
 	}
 }

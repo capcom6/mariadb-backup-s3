@@ -35,6 +35,10 @@ type Operation struct {
 
 	method method.Method
 
+	// streamer is set when the backup is produced as a stream, instead of
+	// files in a temp directory.
+	streamer method.StreamingMethod
+
 	registrySvc *registry.Service
 
 	storage storage.Backend
@@ -49,6 +53,8 @@ func NewOperation(
 	logger logging.Logger,
 ) *Operation {
 	var m method.Method
+	var s method.StreamingMethod
+
 	mConfig := method.Config{
 		Host:          config.MariaDB.Host,
 		Port:          config.MariaDB.Port,
@@ -57,7 +63,7 @@ func NewOperation(
 		BackupOptions: config.MariaDB.BackupOptions,
 		BackupBinary:  config.MariaDB.BackupBinary,
 		ClientBinary:  config.MariaDB.ClientBinary,
-		Stream:        false,
+		Stream:        config.Stream,
 	}
 	if config.MariaDB.IsLogical() {
 		m = logical.New(mConfig)
@@ -65,10 +71,16 @@ func NewOperation(
 		m = physical.New(mConfig)
 	}
 
+	if str, ok := m.(method.StreamingMethod); config.Stream && ok {
+		s = str
+	}
+
 	return &Operation{
 		config: config,
 
 		method: m,
+
+		streamer: s,
 
 		registrySvc: registrySvc,
 
@@ -91,10 +103,17 @@ func (o *Operation) Run(ctx context.Context) error {
 		})
 	}()
 
-	targetName := start.UTC().Format("2006-01-02-15-04-05") + ".tar.gz"
-	if o.config.Encryption.Enabled() {
-		targetName += ".enc"
+	if o.streamer != nil {
+		return o.runStreaming(ctx, start)
 	}
+
+	return o.runToFiles(ctx, start)
+}
+
+// runToFiles runs the backup through a temp directory: the method writes its
+// output files there, and the directory is compressed, encrypted and uploaded.
+func (o *Operation) runToFiles(ctx context.Context, start time.Time) error {
+	targetName := o.targetName(start, o.method.ArtifactExtension())
 
 	tempdir, err := os.MkdirTemp("", "mariadb")
 	if err != nil {
@@ -136,6 +155,80 @@ func (o *Operation) Run(ctx context.Context) error {
 
 	if err != nil {
 		return fmt.Errorf("failed to backup: %w", err)
+	}
+
+	return nil
+}
+
+// runStreaming runs the backup without touching the local disk: the method
+// writes its output into the pipeline, which compresses, encrypts and uploads
+// it.
+func (o *Operation) runStreaming(ctx context.Context, start time.Time) error {
+	o.logger.Info(ctx, "Streaming backup to storage")
+
+	targetName := o.targetName(start, o.streamer.ArtifactExtension())
+
+	err := pipeline.Run(ctx, nil, nil,
+		func(ctx context.Context, _ io.Reader, w io.Writer) error {
+			return o.dump(ctx, w)
+		},
+		func(ctx context.Context, r io.Reader, w io.Writer) error {
+			return o.compressStream(ctx, r, w)
+		},
+		func(ctx context.Context, r io.Reader, w io.Writer) error {
+			return o.encrypt(ctx, r, w)
+		},
+		func(ctx context.Context, r io.Reader, _ io.Writer) error {
+			return o.upload(ctx, r, targetName, start.UTC())
+		},
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to backup: %w", err)
+	}
+
+	return nil
+}
+
+// targetName builds the name of the artifact for a backup.
+func (o *Operation) targetName(start time.Time, extension string) string {
+	name := start.UTC().Format("2006-01-02-15-04-05") + "." + extension
+	if o.config.Encryption.Enabled() {
+		name += ".enc"
+	}
+
+	return name
+}
+
+// dump writes the backup content into the pipeline.
+func (o *Operation) dump(ctx context.Context, w io.Writer) error {
+	if dumpErr := o.streamer.Stream(ctx, w, o.logger); dumpErr != nil {
+		return fmt.Errorf("failed to dump: %w", dumpErr)
+	}
+
+	return nil
+}
+
+// compressStream compresses the stream with pigz.
+func (o *Operation) compressStream(ctx context.Context, r io.Reader, w io.Writer) error {
+	o.logger.Info(ctx, "Stage 2: Compress")
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start)
+		o.logger.Info(ctx, "Stage 2 completed", logging.Fields{
+			logFieldDuration: duration.String(),
+		})
+	}()
+
+	pigzCmd := osexec.CommandContext(ctx, "pigz")
+	pigzCmd.Stdin = r
+	pigzCmd.Stdout = w
+
+	var stderr bytes.Buffer
+	pigzCmd.Stderr = &stderr
+
+	if compressErr := pigzCmd.Run(); compressErr != nil {
+		return fmt.Errorf("failed to compress: %s: %w", stderr.String(), compressErr)
 	}
 
 	return nil
