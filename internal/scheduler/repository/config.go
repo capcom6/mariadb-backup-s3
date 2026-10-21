@@ -40,6 +40,7 @@ type Job struct {
 	Command   string     `yaml:"command"`
 	Timeout   Duration   `yaml:"timeout,omitempty"`
 	Enabled   *bool      `yaml:"enabled,omitempty"`
+	Stream    bool       `yaml:"stream,omitempty"`
 	MariaDB   *MariaDB   `yaml:"mariadb,omitempty"`
 	Storage   Storage    `yaml:"storage"`
 	Encrypt   *Encrypt   `yaml:"encrypt,omitempty"`
