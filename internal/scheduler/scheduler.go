@@ -324,7 +324,7 @@ func (s *Scheduler) executeBackup(
 		Encryption: config.Encryption{
 			EncryptionKey: job.EncryptionKey(),
 		},
-		Stream: false,
+		Stream: job.Stream,
 	}
 
 	if err := cfg.Validate(); err != nil {

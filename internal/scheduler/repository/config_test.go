@@ -444,3 +444,43 @@ jobs:
 	require.ErrorIs(t, verr, repository.ErrBothDatabaseSections)
 	assert.Contains(t, verr.Error(), "conflicting-job")
 }
+
+func TestConfig_YAML_Stream(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `
+jobs:
+  - name: streamed-logical-backup
+    schedule: "0 2 * * *"
+    command: backup
+    stream: true
+    storage:
+      url: "s3://bucket/path"
+    mariadb:
+      backup_method: mariadb-dump
+      host: localhost
+`
+	var cfg repository.Config
+	err := yaml.Unmarshal([]byte(yamlData), &cfg)
+	require.NoError(t, err)
+	require.Len(t, cfg.Jobs, 1)
+	assert.True(t, cfg.Jobs[0].Stream)
+}
+
+func TestConfig_YAML_StreamOmitted(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `
+jobs:
+  - name: logical-backup
+    schedule: "0 2 * * *"
+    command: backup
+    storage:
+      url: "s3://bucket/path"
+`
+	var cfg repository.Config
+	err := yaml.Unmarshal([]byte(yamlData), &cfg)
+	require.NoError(t, err)
+	require.Len(t, cfg.Jobs, 1)
+	assert.False(t, cfg.Jobs[0].Stream)
+}

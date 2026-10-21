@@ -47,6 +47,7 @@ type Job struct {
 	Timeout   Duration   `yaml:"timeout,omitempty"`
 	Enabled   *bool      `yaml:"enabled,omitempty"`
 	Database  *Database  `yaml:"database,omitempty"`
+	Stream    bool       `yaml:"stream,omitempty"`
 	MariaDB   *MariaDB   `yaml:"mariadb,omitempty"`
 	Storage   Storage    `yaml:"storage"`
 	Encrypt   *Encrypt   `yaml:"encrypt,omitempty"`
