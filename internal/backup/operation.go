@@ -58,6 +58,7 @@ func NewOperation(
 		return nil, err
 	}
 
+
 	return &Operation{
 		config: cfg,
 
@@ -91,6 +92,7 @@ func newMariaDBMethod(database config.Database) (method.Method, error) {
 		BackupOptions: database.BackupOptions,
 		BackupBinary:  database.BackupBinary,
 		ClientBinary:  database.ClientBinary,
+		Stream:        false,
 	}
 
 	switch database.BackupMethod {

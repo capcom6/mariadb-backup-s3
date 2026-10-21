@@ -14,6 +14,7 @@ import (
 	"github.com/capcom6/mariadb-backup-s3/internal/exec"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
 	"github.com/capcom6/mariadb-backup-s3/internal/sanitizer"
+	"github.com/capcom6/mariadb-backup-s3/internal/sqlstream"
 )
 
 const MethodName = "mariadb-dump"
@@ -31,6 +32,16 @@ func New(cfg method.Config) *Method {
 // MethodName returns the registry identifier for logical backups.
 func (m *Method) MethodName() string {
 	return MethodName
+}
+
+// ArtifactExtension returns the extension of the artifact produced for this
+// method's backup, without the leading dot.
+func (m *Method) ArtifactExtension() string {
+	if m.config.Stream {
+		return sqlstream.ArtifactExtension
+	}
+
+	return method.ArtifactTarGz
 }
 
 // Backup dumps each database as a separate .sql file into tempdir.
