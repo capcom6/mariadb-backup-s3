@@ -215,8 +215,11 @@ func TestBackupTimeFromFilename(t *testing.T) {
 	}{
 		{"2024-01-15-10-30-00.tar.gz", time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC), true},
 		{"2024-01-15-10-30-00.tar.gz.enc", time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC), true},
+		{"2024-01-15-10-30-00.sql.gz", time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC), true},
+		{"2024-01-15-10-30-00.sql.gz.enc", time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC), true},
 		{"2024-01-15-10-30-00.enc", time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC), true},
 		{"invalid.tar.gz", time.Time{}, false},
+		{"invalid.sql.gz", time.Time{}, false},
 		{"", time.Time{}, false},
 	}
 	for _, tt := range tests {
@@ -504,12 +507,14 @@ func TestServiceRebuild_WithRecovery_ListsFiles(t *testing.T) {
 	backend.On("List", mock.Anything).Return([]string{
 		"2024-01-15-10-30-00.tar.gz",
 		"2024-01-14-10-30-00.tar.gz.enc",
+		"2024-01-13-10-30-00.sql.gz",
+		"2024-01-12-10-30-00.sql.gz.enc",
 	}, nil)
 	backend.On("Upload", mock.Anything, ".backup-registry.json", mock.Anything).Return(nil)
 
 	reg, err := svc.Rebuild(context.Background())
 	require.NoError(t, err)
-	require.Len(t, reg.Backups, 2)
+	require.Len(t, reg.Backups, 4)
 	assert.Equal(t, registry.StatusReady, reg.Backups[0].Status)
 
 	backend.AssertExpectations(t)
