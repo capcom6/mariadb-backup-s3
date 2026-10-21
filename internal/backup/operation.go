@@ -57,6 +57,7 @@ func NewOperation(
 		BackupOptions: config.MariaDB.BackupOptions,
 		BackupBinary:  config.MariaDB.BackupBinary,
 		ClientBinary:  config.MariaDB.ClientBinary,
+		Stream:        false,
 	}
 	if config.MariaDB.IsLogical() {
 		m = logical.New(mConfig)

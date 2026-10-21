@@ -31,6 +31,12 @@ func (m *Method) MethodName() string {
 	return MethodName
 }
 
+// ArtifactExtension returns the extension of the artifact produced for this
+// method's backup, without the leading dot.
+func (m *Method) ArtifactExtension() string {
+	return method.ArtifactTarGz
+}
+
 // Backup executes mariadb-backup --backup, writing data files into tempdir.
 func (m *Method) Backup(ctx context.Context, tempdir string, logger logging.Logger) error {
 	logger.Info(ctx, "Stage 1: Backup")

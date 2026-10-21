@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/capcom6/mariadb-backup-s3/internal/backup/method"
 	"github.com/capcom6/mariadb-backup-s3/internal/config"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
 	"github.com/capcom6/mariadb-backup-s3/internal/registry"
@@ -44,6 +45,10 @@ func (m *mockMethod) Prepare(_ context.Context, tempdir string, _ logging.Logger
 
 func (m *mockMethod) MethodName() string {
 	return "test-method"
+}
+
+func (m *mockMethod) ArtifactExtension() string {
+	return method.ArtifactTarGz
 }
 
 func (m *mockMethod) getCallOrder() []string {
