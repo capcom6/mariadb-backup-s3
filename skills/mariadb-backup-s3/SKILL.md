@@ -70,6 +70,23 @@ mariadb-backup-s3 restore \
 mysql -u root -p < /tmp/restore/mydb.sql
 ```
 
+### Streamed logical backup (no local dump files)
+
+```shell
+mariadb-backup-s3 backup \
+  --backup-method=mariadb-dump \
+  --stream \
+  --storage-url="s3://bucket/path" \
+  --db-host=db.example.com \
+  --db-user=backup
+```
+
+`--stream` (env `BACKUP__STREAM=true`) pipes the dump of every database
+straight into the upload, so no dump file is written to the local disk and no
+temp space is required. The backup is stored as a single `<timestamp>.sql.gz`
+artifact; the restore writes the same per-database `.sql` files as a regular
+logical backup. Supported by the logical backup method only.
+
 Minimal (env-only):
 
 ```shell
@@ -126,7 +143,7 @@ Preview with `--dry-run` before deleting.
 ## Requirements
 
 - **External binaries**: `mariadb-backup` or `mariadb-dump` — available via PATH or configured full path; `pigz` (or `gzip`), `tar` — must be in PATH
-- **Temp space**: ~2× database size in `$TMPDIR` (default `/tmp`)
+- **Temp space**: ~2× database size in `$TMPDIR` (default `/tmp`) — not needed for a streamed logical backup (`--stream`)
 - **Storage**: S3 (AWS SDK v2 — reads `AWS_*` env vars), FTP, or local `file://` URL
 
 ## Encryption (optional)

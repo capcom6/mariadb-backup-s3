@@ -93,3 +93,24 @@ jobs:
       backup_method: mariadb-dump
     retention:
       max_count: 7
+
+  # ---------------------------------------------------------------------------
+  # Daily streamed logical backup (mariadb-dump)
+  # Pipes the dumps straight to storage: no dump file is written to the local
+  # disk, so no temp space is required. Stored as a single <timestamp>.sql.gz.
+  # ---------------------------------------------------------------------------
+  - name: daily-streamed-logical-backup
+    schedule: "0 5 * * *"
+    command: backup
+    timeout: 4h
+    stream: true
+    storage:
+      url: s3://my-bucket/backups?endpoint=https://s3.custom.com
+    mariadb:
+      host: localhost
+      port: 3306
+      user: root
+      password: ${MARIADB__PASSWORD}
+      backup_method: mariadb-dump
+    retention:
+      max_count: 7

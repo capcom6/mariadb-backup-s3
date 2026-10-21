@@ -14,6 +14,7 @@ Config loaded from: CLI flags > env vars > `.env` file (in working directory).
 | `--db-backup-binary` | `MARIADB__BACKUP_BINARY` | auto-derived | Path to backup binary (auto-derived from `--backup-method` if not set) |
 | `--db-client-binary` | `MARIADB__CLIENT_BINARY` | `mariadb` | Path to mariadb client binary (used to list databases for logical backup) |
 | `--db-backup-options` | `MARIADB__BACKUP_OPTIONS` | `""` | Extra backup options (sanitized) |
+| `--stream` | `BACKUP__STREAM` | `false` | Stream a logical backup to storage, without writing dump files to disk (logical method only) |
 
 ## Storage
 
@@ -88,6 +89,13 @@ All optional. If none set, retention is skipped.
 
 Exactly one backup selector required: positional filename, `--latest`, or `--backup-id`.
 
+Backup artifacts:
+
+| Artifact | Produced by | Restored as |
+|---|---|---|
+| `<timestamp>.tar.gz` | physical and logical backups | extracted into the target directory |
+| `<timestamp>.sql.gz` | streamed logical backups (`--stream`) | one `<database>.sql` file per database |
+
 ## Logging (env vars only)
 
 | Env var | Values | Default |
@@ -105,6 +113,9 @@ MARIADB__PORT=3306
 MARIADB__USER=backup
 MARIADB__PASSWORD=secret
 MARIADB__BACKUP_METHOD=mariadb-backup
+
+# Stream a logical backup to storage, without writing dump files to disk
+BACKUP__STREAM=false
 
 STORAGE__URL=s3://my-bucket/backups?endpoint=https://s3.eu-west-1.amazonaws.com
 

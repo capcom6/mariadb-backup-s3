@@ -64,6 +64,7 @@ MariaDB Backup to S3 is a CLI tool that backs up MariaDB databases, compresses t
 
 - Compress backups with pigz (parallel gzip)
 - Optional AES-256-GCM client-side encryption
+- Stream logical backups straight to storage, without writing dump files to disk
 - Multiple storage backends: S3-compatible, FTP, filesystem
 - Automatic backup rotation with configurable retention policies
 - Backup registry for tracking and managing backups
@@ -90,7 +91,7 @@ MariaDB Backup to S3 is a CLI tool that backs up MariaDB databases, compresses t
 - MariaDB server with `mariadb-backup` (for physical) or `mariadb-dump` (for logical) available in PATH, and `mariadb` client binary for listing databases (logical backup only)
 - `pigz` in PATH
 - `tar` in PATH
-- At least 2x the database size in free temp space
+- At least 2x the database size in free temp space (not needed when streaming a logical backup with `--stream`)
 - Storage backend credentials (depending on chosen storage type)
 
 ### Installation
@@ -169,6 +170,8 @@ mariadb-backup-s3 backup [options]
 | `--keep-weekly`               | `RETENTION__KEEP_WEEKLY`  | Number of weekly backups to keep                           | `0` (disabled)                      |
 | `--keep-monthly`              | `RETENTION__KEEP_MONTHLY` | Number of monthly backups to keep                          | `0` (disabled)                      |
 | `--skip-retention`            | `BACKUP__SKIP_RETENTION`  | Skip retention policy after backup                         | `false`                             |
+| **Backup mode**               |                           |                                                            |                                     |
+| `--stream`                    | `BACKUP__STREAM`          | Stream a logical backup to storage, without dump files     | `false`                             |
 
 **Physical backup example:**
 
@@ -193,6 +196,22 @@ mariadb-backup-s3 backup \
 
 By default `mariadb-dump` locks tables per database using `READ LOCAL` locks, so concurrent inserts into non-transactional tables (e.g. MyISAM/Aria) may still occur while a table is dumped, and cross-database consistency is not guaranteed. Each database is dumped in a separate invocation, so the generated `.sql` files are not point-in-time consistent with each other; as a result, logical (`mariadb-dump`) backups do not provide a global snapshot of all databases. The virtual schemas `information_schema` and `performance_schema` are skipped. For non-blocking dumps (InnoDB only), use `--db-backup-options="--single-transaction"`, accepting that non-transactional tables are then not guaranteed consistent.
 
+**Streamed logical backup:**
+
+With `--stream`, the dump of every database is piped straight into the upload: no dump file is written to the local disk, so no temp space is required. The backup is stored as a single `<timestamp>.sql.gz` artifact, and the restore writes the same per-database `.sql` files as a regular logical backup.
+
+```sh
+mariadb-backup-s3 backup \
+  --backup-method=mariadb-dump \
+  --stream \
+  --db-host=mariadb.example.com \
+  --db-user=backup \
+  --storage-url="s3://my-bucket/backups"
+```
+
+> **Note**
+> `--stream` is supported by the logical backup method only; combining it with `--backup-method=mariadb-backup` is rejected.
+
 **Environment-only (minimal):**
 
 ```sh
@@ -212,7 +231,7 @@ mariadb-backup-s3
 ### Restore
 
 ```sh
-mariadb-backup-s3 restore [options] [backup_name.tar.gz | --latest | --backup-id=<id>]
+mariadb-backup-s3 restore [options] [backup_name.tar.gz | backup_name.sql.gz | --latest | --backup-id=<id>]
 ```
 
 Exactly one backup selector must be specified: a filename argument, `--latest`, or `--backup-id`.
@@ -245,6 +264,10 @@ mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
 
 mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
   --target-dir=/tmp/restore \
+  2026-07-03-12-00-00.sql.gz  # streamed logical backup
+
+mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
+  --target-dir=/tmp/restore \
   2026-07-03-12-00-00.tar.gz.enc  # .enc suffix for encrypted backups
 
 mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
@@ -258,6 +281,7 @@ mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
 > mariadb-backup-s3 restore --storage-url="s3://bucket/path" --target-dir=/tmp/restore --latest
 > mariadb -u root -p < /tmp/restore/mydb.sql
 > ```
+> A streamed logical backup (`.sql.gz`) restores to the same per-database `.sql` files.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -396,6 +420,23 @@ jobs:
       backup_method: mariadb-backup
     retention:
       max_count: 7
+```
+
+Set `stream: true` on a job to stream a logical backup to storage, without writing dump files to the local disk:
+
+```yaml
+jobs:
+  - name: nightly-logical-backup
+    schedule: "0 2 * * *"
+    command: backup
+    stream: true
+    storage:
+      url: s3://my-bucket/backups
+    mariadb:
+      host: localhost
+      user: root
+      password: ${MARIADB__PASSWORD}
+      backup_method: mariadb-dump
 ```
 
 ```sh

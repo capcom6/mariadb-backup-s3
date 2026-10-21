@@ -14,7 +14,7 @@ examples/scheduler/
 
 To ensure successful scheduled backups:
 
-- At least 2x the actual database size in free space available
+- At least 2x the actual database size in free space available (not needed for a streamed logical backup, see [Streaming Configuration](#streaming-configuration))
 - Valid scheduler configuration (see `config.yaml`)
 - Proper file permissions for the state file location
 
@@ -153,6 +153,7 @@ jobs:
     schedule: "0 2 * * *"  # cron expression
     command: backup or retention
     timeout: 4h
+    stream: true  # optional: stream a logical backup, without local dump files
     storage:
       url: s3://bucket/path
     mariadb:
@@ -235,6 +236,17 @@ mariadb:
 | `backup_options` | Additional mariabackup command-line options | empty            |
 
 See the [backup command documentation](../README.md#backup) for all options.
+
+### Streaming Configuration
+
+```yaml
+stream: true
+```
+
+Set `stream: true` on a job to stream a logical backup to storage, without writing dump files to the local
+disk: no temp space is required. The backup is stored as a single `<timestamp>.sql.gz` artifact, and the
+restore writes the same per-database `.sql` files as a regular logical backup. Supported by the logical
+backup method (`backup_method: mariadb-dump`) only.
 
 ### Encryption Configuration
 
