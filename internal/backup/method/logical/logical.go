@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -18,6 +19,9 @@ import (
 )
 
 const MethodName = "mariadb-dump"
+
+// logFieldDatabase is the log field carrying the name of the dumped database.
+const logFieldDatabase = "database"
 
 // Method implements method.Method for mariadb-dump (logical/SQL backup).
 type Method struct {
@@ -48,6 +52,10 @@ func (m *Method) ArtifactExtension() string {
 // Note: each database is dumped in its own mariadb-dump invocation, so the
 // resulting .sql files are not point-in-time consistent across databases.
 func (m *Method) Backup(ctx context.Context, tempdir string, logger logging.Logger) error {
+	if m.config.Stream {
+		return fmt.Errorf("%w: file-based backup is disabled in streaming mode", ErrInvalidMode)
+	}
+
 	logger.Info(ctx, "Stage 1: Dump")
 	start := time.Now()
 	defer func() {
@@ -68,6 +76,42 @@ func (m *Method) Backup(ctx context.Context, tempdir string, logger logging.Logg
 
 	for _, db := range databases {
 		if dumpErr := m.dumpDatabase(ctx, tempdir, db, logger); dumpErr != nil {
+			return fmt.Errorf("failed to dump database %q: %w", db, dumpErr)
+		}
+	}
+
+	return nil
+}
+
+// Stream writes the dump of every database to w, each dump preceded by a
+// marker line naming its database. No files are written to disk.
+// Note: each database is dumped in its own mariadb-dump invocation, so the
+// resulting dumps are not point-in-time consistent across databases.
+func (m *Method) Stream(ctx context.Context, w io.Writer, logger logging.Logger) error {
+	if !m.config.Stream {
+		return fmt.Errorf("%w: streaming is disabled for this method", ErrInvalidMode)
+	}
+
+	logger.Info(ctx, "Stage 1: Dump")
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start)
+		logger.Info(ctx, "Stage 1 completed", logging.Fields{
+			"duration": duration.String(),
+		})
+	}()
+
+	databases, err := m.listDatabases(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list databases: %w", err)
+	}
+
+	logger.Info(ctx, "Databases found", logging.Fields{
+		"count": strconv.Itoa(len(databases)),
+	})
+
+	for _, db := range databases {
+		if dumpErr := m.streamDatabase(ctx, w, db, logger); dumpErr != nil {
 			return fmt.Errorf("failed to dump database %q: %w", db, dumpErr)
 		}
 	}
@@ -183,8 +227,46 @@ func (m *Method) listDatabases(ctx context.Context) ([]string, error) {
 }
 
 func (m *Method) dumpDatabase(ctx context.Context, tempdir string, db string, logger logging.Logger) error {
-	logger.Info(ctx, "Dumping database", logging.Fields{"database": db})
+	logger.Info(ctx, "Dumping database", logging.Fields{logFieldDatabase: db})
 
+	outFile, err := os.Create(filepath.Join(tempdir, db+".sql"))
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer func() {
+		if closeErr := outFile.Close(); closeErr != nil {
+			logger.Error(ctx, "Failed to close output file", closeErr, logging.Fields{
+				logFieldDatabase: db,
+			})
+		}
+	}()
+
+	if dumpErr := m.dumpDatabaseTo(ctx, outFile, db); dumpErr != nil {
+		return dumpErr
+	}
+
+	return nil
+}
+
+// streamDatabase writes the dump of a single database to w, preceded by the
+// marker line that names the database.
+func (m *Method) streamDatabase(ctx context.Context, w io.Writer, db string, logger logging.Logger) error {
+	logger.Info(ctx, "Dumping database", logging.Fields{logFieldDatabase: db})
+
+	if markerErr := sqlstream.WriteMarker(w, db); markerErr != nil {
+		return fmt.Errorf("failed to write database marker: %w", markerErr)
+	}
+
+	if dumpErr := m.dumpDatabaseTo(ctx, w, db); dumpErr != nil {
+		return dumpErr
+	}
+
+	return nil
+}
+
+// dumpDatabaseTo runs mariadb-dump for a single database and writes the SQL
+// to w.
+func (m *Method) dumpDatabaseTo(ctx context.Context, w io.Writer, db string) error {
 	connArgs, err := m.connectionArgs()
 	if err != nil {
 		return err
@@ -204,19 +286,7 @@ func (m *Method) dumpDatabase(ctx context.Context, tempdir string, db string, lo
 	args = append(args, connArgs...)
 	args = append(args, dumpArgs...)
 
-	outFile, err := os.Create(filepath.Join(tempdir, db+".sql"))
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
-	}
-	defer func() {
-		if closeErr := outFile.Close(); closeErr != nil {
-			logger.Error(ctx, "Failed to close output file", closeErr, logging.Fields{
-				"database": db,
-			})
-		}
-	}()
-
-	if execErr := exec.Run(ctx, args, map[string]string{"MYSQL_PWD": m.config.Password}, outFile); execErr != nil {
+	if execErr := exec.Run(ctx, args, map[string]string{"MYSQL_PWD": m.config.Password}, w); execErr != nil {
 		return fmt.Errorf("mariadb-dump failed: %w", execErr)
 	}
 
