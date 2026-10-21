@@ -61,6 +61,11 @@ func Command() *cli.Command {
 			Usage:   "skip retention policy",
 			Sources: cli.EnvVars("BACKUP__SKIP_RETENTION"),
 		},
+		&cli.BoolFlag{
+			Name:    "stream",
+			Usage:   "stream the logical backup to storage, without writing dump files to disk",
+			Sources: cli.EnvVars("BACKUP__STREAM"),
+		},
 	)
 
 	return &cli.Command{

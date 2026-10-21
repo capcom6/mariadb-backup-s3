@@ -39,6 +39,9 @@ func parseConfig(cmd *cli.Command) (backup.Config, error) {
 	// Configure encryption
 	cfg.Encryption.EncryptionKey = cmd.String("encryption-key")
 
+	// Configure the backup mode
+	cfg.Stream = cmd.Bool("stream")
+
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {
 		return backup.Config{}, fmt.Errorf("failed to parse backup configuration: %w", err)
