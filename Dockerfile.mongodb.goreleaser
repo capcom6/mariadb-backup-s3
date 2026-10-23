@@ -1,0 +1,35 @@
+FROM ubuntu:24.04
+
+ARG TARGETPLATFORM
+ARG BINARY_NAME
+# Pinned MongoDB Database Tools version (mongodump/mongorestore).
+ARG MONGODB_TOOLS_VERSION=100.19.1
+
+# Install pigz, ca-certificates and curl; download MongoDB Database Tools.
+# The tools are downloaded as a tgz for the target architecture; the ubuntu2204
+# builds link against glibc <= 2.35, so they run on the Ubuntu 24.04 base for
+# both linux/amd64 and linux/arm64.
+RUN set -eux; \
+	case "${TARGETPLATFORM}" in \
+		linux/amd64) tools_arch="x86_64" ;; \
+		linux/arm64) tools_arch="arm64" ;; \
+		*) echo "unsupported TARGETPLATFORM: ${TARGETPLATFORM}" >&2; exit 1 ;; \
+	esac; \
+	tools_dir="mongodb-database-tools-ubuntu2204-${tools_arch}-${MONGODB_TOOLS_VERSION}"; \
+	apt-get update; \
+	apt-get install -y --no-install-recommends pigz ca-certificates curl; \
+	curl -fsSL "https://fastdl.mongodb.org/tools/db/${tools_dir}.tgz" -o /tmp/mongodb-database-tools.tgz; \
+	tar -xzf /tmp/mongodb-database-tools.tgz -C /tmp; \
+	install -m 0755 "/tmp/${tools_dir}/bin/mongodump" /usr/local/bin/mongodump; \
+	install -m 0755 "/tmp/${tools_dir}/bin/mongorestore" /usr/local/bin/mongorestore; \
+	rm -rf /tmp/mongodb-database-tools.tgz "/tmp/${tools_dir}"; \
+	rm -rf /var/lib/apt/lists/*
+
+# Set the Current Working Directory inside the container
+WORKDIR /app
+
+# Copy the Pre-built binary file from GoReleaser
+COPY $TARGETPLATFORM/$BINARY_NAME ./app
+
+# Command to run the executable
+ENTRYPOINT ["./app"]

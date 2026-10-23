@@ -8,6 +8,10 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+// defaultMongoAuthSource is the MongoDB authentication database used when
+// --mongo-auth-source is not provided.
+const defaultMongoAuthSource = "admin"
+
 func parseConfig(cmd *cli.Command) (backup.Config, error) {
 	cfg := backup.DefaultConfig()
 
@@ -90,5 +94,9 @@ func applyMongoDBFlags(cmd *cli.Command, db *config.Database) {
 		TLS:                   cmd.Bool("mongo-tls"),
 		TLSCAFile:             cmd.String("mongo-tls-ca-file"),
 		TLSCertificateKeyFile: cmd.String("mongo-tls-certificate-key-file"),
+	}
+
+	if db.Engine == config.EngineMongoDB && db.MongoDB.AuthSource == "" {
+		db.MongoDB.AuthSource = defaultMongoAuthSource
 	}
 }

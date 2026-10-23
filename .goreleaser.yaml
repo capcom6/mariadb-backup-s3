@@ -57,6 +57,28 @@ dockers_v2:
     build_args:
       BINARY_NAME: "{{ .ProjectName }}"
 
+  - id: mongodb
+    dockerfile: Dockerfile.mongodb.goreleaser
+    images:
+      - "{{ .Env.DOCKER_REGISTRY }}/mongodb-backup-s3"
+    tags:
+      - "{{ .Tag }}"
+      - "v{{ .Major }}"
+      - "v{{ .Major }}.{{ .Minor }}"
+      - "latest"
+    labels:
+      "org.opencontainers.image.created": "{{ .Date }}"
+      "org.opencontainers.image.title": "{{ .ProjectName }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.name": "{{ .Env.DOCKER_REGISTRY }}/mongodb-backup-s3"
+      "org.opencontainers.image.source": "{{ .GitURL }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    build_args:
+      BINARY_NAME: "{{ .ProjectName }}"
+
 changelog:
   sort: asc
   filters:

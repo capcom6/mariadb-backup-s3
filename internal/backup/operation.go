@@ -14,6 +14,7 @@ import (
 
 	"github.com/capcom6/mariadb-backup-s3/internal/backup/method"
 	"github.com/capcom6/mariadb-backup-s3/internal/backup/method/logical"
+	"github.com/capcom6/mariadb-backup-s3/internal/backup/method/mongodb"
 	"github.com/capcom6/mariadb-backup-s3/internal/backup/method/physical"
 	"github.com/capcom6/mariadb-backup-s3/internal/config"
 	"github.com/capcom6/mariadb-backup-s3/internal/encryption"
@@ -75,7 +76,7 @@ func newMethod(database config.Database) (method.Method, error) {
 	case config.EngineMariaDB:
 		return newMariaDBMethod(database)
 	case config.EngineMongoDB:
-		return nil, fmt.Errorf("%w: %q", ErrEngineNotImplemented, database.Engine)
+		return newMongoDBMethod(database)
 	default:
 		return nil, fmt.Errorf("%w: %q", config.ErrInvalidEngine, database.Engine)
 	}
@@ -100,6 +101,24 @@ func newMariaDBMethod(database config.Database) (method.Method, error) {
 	default:
 		return nil, fmt.Errorf("%w: %q", config.ErrInvalidBackupMethod, database.BackupMethod)
 	}
+}
+
+func newMongoDBMethod(database config.Database) (method.Method, error) {
+	if database.BackupMethod != config.BackupMethodMongoDB {
+		return nil, fmt.Errorf("%w: %q", config.ErrInvalidBackupMethod, database.BackupMethod)
+	}
+
+	mConfig := mongodb.Config{
+		Host:          database.Host,
+		Port:          database.Port,
+		User:          database.User,
+		Password:      database.Password,
+		BackupOptions: database.BackupOptions,
+		BackupBinary:  database.BackupBinary,
+		MongoDB:       database.MongoDB,
+	}
+
+	return mongodb.New(mConfig), nil
 }
 
 func (o *Operation) Run(ctx context.Context) error {

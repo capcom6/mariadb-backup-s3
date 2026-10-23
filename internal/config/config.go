@@ -147,13 +147,14 @@ func (d Database) validateBinaries() error {
 		return fmt.Errorf("%w for engine %q", ErrBackupBinaryRequired, d.Engine)
 	}
 
-	if d.Engine == EngineMongoDB {
-		// MongoDB binaries are validated when the backup method is implemented.
-		return nil
-	}
-
 	if _, err := exec.LookPath(d.BackupBinary); err != nil {
 		return fmt.Errorf("binary '%s' not found in PATH: %w", d.BackupBinary, err)
+	}
+
+	if d.Engine == EngineMongoDB {
+		// RestoreBinary is intentionally not validated here; the restore
+		// command validates it when restore support needs it.
+		return nil
 	}
 
 	if d.IsLogical() {

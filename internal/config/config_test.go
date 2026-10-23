@@ -188,8 +188,34 @@ func TestDatabase_Validate_MethodEngineMismatch(t *testing.T) {
 }
 
 func TestDatabase_Validate_MongoDBDefaults(t *testing.T) {
-	cfg := config.Database{Engine: config.EngineMongoDB}
+	exe, err := os.Executable()
+	require.NoError(t, err)
+
+	cfg := config.Database{Engine: config.EngineMongoDB, BackupBinary: exe}
+	err = cfg.Validate()
+	assert.NoError(t, err)
+}
+
+func TestDatabase_Validate_MongoDBBackupBinaryNotFound(t *testing.T) {
+	cfg := config.Database{
+		Engine:       config.EngineMongoDB,
+		BackupBinary: "nonexistent-binary-12345",
+	}
 	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not found in PATH")
+}
+
+func TestDatabase_Validate_MongoDBRestoreBinaryNotRequired(t *testing.T) {
+	exe, err := os.Executable()
+	require.NoError(t, err)
+
+	cfg := config.Database{
+		Engine:        config.EngineMongoDB,
+		BackupBinary:  exe,
+		RestoreBinary: "nonexistent-restore-binary-12345",
+	}
+	err = cfg.Validate()
 	assert.NoError(t, err)
 }
 
