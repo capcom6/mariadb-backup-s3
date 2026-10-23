@@ -184,9 +184,13 @@ func (m *Method) hostPortUserArgs() []string {
 func (m *Method) serverArgs(info uriInfo) []string {
 	args := []string{}
 
-	// Skip --authenticationDatabase when the URI already carries authSource;
-	// mongodump rejects conflicting values.
-	if auth := m.config.MongoDB.AuthSource; auth != "" && (!info.set || !info.hasAuthSource) {
+	// Only pass --authenticationDatabase when there is a principal to
+	// authenticate: without a username it makes mongodump attempt SCRAM
+	// authentication and fail against servers that do not require auth.
+	// Skip it when the URI already carries authSource; mongodump rejects
+	// conflicting values.
+	hasPrincipal := info.hasCredentials || (!info.set && m.config.User != "")
+	if auth := m.config.MongoDB.AuthSource; auth != "" && hasPrincipal && (!info.set || !info.hasAuthSource) {
 		args = append(args, "--authenticationDatabase="+auth)
 	}
 	if m.config.MongoDB.TLS {

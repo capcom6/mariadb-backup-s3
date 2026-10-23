@@ -305,6 +305,31 @@ func TestBackup_TLSFlags(t *testing.T) {
 	}, args)
 }
 
+func TestBackup_DefaultAuthSourceWithoutUserOmitsAuthenticationDatabase(t *testing.T) {
+	fake := installFakeMongodump(t)
+	tempdir := t.TempDir()
+
+	// The CLI defaults AuthSource to "admin" for engine mongodb even when no
+	// username is configured; without a principal the flag must be omitted or
+	// mongodump fails SCRAM handshake against an auth-less server.
+	m := mongodb.New(mongodb.Config{
+		Host:         "localhost",
+		Port:         27017,
+		BackupBinary: "mongodump",
+		MongoDB:      config.MongoDB{AuthSource: "admin"},
+	})
+
+	err := m.Backup(context.Background(), tempdir, logging.NewTestLogger())
+	require.NoError(t, err)
+
+	args := readFakeArgs(t, fake)
+	assert.Equal(t, []string{
+		"--host=localhost",
+		"--port=27017",
+		"--out=" + tempdir,
+	}, args)
+}
+
 func TestBackup_InvalidBackupOptionsRejectedBeforeExec(t *testing.T) {
 	fake := installFakeMongodump(t)
 	tempdir := t.TempDir()
