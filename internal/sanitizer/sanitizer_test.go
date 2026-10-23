@@ -52,6 +52,11 @@ func TestSanitizeOptions(t *testing.T) {
 			options:     "parallel=4",
 			expectError: true,
 		},
+		{
+			name:        "Restore option with namespace glob pattern",
+			options:     "--nsInclude=appdb.* --drop",
+			expectError: false,
+		},
 	}
 
 	for _, tt := range tests {

@@ -9,7 +9,20 @@ const categoryDatabase = "Database"
 
 func Database() []cli.Flag {
 	fl := databaseConnectionFlags()
+	fl = append(fl, databaseBackupOptionFlags()...)
+	fl = append(fl, databaseRestoreFlags()...)
 	fl = append(fl, databaseBinaryFlags()...)
+	fl = append(fl, mongoDBFlags()...)
+
+	return fl
+}
+
+// DatabaseRestore returns the database flags the restore command needs:
+// engine, connection, restore options and binary, and MongoDB settings.
+// Backup-only flags are intentionally excluded.
+func DatabaseRestore() []cli.Flag {
+	fl := databaseConnectionFlags()
+	fl = append(fl, databaseRestoreFlags()...)
 	fl = append(fl, mongoDBFlags()...)
 
 	return fl
@@ -55,17 +68,34 @@ func databaseConnectionFlags() []cli.Flag {
 			Sources:  cli.EnvVars("DB__PASSWORD", "MARIADB__PASSWORD"),
 			Category: categoryDatabase,
 		},
+	}
+}
+
+func databaseBackupOptionFlags() []cli.Flag {
+	return []cli.Flag{
 		&cli.StringFlag{
 			Name:     "db-backup-options",
 			Usage:    "database backup tool additional options",
 			Sources:  cli.EnvVars("DB__BACKUP_OPTIONS", "MARIADB__BACKUP_OPTIONS"),
 			Category: categoryDatabase,
 		},
+	}
+}
+
+func databaseRestoreFlags() []cli.Flag {
+	return []cli.Flag{
 		&cli.StringFlag{
 			Name:     "db-restore-options",
 			Usage:    "database restore tool additional options",
 			Sources:  cli.EnvVars("DB__RESTORE_OPTIONS"),
 			Category: categoryDatabase,
+		},
+		&cli.StringFlag{
+			Name:        "db-restore-binary",
+			Usage:       "restore binary path",
+			DefaultText: "engine default",
+			Sources:     cli.EnvVars("DB__RESTORE_BINARY"),
+			Category:    categoryDatabase,
 		},
 	}
 }
@@ -84,13 +114,6 @@ func databaseBinaryFlags() []cli.Flag {
 			Usage:       "client binary path for database discovery",
 			DefaultText: "engine default",
 			Sources:     cli.EnvVars("DB__CLIENT_BINARY", "MARIADB__CLIENT_BINARY"),
-			Category:    categoryDatabase,
-		},
-		&cli.StringFlag{
-			Name:        "db-restore-binary",
-			Usage:       "restore binary path",
-			DefaultText: "engine default",
-			Sources:     cli.EnvVars("DB__RESTORE_BINARY"),
 			Category:    categoryDatabase,
 		},
 		&cli.StringFlag{
