@@ -1,9 +1,12 @@
 package scheduler_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/capcom6/mariadb-backup-s3/internal/config"
+	"github.com/capcom6/mariadb-backup-s3/internal/logging"
 	"github.com/capcom6/mariadb-backup-s3/internal/scheduler"
 	"github.com/capcom6/mariadb-backup-s3/internal/scheduler/repository"
 	"github.com/stretchr/testify/assert"
@@ -241,4 +244,34 @@ func TestBuildDatabase_DatabaseSection_InvalidEngineRejectedAtValidate(t *testin
 	assert.Equal(t, "postgres", cfg.Engine)
 	err := cfg.Validate()
 	require.ErrorIs(t, err, config.ErrInvalidEngine)
+}
+
+// TestNew_WebhookSectionAbsent_Succeeds is the regression test for the E2E
+// crash: a config with jobs but no top-level webhook: section must construct
+// the scheduler (webhooks.NewService must not fail on an empty URL).
+func TestNew_WebhookSectionAbsent_Succeeds(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	statePath := filepath.Join(dir, "state.json")
+	cfgPath := filepath.Join(dir, "scheduler.yaml")
+
+	yamlConfig := "state_file: " + statePath + "\n" +
+		"jobs:\n" +
+		"  - name: mongo-backup\n" +
+		"    schedule: \"@daily\"\n" +
+		"    command: backup\n" +
+		"    database:\n" +
+		"      engine: mongodb\n" +
+		"    storage:\n" +
+		"      url: file://" + dir + "/backups/\n"
+	require.NoError(t, os.WriteFile(cfgPath, []byte(yamlConfig), 0o600))
+
+	sched, err := scheduler.New(scheduler.Config{
+		ConfigPath: cfgPath,
+		StatePath:  statePath,
+	}, logging.NewTestLogger())
+	require.NoError(t, err)
+	require.NotNil(t, sched)
+	require.NoError(t, sched.Close())
 }
