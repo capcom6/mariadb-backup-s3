@@ -163,6 +163,36 @@ func TestConfig_Validate(t *testing.T) {
 			},
 			wantErr: "",
 		},
+		{
+			name: "valid database section",
+			config: repository.Config{
+				Jobs: []repository.Job{
+					{
+						Name:     "mongo-job",
+						Schedule: "0 2 * * *",
+						Command:  "backup",
+						Storage:  repository.Storage{URL: "s3://bucket/path"},
+						Database: &repository.Database{Engine: "mongodb"},
+					},
+				},
+			},
+			wantErr: "",
+		},
+		{
+			name: "valid legacy mariadb section",
+			config: repository.Config{
+				Jobs: []repository.Job{
+					{
+						Name:     "legacy-job",
+						Schedule: "0 2 * * *",
+						Command:  "backup",
+						Storage:  repository.Storage{URL: "s3://bucket/path"},
+						MariaDB:  &repository.MariaDB{Host: "localhost"},
+					},
+				},
+			},
+			wantErr: "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -277,4 +307,114 @@ jobs:
 	require.Len(t, cfg.Jobs, 1)
 	require.NotNil(t, cfg.Jobs[0].MariaDB)
 	assert.Empty(t, cfg.Jobs[0].MariaDB.BackupMethod)
+}
+
+func TestConfig_YAML_DatabaseMongoDB(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `
+jobs:
+  - name: mongodb-backup
+    schedule: "0 2 * * *"
+    command: backup
+    storage:
+      url: "s3://bucket/path"
+    database:
+      engine: mongodb
+      host: mongo-1
+      port: 27017
+      user: backup
+      password: secret
+      backup_method: mongodump
+      backup_binary: /usr/bin/mongodump
+      client_binary: /usr/bin/mongosh
+      restore_binary: /usr/bin/mongorestore
+      backup_options: "--oplog"
+      restore_options: "--drop"
+      uri: "mongodb://mongo-1:27017"
+      auth_source: admin
+      tls: true
+      tls_ca_file: /etc/ssl/ca.pem
+      tls_certificate_key_file: /etc/ssl/client.pem
+`
+	var cfg repository.Config
+	err := yaml.Unmarshal([]byte(yamlData), &cfg)
+	require.NoError(t, err)
+	require.Len(t, cfg.Jobs, 1)
+
+	db := cfg.Jobs[0].Database
+	require.NotNil(t, db)
+	assert.Nil(t, cfg.Jobs[0].MariaDB)
+	assert.Equal(t, "mongodb", db.Engine)
+	assert.Equal(t, "mongo-1", db.Host)
+	assert.Equal(t, 27017, db.Port)
+	assert.Equal(t, "backup", db.User)
+	assert.Equal(t, "secret", db.Password)
+	assert.Equal(t, "mongodump", db.BackupMethod)
+	assert.Equal(t, "/usr/bin/mongodump", db.BackupBinary)
+	assert.Equal(t, "/usr/bin/mongosh", db.ClientBinary)
+	assert.Equal(t, "/usr/bin/mongorestore", db.RestoreBinary)
+	assert.Equal(t, "--oplog", db.BackupOptions)
+	assert.Equal(t, "--drop", db.RestoreOptions)
+	assert.Equal(t, "mongodb://mongo-1:27017", db.URI)
+	assert.Equal(t, "admin", db.AuthSource)
+	assert.True(t, db.TLS)
+	assert.Equal(t, "/etc/ssl/ca.pem", db.TLSCAFile)
+	assert.Equal(t, "/etc/ssl/client.pem", db.TLSCertificateKeyFile)
+}
+
+func TestConfig_YAML_DatabaseMariaDBEngine(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `
+jobs:
+  - name: logical-backup
+    schedule: "0 2 * * *"
+    command: backup
+    storage:
+      url: "s3://bucket/path"
+    database:
+      engine: mariadb
+      host: localhost
+      backup_method: mariadb-dump
+`
+	var cfg repository.Config
+	err := yaml.Unmarshal([]byte(yamlData), &cfg)
+	require.NoError(t, err)
+	require.Len(t, cfg.Jobs, 1)
+
+	db := cfg.Jobs[0].Database
+	require.NotNil(t, db)
+	assert.Nil(t, cfg.Jobs[0].MariaDB)
+	assert.Equal(t, "mariadb", db.Engine)
+	assert.Equal(t, "localhost", db.Host)
+	assert.Equal(t, "mariadb-dump", db.BackupMethod)
+	assert.False(t, db.TLS)
+	assert.Empty(t, db.URI)
+}
+
+func TestConfig_Validate_DatabaseAndMariaDBExclusive(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `
+jobs:
+  - name: conflicting-job
+    schedule: "0 2 * * *"
+    command: backup
+    storage:
+      url: "s3://bucket/path"
+    database:
+      engine: mongodb
+    mariadb:
+      host: localhost
+`
+	var cfg repository.Config
+	err := yaml.Unmarshal([]byte(yamlData), &cfg)
+	require.NoError(t, err)
+	require.Len(t, cfg.Jobs, 1)
+
+	verr := cfg.Validate()
+	require.Error(t, verr)
+	require.ErrorIs(t, verr, repository.ErrBothDatabaseSections)
+	assert.Contains(t, verr.Error(), "conflicting-job")
 }

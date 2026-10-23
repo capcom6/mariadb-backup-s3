@@ -7,6 +7,7 @@ import (
 	"github.com/capcom6/mariadb-backup-s3/internal/scheduler"
 	"github.com/capcom6/mariadb-backup-s3/internal/scheduler/repository"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBuildMariaDB_LogicalMethod_DefaultBinary(t *testing.T) {
@@ -59,4 +60,185 @@ func TestBuildMariaDB_NilMariaDB_UsesDefaults(t *testing.T) {
 	cfg := scheduler.BuildMariaDB(job)
 	assert.Equal(t, config.DefaultDatabase(config.EngineMariaDB).BackupBinary, cfg.BackupBinary)
 	assert.Equal(t, config.DefaultDatabase(config.EngineMariaDB).BackupMethod, cfg.BackupMethod)
+}
+
+func TestBuildDatabase_NoSections_Defaults(t *testing.T) {
+	t.Parallel()
+
+	cfg := scheduler.BuildDatabase(repository.Job{})
+
+	assert.Equal(t, config.DefaultDatabase(config.EngineMariaDB), cfg)
+}
+
+func TestBuildDatabase_LegacyMariaDB_EngineMariaDB(t *testing.T) {
+	t.Parallel()
+
+	job := repository.Job{
+		MariaDB: &repository.MariaDB{
+			Host:         "db-1",
+			BackupMethod: config.BackupMethodLogical,
+		},
+	}
+
+	cfg := scheduler.BuildDatabase(job)
+
+	assert.Equal(t, config.EngineMariaDB, cfg.Engine)
+	assert.Equal(t, "db-1", cfg.Host)
+	assert.Equal(t, config.BackupMethodLogical, cfg.BackupMethod)
+	assert.Equal(t, "mariadb-dump", cfg.BackupBinary)
+	assert.Equal(t, "mariadb", cfg.ClientBinary)
+	assert.Equal(t, 3306, cfg.Port)
+}
+
+func TestBuildDatabase_DatabaseSection_MongoDBFull(t *testing.T) {
+	t.Parallel()
+
+	job := repository.Job{
+		Database: &repository.Database{
+			Engine:                config.EngineMongoDB,
+			Host:                  "mongo-1",
+			Port:                  27017,
+			User:                  "backup",
+			Password:              "secret",
+			BackupMethod:          config.BackupMethodMongoDB,
+			BackupBinary:          "/opt/mongodb/bin/mongodump",
+			ClientBinary:          "/opt/mongodb/bin/mongosh",
+			RestoreBinary:         "/opt/mongodb/bin/mongorestore",
+			BackupOptions:         "--oplog",
+			RestoreOptions:        "--drop",
+			URI:                   "mongodb://mongo-1:27017",
+			AuthSource:            "admin",
+			TLS:                   true,
+			TLSCAFile:             "/etc/ssl/ca.pem",
+			TLSCertificateKeyFile: "/etc/ssl/client.pem",
+		},
+	}
+
+	cfg := scheduler.BuildDatabase(job)
+
+	assert.Equal(t, config.EngineMongoDB, cfg.Engine)
+	assert.Equal(t, "mongo-1", cfg.Host)
+	assert.Equal(t, 27017, cfg.Port)
+	assert.Equal(t, "backup", cfg.User)
+	assert.Equal(t, "secret", cfg.Password)
+	assert.Equal(t, config.BackupMethodMongoDB, cfg.BackupMethod)
+	assert.Equal(t, "/opt/mongodb/bin/mongodump", cfg.BackupBinary)
+	assert.Equal(t, "/opt/mongodb/bin/mongosh", cfg.ClientBinary)
+	assert.Equal(t, "/opt/mongodb/bin/mongorestore", cfg.RestoreBinary)
+	assert.Equal(t, "--oplog", cfg.BackupOptions)
+	assert.Equal(t, "--drop", cfg.RestoreOptions)
+	assert.Equal(t, config.MongoDB{
+		URI:                   "mongodb://mongo-1:27017",
+		AuthSource:            "admin",
+		TLS:                   true,
+		TLSCAFile:             "/etc/ssl/ca.pem",
+		TLSCertificateKeyFile: "/etc/ssl/client.pem",
+	}, cfg.MongoDB)
+}
+
+func TestBuildDatabase_DatabaseSection_MongoDBDefaults(t *testing.T) {
+	t.Parallel()
+
+	job := repository.Job{
+		Database: &repository.Database{Engine: config.EngineMongoDB},
+	}
+
+	cfg := scheduler.BuildDatabase(job)
+
+	assert.Equal(t, config.EngineMongoDB, cfg.Engine)
+	assert.Equal(t, 27017, cfg.Port)
+	assert.Equal(t, config.BackupMethodMongoDB, cfg.BackupMethod)
+	assert.Equal(t, "mongodump", cfg.BackupBinary)
+	assert.Equal(t, "mongorestore", cfg.RestoreBinary)
+	assert.Empty(t, cfg.MongoDB.URI)
+}
+
+func TestBuildDatabase_DatabaseSection_MongoDBAuthSourceDefault(t *testing.T) {
+	t.Parallel()
+
+	job := repository.Job{
+		Database: &repository.Database{
+			Engine: config.EngineMongoDB,
+			User:   "backup",
+		},
+	}
+
+	cfg := scheduler.BuildDatabase(job)
+
+	assert.Equal(t, "admin", cfg.MongoDB.AuthSource)
+}
+
+func TestBuildDatabase_DatabaseSection_MongoDBExplicitAuthSourcePreserved(t *testing.T) {
+	t.Parallel()
+
+	job := repository.Job{
+		Database: &repository.Database{
+			Engine:     config.EngineMongoDB,
+			User:       "backup",
+			AuthSource: "authdb",
+		},
+	}
+
+	cfg := scheduler.BuildDatabase(job)
+
+	assert.Equal(t, "authdb", cfg.MongoDB.AuthSource)
+}
+
+func TestBuildDatabase_MariaDBAuthSourceUnaffected(t *testing.T) {
+	t.Parallel()
+
+	legacy := scheduler.BuildDatabase(repository.Job{
+		MariaDB: &repository.MariaDB{User: "backup"},
+	})
+	section := scheduler.BuildDatabase(repository.Job{
+		Database: &repository.Database{Engine: config.EngineMariaDB, User: "backup"},
+	})
+
+	assert.Empty(t, legacy.MongoDB.AuthSource)
+	assert.Empty(t, section.MongoDB.AuthSource)
+}
+
+func TestBuildDatabase_DatabaseSection_MariaDBLogical(t *testing.T) {
+	t.Parallel()
+
+	job := repository.Job{
+		Database: &repository.Database{
+			Engine:       config.EngineMariaDB,
+			Host:         "db-1",
+			BackupMethod: config.BackupMethodLogical,
+		},
+	}
+
+	cfg := scheduler.BuildDatabase(job)
+
+	assert.Equal(t, config.EngineMariaDB, cfg.Engine)
+	assert.Equal(t, "db-1", cfg.Host)
+	assert.Equal(t, 3306, cfg.Port)
+	assert.Equal(t, config.BackupMethodLogical, cfg.BackupMethod)
+	assert.Equal(t, "mariadb-dump", cfg.BackupBinary)
+	assert.Equal(t, "mariadb", cfg.ClientBinary)
+	assert.Empty(t, cfg.MongoDB.URI)
+}
+
+func TestBuildDatabase_DatabaseSection_EmptyDefaultsToMariaDB(t *testing.T) {
+	t.Parallel()
+
+	job := repository.Job{Database: &repository.Database{}}
+
+	cfg := scheduler.BuildDatabase(job)
+
+	assert.Equal(t, config.EngineMariaDB, cfg.Engine)
+	assert.Equal(t, config.DefaultDatabase(config.EngineMariaDB), cfg)
+}
+
+func TestBuildDatabase_DatabaseSection_InvalidEngineRejectedAtValidate(t *testing.T) {
+	t.Parallel()
+
+	job := repository.Job{Database: &repository.Database{Engine: "postgres"}}
+
+	cfg := scheduler.BuildDatabase(job)
+
+	assert.Equal(t, "postgres", cfg.Engine)
+	err := cfg.Validate()
+	require.ErrorIs(t, err, config.ErrInvalidEngine)
 }

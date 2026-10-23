@@ -93,3 +93,31 @@ jobs:
       backup_method: mariadb-dump
     retention:
       max_count: 7
+
+  # ---------------------------------------------------------------------------
+  # Nightly MongoDB backup (database: section with engine)
+  # Runs every day at 5:00 AM UTC, dumps all databases with mongodump
+  # The legacy mariadb: section stays supported; a job must not set both.
+  # ---------------------------------------------------------------------------
+  - name: nightly-mongodb-backup
+    schedule: "0 5 * * *"
+    command: backup
+    timeout: 4h
+    storage:
+      url: s3://my-bucket/backups?endpoint=https://s3.custom.com
+    database:
+      engine: mongodb
+      host: localhost
+      port: 27017
+      user: backup
+      password: ${MONGODB__PASSWORD}
+      auth_source: admin
+      # backup_method: mongodump        # default for engine mongodb
+      # backup_binary: mongodump        # default for backup_method mongodump
+      # restore_binary: mongorestore    # default for engine mongodb
+      # uri: mongodb://localhost:27017  # alternative to host/port
+      # tls: true
+      # tls_ca_file: /etc/ssl/ca.pem
+      # tls_certificate_key_file: /etc/ssl/client.pem
+    retention:
+      max_count: 7

@@ -236,6 +236,50 @@ mariadb:
 
 See the [backup command documentation](../README.md#backup) for all options.
 
+### MongoDB Backup Example (`database:` section)
+
+The `database:` section supports both engines through `engine` and replaces the legacy `mariadb:` section (which remains supported as an alias for `engine: mariadb`). A job must not set both sections.
+
+```yaml
+jobs:
+  - name: nightly-mongodb-backup
+    schedule: "0 5 * * *"
+    command: backup
+    timeout: 4h
+    storage:
+      url: s3://my-bucket/backups?endpoint=https://s3.custom.com
+    database:
+      engine: mongodb            # mariadb (default) or mongodb
+      host: localhost
+      port: 27017
+      user: backup
+      password: ${MONGODB__PASSWORD}
+      backup_method: mongodump   # default for engine mongodb
+      auth_source: admin
+      # uri: mongodb://localhost:27017   # alternative to host/port
+      # tls: true
+      # tls_ca_file: /etc/ssl/ca.pem
+      # tls_certificate_key_file: /etc/ssl/client.pem
+    retention:
+      max_count: 7
+```
+
+**Options:**
+
+| Option                    | Description                                          | Default (mariadb / mongodb) |
+| ------------------------- | ---------------------------------------------------- | --------------------------- |
+| `engine`                  | Database engine: `mariadb` or `mongodb`              | `mariadb`                   |
+| `host` / `port` / `user` / `password` | Connection settings                         | engine-specific defaults     |
+| `backup_method`           | `mariadb-backup`, `mariadb-dump`, or `mongodump`     | per engine                  |
+| `backup_binary` / `client_binary` / `restore_binary` | Tool paths; omitted keys use built-in defaults | per method/engine |
+| `backup_options` / `restore_options` | Extra command-line options                | empty                       |
+| `uri`                     | MongoDB connection URI (alternative to host/port)    | empty                       |
+| `auth_source`             | MongoDB authentication database                      | empty                       |
+| `tls`                     | Enable MongoDB TLS                                   | `false`                     |
+| `tls_ca_file` / `tls_certificate_key_file` | MongoDB TLS material files             | empty                       |
+
+> **Note:** `restore_binary` supplies `mongorestore` for MongoDB restores. MariaDB restore stays extract-only, so `restore_binary` is unused for MariaDB.
+
 ### Encryption Configuration
 
 ```yaml
