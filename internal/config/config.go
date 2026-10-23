@@ -15,6 +15,10 @@ const (
 	BackupMethodPhysical = "mariadb-backup"
 	BackupMethodLogical  = "mariadb-dump"
 	BackupMethodMongoDB  = "mongodump"
+
+	// defaultMongoAuthSource is the MongoDB authentication database applied
+	// when engine is mongodb and no auth source was provided (CLI parity).
+	defaultMongoAuthSource = "admin"
 )
 
 var (
@@ -82,6 +86,9 @@ func (d Database) Normalize() Database {
 	}
 	if d.RestoreBinary == "" {
 		d.RestoreBinary = defaults.RestoreBinary
+	}
+	if d.Engine == EngineMongoDB && d.MongoDB.AuthSource == "" {
+		d.MongoDB.AuthSource = defaultMongoAuthSource
 	}
 
 	return d

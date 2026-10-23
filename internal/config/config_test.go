@@ -103,6 +103,36 @@ func TestDatabase_Normalize_PreservesExplicitValues(t *testing.T) {
 	assert.Equal(t, "/opt/mongorestore", cfg.RestoreBinary)
 }
 
+// TestDatabase_Normalize_MongoDBAuthSourceDefault mirrors the CLI parse path
+// (DefaultDatabase -> flag-derived MongoDB struct overwrite -> Normalize) to
+// prove the AuthSource default matches the CLI condition: engine mongodb with
+// an unset value becomes "admin", explicit values and non-mongodb engines are
+// left untouched.
+func TestDatabase_Normalize_MongoDBAuthSourceDefault(t *testing.T) {
+	tests := []struct {
+		name   string
+		engine string
+		in     string
+		want   string
+	}{
+		{name: "mongodb unset defaults to admin", engine: config.EngineMongoDB, in: "", want: "admin"},
+		{name: "mongodb explicit preserved", engine: config.EngineMongoDB, in: "authdb", want: "authdb"},
+		{name: "mariadb unset stays empty", engine: config.EngineMariaDB, in: "", want: ""},
+		{name: "empty engine stays empty", engine: "", in: "", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := config.DefaultDatabase(tt.engine)
+			db.MongoDB = config.MongoDB{AuthSource: tt.in}
+
+			cfg := db.Normalize()
+
+			assert.Equal(t, tt.want, cfg.MongoDB.AuthSource)
+		})
+	}
+}
+
 func TestDatabase_Validate_BinaryFound(t *testing.T) {
 	exe, err := os.Executable()
 	require.NoError(t, err)
