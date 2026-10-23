@@ -318,9 +318,9 @@ func (s *Scheduler) executeBackup(
 	jobLogger logging.Logger,
 ) error {
 	cfg := backup.Config{
-		Version: "",
-		MariaDB: s.buildMariaDB(job),
-		Storage: config.Storage{URL: job.Storage.URL},
+		Version:  "",
+		Database: s.buildDatabase(job),
+		Storage:  config.Storage{URL: job.Storage.URL},
 		Encryption: config.Encryption{
 			EncryptionKey: job.EncryptionKey(),
 		},
@@ -330,7 +330,10 @@ func (s *Scheduler) executeBackup(
 		return fmt.Errorf("validate backup config: %w", err)
 	}
 
-	op := backup.NewOperation(cfg, registrySvc, storageSvc, jobLogger)
+	op, opErr := backup.NewOperation(cfg, registrySvc, storageSvc, jobLogger)
+	if opErr != nil {
+		return fmt.Errorf("create backup operation: %w", opErr)
+	}
 	if runErr := op.Run(ctx); runErr != nil {
 		return fmt.Errorf("backup failed: %w", runErr)
 	}
@@ -387,8 +390,8 @@ func (s *Scheduler) executeRetention(
 	return nil
 }
 
-func (s *Scheduler) buildMariaDB(job repository.Job) config.MariaDB {
-	cfg := config.DefaultMariaDB()
+func (s *Scheduler) buildDatabase(job repository.Job) config.Database {
+	cfg := config.DefaultDatabase(config.EngineMariaDB)
 
 	if job.MariaDB == nil {
 		return cfg
@@ -414,7 +417,7 @@ func (s *Scheduler) buildMariaDB(job repository.Job) config.MariaDB {
 	if m.BackupBinary != "" {
 		cfg.BackupBinary = m.BackupBinary
 	} else {
-		cfg.BackupBinary = defaultBinaryForMethod(cfg.BackupMethod)
+		cfg.BackupBinary = config.DefaultBackupBinary(cfg.Engine, cfg.BackupMethod)
 	}
 	if m.ClientBinary != "" {
 		cfg.ClientBinary = m.ClientBinary
@@ -423,14 +426,5 @@ func (s *Scheduler) buildMariaDB(job repository.Job) config.MariaDB {
 		cfg.BackupOptions = m.BackupOptions
 	}
 
-	return cfg
-}
-
-func defaultBinaryForMethod(method string) string {
-	switch method {
-	case config.BackupMethodLogical:
-		return "mariadb-dump"
-	default:
-		return "mariadb-backup"
-	}
+	return cfg.Normalize()
 }

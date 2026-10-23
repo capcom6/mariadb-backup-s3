@@ -95,7 +95,7 @@ func TestOperation_Run_CallsBackupThenPrepare(t *testing.T) {
 	logger := logging.NewTestLogger()
 	cfg := Config{
 		Version: "test",
-		MariaDB: config.MariaDB{
+		Database: config.Database{
 			BackupBinary: "mariadb-backup",
 			BackupMethod: config.BackupMethodPhysical,
 			User:         "root",
@@ -128,7 +128,7 @@ func TestOperation_Run_BackupFails(t *testing.T) {
 	logger := logging.NewTestLogger()
 	cfg := Config{
 		Version: "test",
-		MariaDB: config.MariaDB{
+		Database: config.Database{
 			BackupBinary: "mariadb-backup",
 			BackupMethod: config.BackupMethodPhysical,
 			User:         "root",
@@ -163,7 +163,7 @@ func TestOperation_Run_PrepareFails(t *testing.T) {
 	logger := logging.NewTestLogger()
 	cfg := Config{
 		Version: "test",
-		MariaDB: config.MariaDB{
+		Database: config.Database{
 			BackupBinary: "mariadb-backup",
 			BackupMethod: config.BackupMethodPhysical,
 			User:         "root",
@@ -182,4 +182,29 @@ func TestOperation_Run_PrepareFails(t *testing.T) {
 	err := op.Run(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to prepare")
+}
+
+func TestNewOperation_MongoDBNotImplemented(t *testing.T) {
+	cfg := Config{
+		Database: config.Database{
+			Engine:       config.EngineMongoDB,
+			BackupMethod: config.BackupMethodMongoDB,
+		},
+	}
+
+	op, err := NewOperation(cfg, nil, nil, logging.NewTestLogger())
+	require.Error(t, err)
+	assert.Nil(t, op)
+	assert.ErrorIs(t, err, ErrEngineNotImplemented)
+}
+
+func TestNewOperation_EmptyEngineDefaultsToMariaDBPhysical(t *testing.T) {
+	cfg := Config{
+		Database: config.Database{},
+	}
+
+	op, err := NewOperation(cfg, nil, nil, logging.NewTestLogger())
+	require.NoError(t, err)
+	require.NotNil(t, op)
+	assert.Equal(t, config.BackupMethodPhysical, op.method.MethodName())
 }

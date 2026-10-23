@@ -57,6 +57,6 @@ func TestBuildMariaDB_NilMariaDB_UsesDefaults(t *testing.T) {
 	job := repository.Job{}
 
 	cfg := scheduler.BuildMariaDB(job)
-	assert.Equal(t, config.DefaultMariaDB().BackupBinary, cfg.BackupBinary)
-	assert.Equal(t, config.DefaultMariaDB().BackupMethod, cfg.BackupMethod)
+	assert.Equal(t, config.DefaultDatabase(config.EngineMariaDB).BackupBinary, cfg.BackupBinary)
+	assert.Equal(t, config.DefaultDatabase(config.EngineMariaDB).BackupMethod, cfg.BackupMethod)
 }

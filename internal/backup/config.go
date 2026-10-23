@@ -11,14 +11,14 @@ var ErrValidationFailed = errors.New("validation failed")
 
 type Config struct {
 	Version    string
-	MariaDB    config.MariaDB
+	Database   config.Database
 	Storage    config.Storage
 	Encryption config.Encryption
 }
 
 func (c Config) Validate() error {
-	if err := c.MariaDB.Validate(); err != nil {
-		return fmt.Errorf("%w: MariaDB validation failed: %w", ErrValidationFailed, err)
+	if err := c.Database.Validate(); err != nil {
+		return fmt.Errorf("%w: database validation failed: %w", ErrValidationFailed, err)
 	}
 
 	if err := c.Storage.Validate(); err != nil {
@@ -30,8 +30,8 @@ func (c Config) Validate() error {
 
 func DefaultConfig() Config {
 	return Config{
-		Version: "",
-		MariaDB: config.DefaultMariaDB(),
+		Version:  "",
+		Database: config.DefaultDatabase(config.EngineMariaDB),
 		Storage: config.Storage{
 			URL: "",
 		},
