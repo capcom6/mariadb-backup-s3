@@ -104,7 +104,8 @@ jobs:
     command: backup
     timeout: 4h
     storage:
-      url: s3://my-bucket/backups?endpoint=https://s3.custom.com
+      # Distinct prefix so this job's retention never prunes MariaDB backups
+      url: s3://my-bucket/mongodb-backups?endpoint=https://s3.custom.com
     database:
       engine: mongodb
       host: localhost

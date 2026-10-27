@@ -193,6 +193,36 @@ func TestConfig_Validate(t *testing.T) {
 			},
 			wantErr: "",
 		},
+		{
+			name: "valid database section with empty engine",
+			config: repository.Config{
+				Jobs: []repository.Job{
+					{
+						Name:     "default-engine-job",
+						Schedule: "0 2 * * *",
+						Command:  "backup",
+						Storage:  repository.Storage{URL: "s3://bucket/path"},
+						Database: &repository.Database{Host: "localhost"},
+					},
+				},
+			},
+			wantErr: "",
+		},
+		{
+			name: "invalid database engine",
+			config: repository.Config{
+				Jobs: []repository.Job{
+					{
+						Name:     "bad-engine-job",
+						Schedule: "0 2 * * *",
+						Command:  "backup",
+						Storage:  repository.Storage{URL: "s3://bucket/path"},
+						Database: &repository.Database{Engine: "postgres"},
+					},
+				},
+			},
+			wantErr: `invalid database engine: "postgres"`,
+		},
 	}
 
 	for _, tt := range tests {

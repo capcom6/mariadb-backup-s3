@@ -247,7 +247,7 @@ jobs:
     command: backup
     timeout: 4h
     storage:
-      url: s3://my-bucket/backups?endpoint=https://s3.custom.com
+      url: s3://my-bucket/mongodb-backups?endpoint=https://s3.custom.com
     database:
       engine: mongodb            # mariadb (default) or mongodb
       host: localhost
@@ -263,6 +263,8 @@ jobs:
     retention:
       max_count: 7
 ```
+
+> **Note:** Retention only prunes backups under the job's storage prefix, so this job uses a distinct `mongodb-backups/` prefix — its `max_count` never deletes MariaDB backups stored under `backups/`.
 
 **Options:**
 

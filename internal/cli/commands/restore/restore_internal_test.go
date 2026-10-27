@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,6 +40,11 @@ func runResolveSelection(t *testing.T, args ...string) (backupSelection, error) 
 	}
 
 	fullArgs := append([]string{"restore", "--target-dir=" + t.TempDir()}, args...)
+	if !slices.ContainsFunc(args, func(a string) bool {
+		return strings.HasPrefix(a, "--storage-url")
+	}) {
+		fullArgs = append(fullArgs, "--storage-url=file://"+t.TempDir())
+	}
 	runErr := cmd.Run(context.Background(), fullArgs)
 	require.NoError(t, runErr)
 

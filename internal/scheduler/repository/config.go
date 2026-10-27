@@ -8,6 +8,8 @@ import (
 
 	"github.com/robfig/cron/v3"
 	"gopkg.in/yaml.v3"
+
+	"github.com/capcom6/mariadb-backup-s3/internal/config"
 )
 
 var (
@@ -150,6 +152,11 @@ func (j Job) Validate() error {
 	}
 	if j.Database != nil && j.MariaDB != nil {
 		return ErrBothDatabaseSections
+	}
+	if j.Database != nil && j.Database.Engine != "" &&
+		j.Database.Engine != config.EngineMariaDB &&
+		j.Database.Engine != config.EngineMongoDB {
+		return fmt.Errorf("%w: %q", config.ErrInvalidEngine, j.Database.Engine)
 	}
 	return nil
 }
