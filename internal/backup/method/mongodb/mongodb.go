@@ -201,10 +201,14 @@ func (m *Method) serverArgs(info uriInfo) []string {
 	// Only pass --authenticationDatabase when there is a principal to
 	// authenticate: without a username it makes mongodump attempt SCRAM
 	// authentication and fail against servers that do not require auth.
-	// Skip it when the URI already carries authSource; mongodump rejects
-	// conflicting values.
+	// Skip it when the URI itself owns the authentication database (an
+	// authSource query parameter or a database name in the path): the
+	// tools reject a connection string combined with conflicting
+	// --authenticationDatabase information instead of letting the flag
+	// win.
 	hasPrincipal := info.hasCredentials || info.hasUsername || (!info.set && m.config.User != "")
-	if auth := m.config.MongoDB.AuthSource; auth != "" && hasPrincipal && (!info.set || !info.hasAuthSource) {
+	if auth := m.config.MongoDB.AuthSource; auth != "" && hasPrincipal &&
+		(!info.set || (!info.hasAuthSource && !info.hasPathDB)) {
 		args = append(args, "--authenticationDatabase="+auth)
 	}
 	if m.config.MongoDB.TLS {
@@ -226,18 +230,20 @@ type uriInfo struct {
 	hasUsername    bool
 	hasCredentials bool
 	hasAuthSource  bool
+	hasPathDB      bool
 }
 
 // inspectURI reports whether a URI is set, whether it carries a username,
-// whether it embeds a password, and whether it selects an authSource.
-// Unparseable URIs are treated as secret so they are never placed on the
-// command line.
+// whether it embeds a password, whether it selects an authSource, and whether
+// its path names a database (which the tools treat as the authentication
+// database). Unparseable URIs are treated as secret so they are never placed
+// on the command line.
 func inspectURI(raw string) uriInfo {
 	if raw == "" {
-		return uriInfo{set: false, hasUsername: false, hasCredentials: false, hasAuthSource: false}
+		return uriInfo{set: false, hasUsername: false, hasCredentials: false, hasAuthSource: false, hasPathDB: false}
 	}
 
-	info := uriInfo{set: true, hasUsername: false, hasCredentials: false, hasAuthSource: false}
+	info := uriInfo{set: true, hasUsername: false, hasCredentials: false, hasAuthSource: false, hasPathDB: false}
 
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -248,6 +254,9 @@ func inspectURI(raw string) uriInfo {
 	if u.User != nil {
 		info.hasUsername = u.User.Username() != ""
 		_, info.hasCredentials = u.User.Password()
+	}
+	if seg, _, _ := strings.Cut(strings.TrimPrefix(u.Path, "/"), "/"); seg != "" {
+		info.hasPathDB = true
 	}
 	for key := range u.Query() {
 		if strings.EqualFold(key, "authSource") {

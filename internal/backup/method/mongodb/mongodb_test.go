@@ -388,15 +388,15 @@ func TestBackup_URIUsernameWithoutPasswordEmitsAuthenticationDatabase(t *testing
 	tempdir := t.TempDir()
 
 	// A username-only URI plus a separately configured password still creates
-	// a principal, so the configured authSource must reach mongodump instead
-	// of falling back to its default authentication database.
+	// a principal; with no database in the URI path the configured authSource
+	// is the only effective authentication database and must reach mongodump.
 	m := mongodb.New(mongodb.Config{
 		Host:         "localhost",
 		Port:         27017,
 		BackupBinary: "mongodump",
 		Password:     fakePassword,
 		MongoDB: config.MongoDB{
-			URI:        "mongodb://dbuser@mongo1:27017/appdb",
+			URI:        "mongodb://dbuser@mongo1:27017",
 			AuthSource: "appdb",
 		},
 	})
@@ -415,6 +415,37 @@ func TestBackup_URIUsernameWithoutPasswordEmitsAuthenticationDatabase(t *testing
 	joined := strings.Join(args, " ")
 	assert.NotContains(t, joined, fakePassword)
 	assert.NotContains(t, joined, "--uri=")
+}
+
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
+func TestBackup_URIPathDatabaseSuppressesAuthenticationDatabase(t *testing.T) {
+	fake := installFakeMongodump(t)
+	tempdir := t.TempDir()
+
+	// The tools treat a database in the URI path as the authentication
+	// database and reject a connection string combined with conflicting
+	// --authenticationDatabase information, so the normalized admin default
+	// must not be appended for mongodb://user@host/appdb.
+	m := mongodb.New(mongodb.Config{
+		Host:         "localhost",
+		Port:         27017,
+		BackupBinary: "mongodump",
+		Password:     fakePassword,
+		MongoDB: config.MongoDB{
+			URI:        "mongodb://dbuser@mongo1:27017/appdb",
+			AuthSource: "admin",
+		},
+	})
+
+	err := m.Backup(context.Background(), tempdir, logging.NewTestLogger())
+	require.NoError(t, err)
+
+	args := readFakeArgs(t, fake)
+	configPath := string(mustRead(t, fake.configPathFile))
+	assert.Equal(t, []string{
+		"--config=" + configPath,
+		"--out=" + tempdir,
+	}, args)
 }
 
 func TestBackup_ExecFailurePropagatesAndCleansUp(t *testing.T) {
