@@ -58,6 +58,7 @@ func storageURL(dir string) string {
 // database binary is looked up or executed, even when RestoreBinary points
 // at a path that does not exist.
 func TestRun_MariaDBExtractOnly(t *testing.T) {
+	t.Parallel()
 	storageDir := t.TempDir()
 	targetDir := t.TempDir()
 	writeTestArchive(t, filepath.Join(storageDir, archiveName), map[string]string{
@@ -144,6 +145,7 @@ done
 }
 
 func TestNewOperation_UnknownEngine(t *testing.T) {
+	t.Parallel()
 	_, err := NewOperation(Config{
 		Database: config.Database{Engine: "oracle"},
 	}, logging.NewTestLogger())

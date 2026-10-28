@@ -11,6 +11,7 @@ import (
 )
 
 func TestAES256GCMService_EncryptDecryptStreamRoundtrip(t *testing.T) {
+	t.Parallel()
 	// Setup
 	encryptionKey := make([]byte, 32)
 	service := encryption.NewAES256GCMService(encryptionKey)
@@ -39,6 +40,7 @@ func TestAES256GCMService_EncryptDecryptStreamRoundtrip(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			// Test streaming encryption
 			input := bytes.NewReader(tc.data)
 			var encrypted bytes.Buffer
@@ -65,6 +67,7 @@ func TestAES256GCMService_EncryptDecryptStreamRoundtrip(t *testing.T) {
 }
 
 func TestAES256GCMService_EncryptDecryptStreamLargeData(t *testing.T) {
+	t.Parallel()
 	// Setup
 	encryptionKey := make([]byte, 32)
 	service := encryption.NewAES256GCMService(encryptionKey)
@@ -93,6 +96,7 @@ func TestAES256GCMService_EncryptDecryptStreamLargeData(t *testing.T) {
 }
 
 func TestAES256GCMService_DecryptStreamTruncatedData(t *testing.T) {
+	t.Parallel()
 	// Setup
 	encryptionKey := make([]byte, 32)
 	service := encryption.NewAES256GCMService(encryptionKey)
@@ -116,6 +120,7 @@ func TestAES256GCMService_DecryptStreamTruncatedData(t *testing.T) {
 }
 
 func TestAES256GCMService_DecryptStreamTamperedData(t *testing.T) {
+	t.Parallel()
 	// Setup
 	encryptionKey := make([]byte, 32)
 	service := encryption.NewAES256GCMService(encryptionKey)
@@ -165,6 +170,7 @@ func BenchmarkAES256GCMService_EncryptStream(b *testing.B) {
 }
 
 func TestAES256GCMService_DecryptStreamContextCancellation(t *testing.T) {
+	t.Parallel()
 	// Setup
 	encryptionKey := make([]byte, 32)
 	service := encryption.NewAES256GCMService(encryptionKey)
@@ -194,6 +200,7 @@ func TestAES256GCMService_DecryptStreamContextCancellation(t *testing.T) {
 }
 
 func TestAES256GCMService_DecryptStreamInvalidMagic(t *testing.T) {
+	t.Parallel()
 	// Setup
 	encryptionKey := make([]byte, 32)
 	service := encryption.NewAES256GCMService(encryptionKey)
@@ -209,6 +216,7 @@ func TestAES256GCMService_DecryptStreamInvalidMagic(t *testing.T) {
 }
 
 func TestAES256GCMService_DecryptStreamInvalidVersion(t *testing.T) {
+	t.Parallel()
 	// Setup
 	encryptionKey := make([]byte, 32)
 	service := encryption.NewAES256GCMService(encryptionKey)
@@ -235,6 +243,7 @@ func TestAES256GCMService_DecryptStreamInvalidVersion(t *testing.T) {
 }
 
 func TestAES256GCMService_DecryptStreamWrongKey(t *testing.T) {
+	t.Parallel()
 	// Setup
 	correctKey := make([]byte, 32)
 	for i := range correctKey {
@@ -264,6 +273,7 @@ func TestAES256GCMService_DecryptStreamWrongKey(t *testing.T) {
 }
 
 func TestAES256GCMService_DecryptStreamPartialChunk(t *testing.T) {
+	t.Parallel()
 	// Setup
 	encryptionKey := make([]byte, 32)
 	service := encryption.NewAES256GCMService(encryptionKey)
@@ -290,6 +300,7 @@ func TestAES256GCMService_DecryptStreamPartialChunk(t *testing.T) {
 }
 
 func TestAES256GCMService_DecryptStreamMultipleChunks(t *testing.T) {
+	t.Parallel()
 	// Setup
 	encryptionKey := make([]byte, 32)
 	service := encryption.NewAES256GCMService(encryptionKey)

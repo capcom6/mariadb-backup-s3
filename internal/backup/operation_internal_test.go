@@ -93,6 +93,7 @@ func newMockStorage(t *testing.T) (*storage.MockBackend, *registry.Service, *[]c
 }
 
 func TestOperation_Run_CallsBackupThenPrepare(t *testing.T) {
+	t.Parallel()
 	method := new(mockMethod)
 	method.On("Backup", mock.AnythingOfType("string")).Return(nil).Run(func(args mock.Arguments) {
 		writeTestFile(t, args.String(0))
@@ -129,6 +130,7 @@ func TestOperation_Run_CallsBackupThenPrepare(t *testing.T) {
 }
 
 func TestOperation_Run_BackupFails(t *testing.T) {
+	t.Parallel()
 	method := new(mockMethod)
 	method.On("Backup", mock.AnythingOfType("string")).Return(assert.AnError)
 
@@ -161,6 +163,7 @@ func TestOperation_Run_BackupFails(t *testing.T) {
 }
 
 func TestOperation_Run_PrepareFails(t *testing.T) {
+	t.Parallel()
 	method := new(mockMethod)
 	method.On("Backup", mock.AnythingOfType("string")).Return(nil).Run(func(args mock.Arguments) {
 		writeTestFile(t, args.String(0))
@@ -194,6 +197,7 @@ func TestOperation_Run_PrepareFails(t *testing.T) {
 }
 
 func TestNewOperation_MongoDBReturnsMongodumpMethod(t *testing.T) {
+	t.Parallel()
 	cfg := Config{
 		Database: config.Database{
 			Engine:       config.EngineMongoDB,
@@ -209,6 +213,7 @@ func TestNewOperation_MongoDBReturnsMongodumpMethod(t *testing.T) {
 }
 
 func TestNewOperation_MongoDBIncompatibleBackupMethod(t *testing.T) {
+	t.Parallel()
 	cfg := Config{
 		Database: config.Database{
 			Engine:       config.EngineMongoDB,
@@ -223,6 +228,7 @@ func TestNewOperation_MongoDBIncompatibleBackupMethod(t *testing.T) {
 }
 
 func TestNewOperation_UnknownEngineFails(t *testing.T) {
+	t.Parallel()
 	cfg := Config{
 		Database: config.Database{
 			Engine: "postgres",
@@ -236,6 +242,7 @@ func TestNewOperation_UnknownEngineFails(t *testing.T) {
 }
 
 func TestNewOperation_EmptyEngineDefaultsToMariaDBPhysical(t *testing.T) {
+	t.Parallel()
 	cfg := Config{
 		Database: config.Database{},
 	}
@@ -246,6 +253,7 @@ func TestNewOperation_EmptyEngineDefaultsToMariaDBPhysical(t *testing.T) {
 	assert.Equal(t, config.BackupMethodPhysical, op.method.MethodName())
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestOperation_Run_MongoDBRegistryMethod(t *testing.T) {
 	fake := installFakeMongodump(t)
 

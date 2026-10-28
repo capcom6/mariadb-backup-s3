@@ -11,6 +11,7 @@ import (
 )
 
 func TestDefaultDatabase_MariaDB(t *testing.T) {
+	t.Parallel()
 	cfg := config.DefaultDatabase(config.EngineMariaDB)
 	assert.Equal(t, config.EngineMariaDB, cfg.Engine)
 	assert.Equal(t, "localhost", cfg.Host)
@@ -24,6 +25,7 @@ func TestDefaultDatabase_MariaDB(t *testing.T) {
 }
 
 func TestDefaultDatabase_MongoDB(t *testing.T) {
+	t.Parallel()
 	cfg := config.DefaultDatabase(config.EngineMongoDB)
 	assert.Equal(t, config.EngineMongoDB, cfg.Engine)
 	assert.Equal(t, 27017, cfg.Port)
@@ -35,6 +37,7 @@ func TestDefaultDatabase_MongoDB(t *testing.T) {
 }
 
 func TestDefaultDatabase_EmptyEngineDefaultsToMariaDB(t *testing.T) {
+	t.Parallel()
 	cfg := config.DefaultDatabase("")
 	assert.Equal(t, config.EngineMariaDB, cfg.Engine)
 	assert.Equal(t, 3306, cfg.Port)
@@ -42,6 +45,7 @@ func TestDefaultDatabase_EmptyEngineDefaultsToMariaDB(t *testing.T) {
 }
 
 func TestDatabase_Normalize_EngineAwareDefaults(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		engine      string
@@ -73,6 +77,7 @@ func TestDatabase_Normalize_EngineAwareDefaults(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := config.Database{Engine: tt.engine}.Normalize()
 			assert.Equal(t, tt.wantPort, cfg.Port)
 			assert.Equal(t, tt.wantMethod, cfg.BackupMethod)
@@ -84,6 +89,7 @@ func TestDatabase_Normalize_EngineAwareDefaults(t *testing.T) {
 }
 
 func TestDatabase_Normalize_PreservesExplicitValues(t *testing.T) {
+	t.Parallel()
 	cfg := config.Database{
 		Engine:        config.EngineMongoDB,
 		Host:          "mongo.internal",
@@ -109,6 +115,7 @@ func TestDatabase_Normalize_PreservesExplicitValues(t *testing.T) {
 // an unset value becomes "admin", explicit values and non-mongodb engines are
 // left untouched.
 func TestDatabase_Normalize_MongoDBAuthSourceDefault(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		engine string
@@ -123,6 +130,7 @@ func TestDatabase_Normalize_MongoDBAuthSourceDefault(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			db := config.DefaultDatabase(tt.engine)
 			db.MongoDB = config.MongoDB{AuthSource: tt.in}
 
@@ -134,6 +142,7 @@ func TestDatabase_Normalize_MongoDBAuthSourceDefault(t *testing.T) {
 }
 
 func TestDatabase_Validate_BinaryFound(t *testing.T) {
+	t.Parallel()
 	exe, err := os.Executable()
 	require.NoError(t, err)
 
@@ -147,6 +156,7 @@ func TestDatabase_Validate_BinaryFound(t *testing.T) {
 }
 
 func TestDatabase_Validate_BinaryNotFound(t *testing.T) {
+	t.Parallel()
 	cfg := config.Database{
 		Engine:       config.EngineMariaDB,
 		BackupBinary: "nonexistent-binary-12345",
@@ -157,6 +167,7 @@ func TestDatabase_Validate_BinaryNotFound(t *testing.T) {
 }
 
 func TestDatabase_Validate_InvalidMethod(t *testing.T) {
+	t.Parallel()
 	exe, err := os.Executable()
 	require.NoError(t, err)
 
@@ -171,6 +182,7 @@ func TestDatabase_Validate_InvalidMethod(t *testing.T) {
 }
 
 func TestDatabase_Validate_InvalidEngine(t *testing.T) {
+	t.Parallel()
 	cfg := config.Database{
 		Engine:       "postgres",
 		BackupBinary: "nonexistent-binary-12345",
@@ -182,6 +194,7 @@ func TestDatabase_Validate_InvalidEngine(t *testing.T) {
 }
 
 func TestDatabase_Validate_MethodEngineMismatch(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		engine string
@@ -206,6 +219,7 @@ func TestDatabase_Validate_MethodEngineMismatch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			cfg := config.Database{
 				Engine:       tt.engine,
 				BackupMethod: tt.method,
@@ -218,6 +232,7 @@ func TestDatabase_Validate_MethodEngineMismatch(t *testing.T) {
 }
 
 func TestDatabase_Validate_MongoDBDefaults(t *testing.T) {
+	t.Parallel()
 	exe, err := os.Executable()
 	require.NoError(t, err)
 
@@ -227,6 +242,7 @@ func TestDatabase_Validate_MongoDBDefaults(t *testing.T) {
 }
 
 func TestDatabase_Validate_MongoDBBackupBinaryNotFound(t *testing.T) {
+	t.Parallel()
 	cfg := config.Database{
 		Engine:       config.EngineMongoDB,
 		BackupBinary: "nonexistent-binary-12345",
@@ -237,6 +253,7 @@ func TestDatabase_Validate_MongoDBBackupBinaryNotFound(t *testing.T) {
 }
 
 func TestDatabase_Validate_MongoDBRestoreBinaryNotRequired(t *testing.T) {
+	t.Parallel()
 	exe, err := os.Executable()
 	require.NoError(t, err)
 
@@ -250,6 +267,7 @@ func TestDatabase_Validate_MongoDBRestoreBinaryNotRequired(t *testing.T) {
 }
 
 func TestDatabase_Validate_LogicalMethod(t *testing.T) {
+	t.Parallel()
 	exe, err := os.Executable()
 	require.NoError(t, err)
 
@@ -264,6 +282,7 @@ func TestDatabase_Validate_LogicalMethod(t *testing.T) {
 }
 
 func TestDatabase_Validate_LogicalMethod_ClientBinaryNotFound(t *testing.T) {
+	t.Parallel()
 	exe, err := os.Executable()
 	require.NoError(t, err)
 
@@ -278,6 +297,7 @@ func TestDatabase_Validate_LogicalMethod_ClientBinaryNotFound(t *testing.T) {
 }
 
 func TestDatabase_IsLogical(t *testing.T) {
+	t.Parallel()
 	physical := config.Database{BackupMethod: config.BackupMethodPhysical}
 	assert.False(t, physical.IsLogical())
 
@@ -286,6 +306,7 @@ func TestDatabase_IsLogical(t *testing.T) {
 }
 
 func TestStorage_Validate_ValidURL(t *testing.T) {
+	t.Parallel()
 	cfg := config.Storage{
 		URL: "s3://bucket/path",
 	}
@@ -294,6 +315,7 @@ func TestStorage_Validate_ValidURL(t *testing.T) {
 }
 
 func TestStorage_Validate_InvalidURL(t *testing.T) {
+	t.Parallel()
 	cfg := config.Storage{
 		URL: "://",
 	}
@@ -302,6 +324,7 @@ func TestStorage_Validate_InvalidURL(t *testing.T) {
 }
 
 func TestStorage_GetURL_Success(t *testing.T) {
+	t.Parallel()
 	cfg := config.Storage{
 		URL: "s3://mybucket/some/path",
 	}
@@ -313,6 +336,7 @@ func TestStorage_GetURL_Success(t *testing.T) {
 }
 
 func TestStorage_GetURL_Error(t *testing.T) {
+	t.Parallel()
 	cfg := config.Storage{
 		URL: "://",
 	}
@@ -321,6 +345,7 @@ func TestStorage_GetURL_Error(t *testing.T) {
 }
 
 func TestEncryption_Enabled_WithKey(t *testing.T) {
+	t.Parallel()
 	cfg := config.Encryption{
 		EncryptionKey: "dGVzdGtleQ==",
 	}
@@ -328,6 +353,7 @@ func TestEncryption_Enabled_WithKey(t *testing.T) {
 }
 
 func TestEncryption_Enabled_Empty(t *testing.T) {
+	t.Parallel()
 	cfg := config.Encryption{
 		EncryptionKey: "",
 	}
@@ -335,6 +361,7 @@ func TestEncryption_Enabled_Empty(t *testing.T) {
 }
 
 func TestEncryption_Key_Success(t *testing.T) {
+	t.Parallel()
 	cfg := config.Encryption{
 		EncryptionKey: "dGVzdGtleQ==",
 	}
@@ -344,6 +371,7 @@ func TestEncryption_Key_Success(t *testing.T) {
 }
 
 func TestEncryption_Key_InvalidEncoding(t *testing.T) {
+	t.Parallel()
 	cfg := config.Encryption{
 		EncryptionKey: "not-valid-base64!!!",
 	}

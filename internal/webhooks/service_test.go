@@ -31,6 +31,7 @@ func (t recordingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return t.base.RoundTrip(r)
 }
 
+//nolint:paralleltest // EmptyURL test swaps http.DefaultTransport; these tests must run sequentially (see package note above)
 func TestNewService_EmptyURL_DisabledWithoutHTTPRequest(t *testing.T) {
 	prevTransport := http.DefaultTransport
 	var count int32
@@ -60,6 +61,7 @@ func TestNewService_EmptyURL_DisabledWithoutHTTPRequest(t *testing.T) {
 	assert.Zero(t, atomic.LoadInt32(&count), "disabled service must not perform HTTP requests")
 }
 
+//nolint:paralleltest // EmptyURL test swaps http.DefaultTransport; these tests must run sequentially (see package note above)
 func TestNewService_ConfiguredURL_NotifyDeliversCloudEvent(t *testing.T) {
 	var (
 		mu  sync.Mutex
@@ -111,6 +113,7 @@ func TestNewService_ConfiguredURL_NotifyDeliversCloudEvent(t *testing.T) {
 	assert.Equal(t, "success", data["status"])
 }
 
+//nolint:paralleltest // EmptyURL test swaps http.DefaultTransport; these tests must run sequentially (see package note above)
 func TestNewService_UnreachableURL_NotifyReturnsError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	unreachableURL := srv.URL

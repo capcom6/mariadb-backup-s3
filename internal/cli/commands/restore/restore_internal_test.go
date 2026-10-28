@@ -83,6 +83,7 @@ func writeRegistry(t *testing.T, entries ...registry.BackupEntry) string {
 }
 
 func TestResolveBackupSelection_FilenameDefaultsToMariaDB(t *testing.T) {
+	t.Parallel()
 	sel, err := runResolveSelection(t, "backup.tar.gz")
 	require.NoError(t, err)
 	assert.Equal(t, "backup.tar.gz", sel.filename)
@@ -94,16 +95,19 @@ func TestResolveBackupSelection_FilenameDefaultsToMariaDB(t *testing.T) {
 }
 
 func TestResolveBackupSelection_MissingSelector(t *testing.T) {
+	t.Parallel()
 	_, err := runResolveSelection(t)
 	require.ErrorIs(t, err, ErrInvalidParams)
 }
 
 func TestResolveBackupSelection_MultipleSelectors(t *testing.T) {
+	t.Parallel()
 	_, err := runResolveSelection(t, "--latest", "backup.tar.gz")
 	require.ErrorIs(t, err, ErrInvalidParams)
 }
 
 func TestResolveBackupSelection_LatestDerivesEngineFromRegistry(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		method         string
@@ -133,6 +137,7 @@ func TestResolveBackupSelection_LatestDerivesEngineFromRegistry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			storageURL := writeRegistry(t, newReadyEntry(t, tt.method))
 
 			sel, err := runResolveSelection(t, "--storage-url="+storageURL, "--latest")
@@ -148,6 +153,7 @@ func TestResolveBackupSelection_LatestDerivesEngineFromRegistry(t *testing.T) {
 }
 
 func TestResolveBackupSelection_BackupIDDerivesEngineFromRegistry(t *testing.T) {
+	t.Parallel()
 	entry := newReadyEntry(t, config.BackupMethodMongoDB)
 	storageURL := writeRegistry(t, entry)
 
@@ -162,6 +168,7 @@ func TestResolveBackupSelection_BackupIDDerivesEngineFromRegistry(t *testing.T) 
 }
 
 func TestResolveBackupSelection_ExplicitEngineWins(t *testing.T) {
+	t.Parallel()
 	storageURL := writeRegistry(t, newReadyEntry(t, config.BackupMethodMongoDB))
 
 	sel, err := runResolveSelection(t, "--storage-url="+storageURL, "--latest")
@@ -173,6 +180,7 @@ func TestResolveBackupSelection_ExplicitEngineWins(t *testing.T) {
 }
 
 func TestResolveBackupSelection_LatestWithoutReadyBackups(t *testing.T) {
+	t.Parallel()
 	storageURL := writeRegistry(t)
 
 	_, err := runResolveSelection(t, "--storage-url="+storageURL, "--latest")
@@ -180,6 +188,7 @@ func TestResolveBackupSelection_LatestWithoutReadyBackups(t *testing.T) {
 }
 
 func TestResolveBackupSelection_BackupIDNotFound(t *testing.T) {
+	t.Parallel()
 	storageURL := writeRegistry(t, newReadyEntry(t, config.BackupMethodMongoDB))
 
 	_, err := runResolveSelection(t, "--storage-url="+storageURL, "--backup-id=missing-id")
@@ -187,6 +196,7 @@ func TestResolveBackupSelection_BackupIDNotFound(t *testing.T) {
 }
 
 func TestResolveEngine(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		explicit         string
@@ -247,6 +257,7 @@ func TestResolveEngine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			engine, conflict := resolveEngine(tt.explicit, tt.method)
 			assert.Equal(t, tt.expectedEngine, engine)
 			assert.Equal(t, tt.expectedConflict, conflict)

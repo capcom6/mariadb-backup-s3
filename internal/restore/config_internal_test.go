@@ -20,6 +20,7 @@ func validConfig() Config {
 }
 
 func TestConfigValidate_MariaDBNeverLooksUpBinary(t *testing.T) {
+	t.Parallel()
 	cfg := validConfig()
 	cfg.Database = config.Database{
 		Engine:        config.EngineMariaDB,
@@ -30,6 +31,7 @@ func TestConfigValidate_MariaDBNeverLooksUpBinary(t *testing.T) {
 }
 
 func TestConfigValidate_MongoDBMissingRestoreBinary(t *testing.T) {
+	t.Parallel()
 	cfg := validConfig()
 	cfg.Database = config.Database{
 		Engine: config.EngineMongoDB,
@@ -43,6 +45,7 @@ func TestConfigValidate_MongoDBMissingRestoreBinary(t *testing.T) {
 }
 
 func TestConfigValidate_MongoDBRestoreBinaryNotInPath(t *testing.T) {
+	t.Parallel()
 	cfg := validConfig()
 	cfg.Database = config.Database{
 		Engine:        config.EngineMongoDB,
@@ -57,6 +60,7 @@ func TestConfigValidate_MongoDBRestoreBinaryNotInPath(t *testing.T) {
 }
 
 func TestConfigValidate_MongoDBMissingConnection(t *testing.T) {
+	t.Parallel()
 	cfg := validConfig()
 	cfg.Database = config.Database{
 		Engine:        config.EngineMongoDB,
@@ -100,12 +104,14 @@ func TestConfigValidate_MongoDBValidWithURIOnly(t *testing.T) {
 }
 
 func TestConfigValidate_EmptyEngineDefaultsToMariaDB(t *testing.T) {
+	t.Parallel()
 	cfg := validConfig()
 
 	require.NoError(t, cfg.Validate())
 }
 
 func TestConfigValidate_InvalidEngine(t *testing.T) {
+	t.Parallel()
 	cfg := validConfig()
 	cfg.Database = config.Database{Engine: "mysql"}
 
@@ -116,6 +122,7 @@ func TestConfigValidate_InvalidEngine(t *testing.T) {
 }
 
 func TestConfigValidate_TargetDirRequired(t *testing.T) {
+	t.Parallel()
 	cfg := validConfig()
 	cfg.TargetDir = ""
 

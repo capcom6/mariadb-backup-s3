@@ -7,6 +7,7 @@ import (
 )
 
 func TestSanitizeOptions(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		options     string
@@ -61,6 +62,7 @@ func TestSanitizeOptions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := sanitizer.SanitizeOptions(tt.options)
 			if (err != nil) != tt.expectError {
 				t.Errorf("SanitizeOptions() error = %v, expectError %v", err, tt.expectError)

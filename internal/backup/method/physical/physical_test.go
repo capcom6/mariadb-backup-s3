@@ -10,6 +10,7 @@ import (
 )
 
 func TestNew(t *testing.T) {
+	t.Parallel()
 	cfg := method.Config{
 		Host:         "localhost",
 		Port:         3306,
@@ -23,6 +24,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestMethod_MethodName(t *testing.T) {
+	t.Parallel()
 	cfg := method.Config{
 		BackupBinary: "mariadb-backup",
 	}
@@ -31,7 +33,8 @@ func TestMethod_MethodName(t *testing.T) {
 	assert.Equal(t, physical.MethodName, m.MethodName())
 }
 
-func TestMethod_ImplementsInterface(_ *testing.T) {
+func TestMethod_ImplementsInterface(t *testing.T) {
+	t.Parallel()
 	cfg := method.Config{
 		BackupBinary: "mariadb-backup",
 	}

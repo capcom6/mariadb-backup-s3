@@ -138,6 +138,7 @@ func ageTestBackups(hoursAgo ...int) []registry.BackupEntry {
 }
 
 func TestConfig_IsEmpty(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		cfg  retention.Config
@@ -163,12 +164,14 @@ func TestConfig_IsEmpty(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tt.want, tt.cfg.IsEmpty())
 		})
 	}
 }
 
 func TestConfig_Validate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		cfg     retention.Config
@@ -219,6 +222,7 @@ func TestConfig_Validate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := tt.cfg.Validate()
 			if tt.wantErr != nil {
 				require.Error(t, err)
@@ -231,6 +235,7 @@ func TestConfig_Validate(t *testing.T) {
 }
 
 func TestApplyMaxCountPolicy_UnderLimit(t *testing.T) {
+	t.Parallel()
 	backups := sampleBackups(3)
 	op := newOp(withMaxCount(5))
 	keep, remove := op.ApplyMaxCountPolicy(backups)
@@ -239,6 +244,7 @@ func TestApplyMaxCountPolicy_UnderLimit(t *testing.T) {
 }
 
 func TestApplyMaxCountPolicy_OverLimit(t *testing.T) {
+	t.Parallel()
 	backups := sampleBackups(10)
 	op := newOp(withMaxCount(3))
 	keep, remove := op.ApplyMaxCountPolicy(backups)
@@ -251,6 +257,7 @@ func TestApplyMaxCountPolicy_OverLimit(t *testing.T) {
 }
 
 func TestApplyMaxCountPolicy_Zero(t *testing.T) {
+	t.Parallel()
 	backups := sampleBackups(5)
 	op := newOp(withMaxCount(0))
 	keep, remove := op.ApplyMaxCountPolicy(backups)
@@ -259,6 +266,7 @@ func TestApplyMaxCountPolicy_Zero(t *testing.T) {
 }
 
 func TestApplyMaxCountPolicy_ExactLimit(t *testing.T) {
+	t.Parallel()
 	backups := sampleBackups(5)
 	op := newOp(withMaxCount(5))
 	keep, remove := op.ApplyMaxCountPolicy(backups)
@@ -267,6 +275,7 @@ func TestApplyMaxCountPolicy_ExactLimit(t *testing.T) {
 }
 
 func TestApplyMaxCountPolicy_UnsortedInput(t *testing.T) {
+	t.Parallel()
 	backups := sampleBackups(5)
 	backups[0], backups[4] = backups[4], backups[0]
 	op := newOp(withMaxCount(3))
@@ -277,6 +286,7 @@ func TestApplyMaxCountPolicy_UnsortedInput(t *testing.T) {
 }
 
 func TestApplyMaxAgePolicy_AllWithin(t *testing.T) {
+	t.Parallel()
 	backups := ageTestBackups(1, 2, 3, 4, 5)
 	op := newOp(withMaxAge(48 * time.Hour))
 	keep, remove := op.ApplyMaxAgePolicy(backups)
@@ -285,6 +295,7 @@ func TestApplyMaxAgePolicy_AllWithin(t *testing.T) {
 }
 
 func TestApplyMaxAgePolicy_SomeExpired(t *testing.T) {
+	t.Parallel()
 	backups := ageTestBackups(72, 48, 10, 0, 100)
 	op := newOp(withMaxAge(24 * time.Hour))
 	keep, remove := op.ApplyMaxAgePolicy(backups)
@@ -293,6 +304,7 @@ func TestApplyMaxAgePolicy_SomeExpired(t *testing.T) {
 }
 
 func TestApplyMaxAgePolicy_AllExpired(t *testing.T) {
+	t.Parallel()
 	backups := ageTestBackups(72, 48)
 	op := newOp(withMaxAge(24 * time.Hour))
 	keep, remove := op.ApplyMaxAgePolicy(backups)
@@ -301,6 +313,7 @@ func TestApplyMaxAgePolicy_AllExpired(t *testing.T) {
 }
 
 func TestApplyMaxAgePolicy_Zero(t *testing.T) {
+	t.Parallel()
 	backups := ageTestBackups(1, 2, 3)
 	op := newOp(withMaxAge(0))
 	keep, remove := op.ApplyMaxAgePolicy(backups)
@@ -309,6 +322,7 @@ func TestApplyMaxAgePolicy_Zero(t *testing.T) {
 }
 
 func TestSelectPeriodBackups_Empty(t *testing.T) {
+	t.Parallel()
 	op := newOp(withKeepDaily(3))
 	result := op.SelectPeriodBackups(
 		[]registry.BackupEntry{},
@@ -319,6 +333,7 @@ func TestSelectPeriodBackups_Empty(t *testing.T) {
 }
 
 func TestSelectPeriodBackups_MultiplePerPeriod(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	entries := []registry.BackupEntry{
 		entry("day1-1", now.Add(-24*time.Hour).Add(-1*time.Hour), registry.StatusReady),
@@ -336,6 +351,7 @@ func TestSelectPeriodBackups_MultiplePerPeriod(t *testing.T) {
 }
 
 func TestSelectPeriodBackups_CountLimit(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	entries := []registry.BackupEntry{
 		entry("day1", now.Add(-24*time.Hour), registry.StatusReady),
@@ -355,6 +371,7 @@ func TestSelectPeriodBackups_CountLimit(t *testing.T) {
 }
 
 func TestSelectPeriodBackups_SinglePeriod(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	entries := []registry.BackupEntry{
 		entry("b1", now, registry.StatusReady),
@@ -372,6 +389,7 @@ func TestSelectPeriodBackups_SinglePeriod(t *testing.T) {
 }
 
 func TestApplyPeriodicPolicies_Daily(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	entries := []registry.BackupEntry{
 		entry("d1-late", now.Add(-24*time.Hour).Add(-2*time.Hour), registry.StatusReady),
@@ -387,6 +405,7 @@ func TestApplyPeriodicPolicies_Daily(t *testing.T) {
 }
 
 func TestApplyPeriodicPolicies_Weekly(t *testing.T) {
+	t.Parallel()
 	entries := []registry.BackupEntry{
 		entry("w1", time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC), registry.StatusReady),
 		entry("w1-late", time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC), registry.StatusReady),
@@ -400,6 +419,7 @@ func TestApplyPeriodicPolicies_Weekly(t *testing.T) {
 }
 
 func TestApplyPeriodicPolicies_Monthly(t *testing.T) {
+	t.Parallel()
 	entries := []registry.BackupEntry{
 		entry("m1", time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC), registry.StatusReady),
 		entry("m2", time.Date(2024, 2, 15, 0, 0, 0, 0, time.UTC), registry.StatusReady),
@@ -413,6 +433,7 @@ func TestApplyPeriodicPolicies_Monthly(t *testing.T) {
 }
 
 func TestApplyPeriodicPolicies_Combined(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	entries := []registry.BackupEntry{
 		entry("latest", now, registry.StatusReady),
@@ -428,6 +449,7 @@ func TestApplyPeriodicPolicies_Combined(t *testing.T) {
 }
 
 func TestApplyPeriodicPolicies_AllZero(t *testing.T) {
+	t.Parallel()
 	entries := sampleBackups(5)
 	op := newOp()
 	keep, remove := op.ApplyPeriodicPolicies(entries)
@@ -436,6 +458,7 @@ func TestApplyPeriodicPolicies_AllZero(t *testing.T) {
 }
 
 func TestFilterBackups_OnlyReady(t *testing.T) {
+	t.Parallel()
 	reg := &registry.Registry{
 		Version:   1,
 		UpdatedAt: fixedNow(),
@@ -455,6 +478,7 @@ func TestFilterBackups_OnlyReady(t *testing.T) {
 }
 
 func TestFilterBackups_Empty(t *testing.T) {
+	t.Parallel()
 	reg := registry.New()
 	op := newOp(withMaxCount(5))
 	result, err := op.FilterBackups(reg)
@@ -463,6 +487,7 @@ func TestFilterBackups_Empty(t *testing.T) {
 }
 
 func TestDeleteBackup_DryRun(t *testing.T) {
+	t.Parallel()
 	mockBackend := &storage.MockBackend{Mock: mock.Mock{}}
 	op := retention.NewOperation(buildConfig(withDryRun(true)), nil, mockBackend, logging.NewTestLogger())
 	err := op.DeleteBackup(entryFull("test", "test.tar.gz", fixedNow(), 1000, ""))
@@ -471,6 +496,7 @@ func TestDeleteBackup_DryRun(t *testing.T) {
 }
 
 func TestDeleteBackup_Success(t *testing.T) {
+	t.Parallel()
 	mockBackend := &storage.MockBackend{Mock: mock.Mock{}}
 	mockBackend.On("Delete", context.Background(), "test.tar.gz").Return(nil)
 	op := retention.NewOperation(buildConfig(), nil, mockBackend, logging.NewTestLogger())
@@ -480,6 +506,7 @@ func TestDeleteBackup_Success(t *testing.T) {
 }
 
 func TestDeleteBackup_StorageError(t *testing.T) {
+	t.Parallel()
 	mockBackend := &storage.MockBackend{Mock: mock.Mock{}}
 	mockBackend.On("Delete", context.Background(), "test.tar.gz").Return(assert.AnError)
 	op := retention.NewOperation(buildConfig(), nil, mockBackend, logging.NewTestLogger())
@@ -489,6 +516,7 @@ func TestDeleteBackup_StorageError(t *testing.T) {
 }
 
 func TestExecuteRetentionActions_DryRun(t *testing.T) {
+	t.Parallel()
 	mockBackend := &storage.MockBackend{Mock: mock.Mock{}}
 	op := retention.NewOperation(buildConfig(withDryRun(true)), nil, mockBackend, logging.NewTestLogger())
 	result, err := op.ExecuteRetentionActions(sampleBackups(3))
@@ -498,6 +526,7 @@ func TestExecuteRetentionActions_DryRun(t *testing.T) {
 }
 
 func TestExecuteRetentionActions_Success(t *testing.T) {
+	t.Parallel()
 	mockBackend := &storage.MockBackend{Mock: mock.Mock{}}
 	mockBackend.On("Delete", context.Background(), mock.AnythingOfType("string")).Return(nil)
 	op := retention.NewOperation(buildConfig(), nil, mockBackend, logging.NewTestLogger())
@@ -508,6 +537,7 @@ func TestExecuteRetentionActions_Success(t *testing.T) {
 }
 
 func TestExecuteRetentionActions_ForceMode(t *testing.T) {
+	t.Parallel()
 	mockBackend := &storage.MockBackend{Mock: mock.Mock{}}
 	backups := []registry.BackupEntry{
 		entryFull("ok1", "ok1.tar.gz", time.Time{}, 0, ""),
@@ -526,6 +556,7 @@ func TestExecuteRetentionActions_ForceMode(t *testing.T) {
 }
 
 func TestExecuteRetentionActions_ErrorWithoutForce(t *testing.T) {
+	t.Parallel()
 	mockBackend := &storage.MockBackend{Mock: mock.Mock{}}
 	backups := []registry.BackupEntry{
 		entryFull("ok1", "ok1.tar.gz", time.Time{}, 0, ""),
@@ -540,6 +571,7 @@ func TestExecuteRetentionActions_ErrorWithoutForce(t *testing.T) {
 }
 
 func TestApplyRetentionPolicies_MaxCountOnly(t *testing.T) {
+	t.Parallel()
 	backups := sampleBackups(10)
 	op := newOp(withMaxCount(3))
 	toRemove, err := op.ApplyRetentionPolicies(backups)
@@ -548,6 +580,7 @@ func TestApplyRetentionPolicies_MaxCountOnly(t *testing.T) {
 }
 
 func TestApplyRetentionPolicies_MaxAgeOnly(t *testing.T) {
+	t.Parallel()
 	backups := ageTestBackups(1, 2, 3, 48, 72)
 	op := newOp(withMaxAge(24 * time.Hour))
 	toRemove, err := op.ApplyRetentionPolicies(backups)
@@ -556,6 +589,7 @@ func TestApplyRetentionPolicies_MaxAgeOnly(t *testing.T) {
 }
 
 func TestApplyRetentionPolicies_UnionOfKeepSets(t *testing.T) {
+	t.Parallel()
 	backups := ageTestBackups(0, 1, 2, 3, 4, 5, 6, 48, 72, 96)
 	op := newOp(withMaxCount(3), withMaxAge(24*time.Hour))
 	toRemove, err := op.ApplyRetentionPolicies(backups)
@@ -564,6 +598,7 @@ func TestApplyRetentionPolicies_UnionOfKeepSets(t *testing.T) {
 }
 
 func TestApplyRetentionPolicies_EmptyConfig(t *testing.T) {
+	t.Parallel()
 	backups := sampleBackups(5)
 	op := newOp()
 	toRemove, err := op.ApplyRetentionPolicies(backups)
@@ -572,6 +607,7 @@ func TestApplyRetentionPolicies_EmptyConfig(t *testing.T) {
 }
 
 func TestLoadRegistry_Success(t *testing.T) {
+	t.Parallel()
 	mockBackend := &storage.MockBackend{Mock: mock.Mock{}}
 	mockLocker := &storage.MockLocker{Mock: mock.Mock{}}
 
@@ -606,6 +642,7 @@ func TestLoadRegistry_Success(t *testing.T) {
 }
 
 func TestLoadRegistry_NotFound(t *testing.T) {
+	t.Parallel()
 	mockBackend := &storage.MockBackend{Mock: mock.Mock{}}
 	mockLocker := &storage.MockLocker{Mock: mock.Mock{}}
 
@@ -630,6 +667,7 @@ func TestLoadRegistry_NotFound(t *testing.T) {
 }
 
 func TestLoadRegistry_LockError(t *testing.T) {
+	t.Parallel()
 	mockBackend := &storage.MockBackend{Mock: mock.Mock{}}
 	mockBackend.On("Lock", mock.Anything, ".backup-registry.json").Return(nil, assert.AnError)
 
@@ -644,6 +682,7 @@ func TestLoadRegistry_LockError(t *testing.T) {
 }
 
 func TestUpdateRegistry_Success(t *testing.T) {
+	t.Parallel()
 	mockBackend := &storage.MockBackend{Mock: mock.Mock{}}
 	mockLocker := &storage.MockLocker{Mock: mock.Mock{}}
 
@@ -680,6 +719,7 @@ func TestUpdateRegistry_Success(t *testing.T) {
 }
 
 func TestUpdateRegistry_Force(t *testing.T) {
+	t.Parallel()
 	mockBackend := &storage.MockBackend{Mock: mock.Mock{}}
 	mockLocker := &storage.MockLocker{Mock: mock.Mock{}}
 
@@ -717,6 +757,7 @@ func TestUpdateRegistry_Force(t *testing.T) {
 }
 
 func TestUpdateRegistry_ErrorWithoutForce(t *testing.T) {
+	t.Parallel()
 	mockBackend := &storage.MockBackend{Mock: mock.Mock{}}
 	mockLocker := &storage.MockLocker{Mock: mock.Mock{}}
 
@@ -755,12 +796,14 @@ func TestUpdateRegistry_ErrorWithoutForce(t *testing.T) {
 }
 
 func TestRun_EmptyConfig(t *testing.T) {
+	t.Parallel()
 	op := newOp()
 	err := op.Run(context.Background())
 	require.NoError(t, err)
 }
 
 func TestRun_LoadRegistryError(t *testing.T) {
+	t.Parallel()
 	mockBackend := &storage.MockBackend{Mock: mock.Mock{}}
 	mockBackend.On("Lock", mock.Anything, ".backup-registry.json").Return(nil, assert.AnError)
 
@@ -774,6 +817,7 @@ func TestRun_LoadRegistryError(t *testing.T) {
 }
 
 func TestRun_FullFlow(t *testing.T) {
+	t.Parallel()
 	mockBackend := &storage.MockBackend{Mock: mock.Mock{}}
 	mockLocker := &storage.MockLocker{Mock: mock.Mock{}}
 
@@ -813,6 +857,7 @@ func TestRun_FullFlow(t *testing.T) {
 }
 
 func TestRun_FullFlowDryRun(t *testing.T) {
+	t.Parallel()
 	mockBackend := &storage.MockBackend{Mock: mock.Mock{}}
 	mockLocker := &storage.MockLocker{Mock: mock.Mock{}}
 

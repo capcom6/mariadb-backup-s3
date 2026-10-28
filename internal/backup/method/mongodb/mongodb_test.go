@@ -95,22 +95,26 @@ func readFakeArgs(t *testing.T, fake fakeMongodump) []string {
 }
 
 func TestNew(t *testing.T) {
+	t.Parallel()
 	m := mongodb.New(mongodb.Config{BackupBinary: "mongodump"})
 	assert.NotNil(t, m)
 }
 
 func TestMethod_MethodName(t *testing.T) {
+	t.Parallel()
 	m := mongodb.New(mongodb.Config{BackupBinary: "mongodump"})
 	assert.Equal(t, "mongodump", m.MethodName())
 	assert.Equal(t, config.BackupMethodMongoDB, m.MethodName())
 }
 
-func TestMethod_ImplementsInterface(_ *testing.T) {
+func TestMethod_ImplementsInterface(t *testing.T) {
+	t.Parallel()
 	m := mongodb.New(mongodb.Config{BackupBinary: "mongodump"})
 	var _ method.Method = m
 }
 
 func TestMethod_Prepare_NoOpIdempotent(t *testing.T) {
+	t.Parallel()
 	m := mongodb.New(mongodb.Config{BackupBinary: "mongodump"})
 	logger := logging.NewTestLogger()
 
@@ -118,6 +122,7 @@ func TestMethod_Prepare_NoOpIdempotent(t *testing.T) {
 	require.NoError(t, m.Prepare(context.Background(), "/tmp/nonexistent", logger))
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestBackup_HostPortUserPassword(t *testing.T) {
 	fake := installFakeMongodump(t)
 	tempdir := t.TempDir()
@@ -189,6 +194,7 @@ func TestBackup_HostPortUserPassword(t *testing.T) {
 	require.NoError(t, walkErr)
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestBackup_HostWithoutPortOrUser(t *testing.T) {
 	fake := installFakeMongodump(t)
 	tempdir := t.TempDir()
@@ -208,6 +214,7 @@ func TestBackup_HostWithoutPortOrUser(t *testing.T) {
 	}, args)
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestBackup_URIWithoutCredentials(t *testing.T) {
 	fake := installFakeMongodump(t)
 	tempdir := t.TempDir()
@@ -233,6 +240,7 @@ func TestBackup_URIWithoutCredentials(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr))
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestBackup_URIWithCredentialsKeptOffArgv(t *testing.T) {
 	fake := installFakeMongodump(t)
 	tempdir := t.TempDir()
@@ -272,6 +280,7 @@ func TestBackup_URIWithCredentialsKeptOffArgv(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr), "credentials file must be removed after Backup")
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestBackup_TLSFlags(t *testing.T) {
 	fake := installFakeMongodump(t)
 	tempdir := t.TempDir()
@@ -305,6 +314,7 @@ func TestBackup_TLSFlags(t *testing.T) {
 	}, args)
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestBackup_DefaultAuthSourceWithoutUserOmitsAuthenticationDatabase(t *testing.T) {
 	fake := installFakeMongodump(t)
 	tempdir := t.TempDir()
@@ -330,6 +340,7 @@ func TestBackup_DefaultAuthSourceWithoutUserOmitsAuthenticationDatabase(t *testi
 	}, args)
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestBackup_InvalidBackupOptionsRejectedBeforeExec(t *testing.T) {
 	fake := installFakeMongodump(t)
 	tempdir := t.TempDir()
@@ -348,6 +359,7 @@ func TestBackup_InvalidBackupOptionsRejectedBeforeExec(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr), "mongodump must not run with dangerous options")
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestBackup_OutOptionRejectedBeforeExec(t *testing.T) {
 	for _, opt := range []string{"--out", "--out=/elsewhere"} {
 		t.Run(opt, func(t *testing.T) {
@@ -370,6 +382,7 @@ func TestBackup_OutOptionRejectedBeforeExec(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestBackup_URIUsernameWithoutPasswordEmitsAuthenticationDatabase(t *testing.T) {
 	fake := installFakeMongodump(t)
 	tempdir := t.TempDir()
@@ -428,6 +441,7 @@ func TestBackup_ExecFailurePropagatesAndCleansUp(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr), "credentials file must be removed after failure")
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestBackup_BinaryMissing(t *testing.T) {
 	installFakeMongodump(t)
 	tempdir := t.TempDir()

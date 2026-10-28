@@ -13,6 +13,7 @@ import (
 )
 
 func TestNew(t *testing.T) {
+	t.Parallel()
 	cfg := method.Config{
 		Host:         "localhost",
 		Port:         3306,
@@ -26,6 +27,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestMethod_MethodName(t *testing.T) {
+	t.Parallel()
 	cfg := method.Config{
 		BackupBinary: "mariadb-dump",
 	}
@@ -35,6 +37,7 @@ func TestMethod_MethodName(t *testing.T) {
 }
 
 func TestMethod_Prepare_NoOp(t *testing.T) {
+	t.Parallel()
 	cfg := method.Config{
 		BackupBinary: "mariadb-dump",
 	}

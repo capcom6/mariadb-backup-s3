@@ -31,6 +31,7 @@ func runParseDatabase(t *testing.T, args ...string) config.Database {
 }
 
 func TestParseDatabase_MongoDBDefaults(t *testing.T) {
+	t.Parallel()
 	db := runParseDatabase(t, "--db-engine=mongodb")
 
 	assert.Equal(t, config.EngineMongoDB, db.Engine)
@@ -42,6 +43,7 @@ func TestParseDatabase_MongoDBDefaults(t *testing.T) {
 }
 
 func TestParseDatabase_MongoDBFlags(t *testing.T) {
+	t.Parallel()
 	db := runParseDatabase(
 		t,
 		"--db-engine=mongodb",
@@ -68,6 +70,7 @@ func TestParseDatabase_MongoDBURIFromEnv(t *testing.T) {
 }
 
 func TestParseDatabase_MariaDBHasNoMongoAuthDefault(t *testing.T) {
+	t.Parallel()
 	db := runParseDatabase(t)
 
 	assert.Equal(t, config.EngineMariaDB, db.Engine)

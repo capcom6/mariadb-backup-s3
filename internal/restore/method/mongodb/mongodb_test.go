@@ -88,15 +88,18 @@ func readFakeArgs(t *testing.T, fake fakeMongorestore) []string {
 }
 
 func TestNew(t *testing.T) {
+	t.Parallel()
 	m := mongodb.New(mongodb.Config{RestoreBinary: "mongorestore"})
 	assert.NotNil(t, m)
 }
 
-func TestMethod_ImplementsInterface(_ *testing.T) {
+func TestMethod_ImplementsInterface(t *testing.T) {
+	t.Parallel()
 	m := mongodb.New(mongodb.Config{RestoreBinary: "mongorestore"})
 	var _ method.Method = m
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestRestore_HostPortUserPassword(t *testing.T) {
 	fake := installFakeMongorestore(t)
 	targetDir := t.TempDir()
@@ -148,6 +151,7 @@ func TestRestore_HostPortUserPassword(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr), "credentials file must be removed after Restore")
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestRestore_HostWithoutPortOrUser(t *testing.T) {
 	fake := installFakeMongorestore(t)
 	targetDir := t.TempDir()
@@ -170,6 +174,7 @@ func TestRestore_HostWithoutPortOrUser(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr))
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestRestore_URIWithoutCredentials(t *testing.T) {
 	fake := installFakeMongorestore(t)
 	targetDir := t.TempDir()
@@ -194,6 +199,7 @@ func TestRestore_URIWithoutCredentials(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr))
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestRestore_URIWithCredentialsKeptOffArgv(t *testing.T) {
 	fake := installFakeMongorestore(t)
 	targetDir := t.TempDir()
@@ -233,6 +239,7 @@ func TestRestore_URIWithCredentialsKeptOffArgv(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr), "credentials file must be removed after Restore")
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestRestore_TLSFlags(t *testing.T) {
 	fake := installFakeMongorestore(t)
 	targetDir := t.TempDir()
@@ -266,6 +273,7 @@ func TestRestore_TLSFlags(t *testing.T) {
 	}, args)
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestRestore_RestoreOptionsPassedThrough(t *testing.T) {
 	fake := installFakeMongorestore(t)
 	targetDir := t.TempDir()
@@ -289,6 +297,7 @@ func TestRestore_RestoreOptionsPassedThrough(t *testing.T) {
 	}, args)
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestRestore_DefaultAuthSourceWithoutUserOmitsAuthenticationDatabase(t *testing.T) {
 	fake := installFakeMongorestore(t)
 	targetDir := t.TempDir()
@@ -313,6 +322,7 @@ func TestRestore_DefaultAuthSourceWithoutUserOmitsAuthenticationDatabase(t *test
 	}, args)
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestRestore_InvalidRestoreOptionsRejectedBeforeExec(t *testing.T) {
 	fake := installFakeMongorestore(t)
 	targetDir := t.TempDir()
@@ -331,6 +341,7 @@ func TestRestore_InvalidRestoreOptionsRejectedBeforeExec(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr), "mongorestore must not run with dangerous options")
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestRestore_DirOptionRejectedBeforeExec(t *testing.T) {
 	for _, opt := range []string{"--dir", "--dir=/elsewhere"} {
 		t.Run(opt, func(t *testing.T) {
@@ -353,6 +364,7 @@ func TestRestore_DirOptionRejectedBeforeExec(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestRestore_URIUsernameWithoutPasswordEmitsAuthenticationDatabase(t *testing.T) {
 	fake := installFakeMongorestore(t)
 	targetDir := t.TempDir()
@@ -411,6 +423,7 @@ func TestRestore_ExecFailurePropagatesAndCleansUp(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr), "credentials file must be removed after failure")
 }
 
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
 func TestRestore_BinaryMissing(t *testing.T) {
 	installFakeMongorestore(t)
 	targetDir := t.TempDir()
