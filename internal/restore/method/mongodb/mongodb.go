@@ -2,6 +2,7 @@ package mongodb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -15,6 +16,11 @@ import (
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
 	"github.com/capcom6/mariadb-backup-s3/internal/sanitizer"
 )
+
+// ErrOptionOverridesDir is returned when restore options try to redirect
+// mongorestore away from the extracted target directory; --dir is managed by
+// the operation and a user override would restore from/to somewhere else.
+var ErrOptionOverridesDir = errors.New("restore option cannot override the extracted target directory")
 
 // Config carries the connection settings a mongorestore restore needs.
 type Config struct {
@@ -82,6 +88,14 @@ func (m *Method) sanitizedOptions() ([]string, error) {
 	opts, err := sanitizer.SanitizeOptions(m.config.RestoreOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sanitize options: %w", err)
+	}
+
+	// mongorestore parses repeated scalar options last-wins, so a user --dir
+	// appended after the managed one would bypass the extracted target dir.
+	for _, opt := range opts {
+		if opt == "--dir" || strings.HasPrefix(opt, "--dir=") {
+			return nil, fmt.Errorf("%w: %q", ErrOptionOverridesDir, opt)
+		}
 	}
 
 	return opts, nil
@@ -178,7 +192,7 @@ func (m *Method) serverArgs(info uriInfo) []string {
 	// authentication and fail against servers that do not require auth.
 	// Skip it when the URI already carries authSource; mongorestore rejects
 	// conflicting values.
-	hasPrincipal := info.hasCredentials || (!info.set && m.config.User != "")
+	hasPrincipal := info.hasCredentials || info.hasUsername || (!info.set && m.config.User != "")
 	if auth := m.config.MongoDB.AuthSource; auth != "" && hasPrincipal && (!info.set || !info.hasAuthSource) {
 		args = append(args, "--authenticationDatabase="+auth)
 	}
@@ -198,19 +212,21 @@ func (m *Method) serverArgs(info uriInfo) []string {
 // uriInfo describes the connection URI relevant to argument building.
 type uriInfo struct {
 	set            bool
+	hasUsername    bool
 	hasCredentials bool
 	hasAuthSource  bool
 }
 
-// inspectURI reports whether a URI is set, whether it embeds a password, and
-// whether it selects an authSource. Unparseable URIs are treated as secret so
-// they are never placed on the command line.
+// inspectURI reports whether a URI is set, whether it carries a username,
+// whether it embeds a password, and whether it selects an authSource.
+// Unparseable URIs are treated as secret so they are never placed on the
+// command line.
 func inspectURI(raw string) uriInfo {
 	if raw == "" {
-		return uriInfo{set: false, hasCredentials: false, hasAuthSource: false}
+		return uriInfo{set: false, hasUsername: false, hasCredentials: false, hasAuthSource: false}
 	}
 
-	info := uriInfo{set: true, hasCredentials: false, hasAuthSource: false}
+	info := uriInfo{set: true, hasUsername: false, hasCredentials: false, hasAuthSource: false}
 
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -219,6 +235,7 @@ func inspectURI(raw string) uriInfo {
 	}
 
 	if u.User != nil {
+		info.hasUsername = u.User.Username() != ""
 		_, info.hasCredentials = u.User.Password()
 	}
 	for key := range u.Query() {

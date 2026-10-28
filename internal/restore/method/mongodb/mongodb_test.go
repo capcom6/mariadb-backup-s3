@@ -331,6 +331,62 @@ func TestRestore_InvalidRestoreOptionsRejectedBeforeExec(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr), "mongorestore must not run with dangerous options")
 }
 
+func TestRestore_DirOptionRejectedBeforeExec(t *testing.T) {
+	for _, opt := range []string{"--dir", "--dir=/elsewhere"} {
+		t.Run(opt, func(t *testing.T) {
+			fake := installFakeMongorestore(t)
+			targetDir := t.TempDir()
+
+			m := mongodb.New(mongodb.Config{
+				Host:           "localhost",
+				RestoreBinary:  "mongorestore",
+				RestoreOptions: opt,
+			})
+
+			err := m.Restore(context.Background(), targetDir, logging.NewTestLogger())
+			require.ErrorIs(t, err, mongodb.ErrOptionOverridesDir)
+			require.ErrorContains(t, err, opt)
+
+			_, statErr := os.Stat(fake.argsFile)
+			assert.True(t, os.IsNotExist(statErr), "mongorestore must not run with a --dir option")
+		})
+	}
+}
+
+func TestRestore_URIUsernameWithoutPasswordEmitsAuthenticationDatabase(t *testing.T) {
+	fake := installFakeMongorestore(t)
+	targetDir := t.TempDir()
+
+	// A username-only URI plus a separately configured password still creates
+	// a principal, so the configured authSource must reach mongorestore instead
+	// of falling back to its default authentication database.
+	m := mongodb.New(mongodb.Config{
+		Host:          "localhost",
+		Port:          27017,
+		RestoreBinary: "mongorestore",
+		Password:      fakePassword,
+		MongoDB: config.MongoDB{
+			URI:        "mongodb://dbuser@mongo1:27017/appdb",
+			AuthSource: "appdb",
+		},
+	})
+
+	err := m.Restore(context.Background(), targetDir, logging.NewTestLogger())
+	require.NoError(t, err)
+
+	args := readFakeArgs(t, fake)
+	configPath := string(mustRead(t, fake.configPathFile))
+	assert.Equal(t, []string{
+		"--config=" + configPath,
+		"--authenticationDatabase=appdb",
+		"--dir=" + targetDir,
+	}, args)
+
+	joined := strings.Join(args, " ")
+	assert.NotContains(t, joined, fakePassword)
+	assert.NotContains(t, joined, "--uri=")
+}
+
 func TestRestore_ExecFailurePropagatesAndCleansUp(t *testing.T) {
 	fake := installFakeMongorestore(t)
 	t.Setenv(exitCodeEnvVar, "7")

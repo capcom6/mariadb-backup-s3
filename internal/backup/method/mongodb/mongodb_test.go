@@ -348,6 +348,62 @@ func TestBackup_InvalidBackupOptionsRejectedBeforeExec(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr), "mongodump must not run with dangerous options")
 }
 
+func TestBackup_OutOptionRejectedBeforeExec(t *testing.T) {
+	for _, opt := range []string{"--out", "--out=/elsewhere"} {
+		t.Run(opt, func(t *testing.T) {
+			fake := installFakeMongodump(t)
+			tempdir := t.TempDir()
+
+			m := mongodb.New(mongodb.Config{
+				Host:          "localhost",
+				BackupBinary:  "mongodump",
+				BackupOptions: opt,
+			})
+
+			err := m.Backup(context.Background(), tempdir, logging.NewTestLogger())
+			require.ErrorIs(t, err, mongodb.ErrOptionOverridesOut)
+			require.ErrorContains(t, err, opt)
+
+			_, statErr := os.Stat(fake.argsFile)
+			assert.True(t, os.IsNotExist(statErr), "mongodump must not run with a --out option")
+		})
+	}
+}
+
+func TestBackup_URIUsernameWithoutPasswordEmitsAuthenticationDatabase(t *testing.T) {
+	fake := installFakeMongodump(t)
+	tempdir := t.TempDir()
+
+	// A username-only URI plus a separately configured password still creates
+	// a principal, so the configured authSource must reach mongodump instead
+	// of falling back to its default authentication database.
+	m := mongodb.New(mongodb.Config{
+		Host:         "localhost",
+		Port:         27017,
+		BackupBinary: "mongodump",
+		Password:     fakePassword,
+		MongoDB: config.MongoDB{
+			URI:        "mongodb://dbuser@mongo1:27017/appdb",
+			AuthSource: "appdb",
+		},
+	})
+
+	err := m.Backup(context.Background(), tempdir, logging.NewTestLogger())
+	require.NoError(t, err)
+
+	args := readFakeArgs(t, fake)
+	configPath := string(mustRead(t, fake.configPathFile))
+	assert.Equal(t, []string{
+		"--config=" + configPath,
+		"--authenticationDatabase=appdb",
+		"--out=" + tempdir,
+	}, args)
+
+	joined := strings.Join(args, " ")
+	assert.NotContains(t, joined, fakePassword)
+	assert.NotContains(t, joined, "--uri=")
+}
+
 func TestBackup_ExecFailurePropagatesAndCleansUp(t *testing.T) {
 	fake := installFakeMongodump(t)
 	t.Setenv(exitCodeEnvVar, "7")
