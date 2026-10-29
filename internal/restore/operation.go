@@ -12,7 +12,6 @@ import (
 
 	"github.com/capcom6/mariadb-backup-s3/internal/encryption"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
-	"github.com/capcom6/mariadb-backup-s3/internal/restore/method"
 	"github.com/capcom6/mariadb-backup-s3/internal/storage"
 	"github.com/capcom6/mariadb-backup-s3/pkg/pipeline"
 )
@@ -25,22 +24,14 @@ const (
 type Operation struct {
 	config Config
 
-	method method.Method
-
 	logger logging.Logger
 }
 
-func NewOperation(config Config, logger logging.Logger) (*Operation, error) {
-	m, err := method.New(config.Database)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create restore method: %w", err)
-	}
-
+func NewOperation(config Config, logger logging.Logger) *Operation {
 	return &Operation{
 		config: config,
-		method: m,
 		logger: logger,
-	}, nil
+	}
 }
 
 func (o *Operation) Run(ctx context.Context, filename string) error {
@@ -77,10 +68,6 @@ func (o *Operation) Run(ctx context.Context, filename string) error {
 
 	if err != nil {
 		return fmt.Errorf("failed to restore: %w", err)
-	}
-
-	if restoreErr := o.method.Restore(ctx, targetDir, o.logger); restoreErr != nil {
-		return fmt.Errorf("failed to restore database: %w", restoreErr)
 	}
 
 	return nil

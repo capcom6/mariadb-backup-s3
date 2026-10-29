@@ -414,9 +414,7 @@ func legacyMariaDBSection(m *repository.MariaDB) *repository.Database {
 		BackupMethod:          m.BackupMethod,
 		BackupBinary:          m.BackupBinary,
 		ClientBinary:          m.ClientBinary,
-		RestoreBinary:         "",
 		BackupOptions:         m.BackupOptions,
-		RestoreOptions:        "",
 		URI:                   "",
 		AuthSource:            "",
 		TLS:                   false,
@@ -451,14 +449,8 @@ func buildDatabaseSection(section *repository.Database) config.Database {
 	if section.ClientBinary != "" {
 		cfg.ClientBinary = section.ClientBinary
 	}
-	if section.RestoreBinary != "" {
-		cfg.RestoreBinary = section.RestoreBinary
-	}
 	if section.BackupOptions != "" {
 		cfg.BackupOptions = section.BackupOptions
-	}
-	if section.RestoreOptions != "" {
-		cfg.RestoreOptions = section.RestoreOptions
 	}
 	cfg.MongoDB = config.MongoDB{
 		URI:                   section.URI,

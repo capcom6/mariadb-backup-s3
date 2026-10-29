@@ -115,7 +115,6 @@ jobs:
       auth_source: admin
       # backup_method: mongodump        # default for engine mongodb
       # backup_binary: mongodump        # default for backup_method mongodump
-      # restore_binary: mongorestore    # default for engine mongodb
       # uri: mongodb://localhost:27017  # alternative to host/port
       # tls: true
       # tls_ca_file: /etc/ssl/ca.pem

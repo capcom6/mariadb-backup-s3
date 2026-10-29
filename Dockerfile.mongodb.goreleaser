@@ -2,7 +2,7 @@ FROM ubuntu:24.04
 
 ARG TARGETPLATFORM
 ARG BINARY_NAME
-# Pinned MongoDB Database Tools version (mongodump/mongorestore).
+# Pinned MongoDB Database Tools version (mongodump).
 ARG MONGODB_TOOLS_VERSION=100.19.1
 
 # Install pigz, ca-certificates and curl; download MongoDB Database Tools.
@@ -21,7 +21,6 @@ RUN set -eux; \
 	curl -fsSL "https://fastdl.mongodb.org/tools/db/${tools_dir}.tgz" -o /tmp/mongodb-database-tools.tgz; \
 	tar -xzf /tmp/mongodb-database-tools.tgz -C /tmp; \
 	install -m 0755 "/tmp/${tools_dir}/bin/mongodump" /usr/local/bin/mongodump; \
-	install -m 0755 "/tmp/${tools_dir}/bin/mongorestore" /usr/local/bin/mongorestore; \
 	rm -rf /tmp/mongodb-database-tools.tgz "/tmp/${tools_dir}"; \
 	rm -rf /var/lib/apt/lists/*
 

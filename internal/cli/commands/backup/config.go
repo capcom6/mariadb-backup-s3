@@ -54,9 +54,6 @@ func parseDatabase(cmd *cli.Command) config.Database {
 	if value := cmd.String("db-backup-options"); value != "" {
 		db.BackupOptions = value
 	}
-	if value := cmd.String("db-restore-options"); value != "" {
-		db.RestoreOptions = value
-	}
 	if value := cmd.String("backup-method"); value != "" {
 		db.BackupMethod = value
 	}
@@ -78,12 +75,6 @@ func applyBinaryDefaults(cmd *cli.Command, db *config.Database) {
 		db.ClientBinary = value
 	} else {
 		db.ClientBinary = config.DefaultDatabase(db.Engine).ClientBinary
-	}
-
-	if value := cmd.String("db-restore-binary"); value != "" {
-		db.RestoreBinary = value
-	} else {
-		db.RestoreBinary = config.DefaultDatabase(db.Engine).RestoreBinary
 	}
 }
 

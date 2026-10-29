@@ -358,9 +358,7 @@ jobs:
       backup_method: mongodump
       backup_binary: /usr/bin/mongodump
       client_binary: /usr/bin/mongosh
-      restore_binary: /usr/bin/mongorestore
       backup_options: "--oplog"
-      restore_options: "--drop"
       uri: "mongodb://mongo-1:27017"
       auth_source: admin
       tls: true
@@ -383,9 +381,7 @@ jobs:
 	assert.Equal(t, "mongodump", db.BackupMethod)
 	assert.Equal(t, "/usr/bin/mongodump", db.BackupBinary)
 	assert.Equal(t, "/usr/bin/mongosh", db.ClientBinary)
-	assert.Equal(t, "/usr/bin/mongorestore", db.RestoreBinary)
 	assert.Equal(t, "--oplog", db.BackupOptions)
-	assert.Equal(t, "--drop", db.RestoreOptions)
 	assert.Equal(t, "mongodb://mongo-1:27017", db.URI)
 	assert.Equal(t, "admin", db.AuthSource)
 	assert.True(t, db.TLS)

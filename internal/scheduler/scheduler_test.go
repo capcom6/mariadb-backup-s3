@@ -106,9 +106,7 @@ func TestBuildDatabase_DatabaseSection_MongoDBFull(t *testing.T) {
 			BackupMethod:          config.BackupMethodMongoDB,
 			BackupBinary:          "/opt/mongodb/bin/mongodump",
 			ClientBinary:          "/opt/mongodb/bin/mongosh",
-			RestoreBinary:         "/opt/mongodb/bin/mongorestore",
 			BackupOptions:         "--oplog",
-			RestoreOptions:        "--drop",
 			URI:                   "mongodb://mongo-1:27017",
 			AuthSource:            "admin",
 			TLS:                   true,
@@ -127,9 +125,7 @@ func TestBuildDatabase_DatabaseSection_MongoDBFull(t *testing.T) {
 	assert.Equal(t, config.BackupMethodMongoDB, cfg.BackupMethod)
 	assert.Equal(t, "/opt/mongodb/bin/mongodump", cfg.BackupBinary)
 	assert.Equal(t, "/opt/mongodb/bin/mongosh", cfg.ClientBinary)
-	assert.Equal(t, "/opt/mongodb/bin/mongorestore", cfg.RestoreBinary)
 	assert.Equal(t, "--oplog", cfg.BackupOptions)
-	assert.Equal(t, "--drop", cfg.RestoreOptions)
 	assert.Equal(t, config.MongoDB{
 		URI:                   "mongodb://mongo-1:27017",
 		AuthSource:            "admin",
@@ -152,7 +148,6 @@ func TestBuildDatabase_DatabaseSection_MongoDBDefaults(t *testing.T) {
 	assert.Equal(t, 27017, cfg.Port)
 	assert.Equal(t, config.BackupMethodMongoDB, cfg.BackupMethod)
 	assert.Equal(t, "mongodump", cfg.BackupBinary)
-	assert.Equal(t, "mongorestore", cfg.RestoreBinary)
 	assert.Empty(t, cfg.MongoDB.URI)
 }
 

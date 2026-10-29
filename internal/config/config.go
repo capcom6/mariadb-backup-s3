@@ -36,12 +36,10 @@ type Database struct {
 	User     string
 	Password string
 
-	BackupOptions  string
-	RestoreOptions string
+	BackupOptions string
 
-	BackupBinary  string
-	ClientBinary  string
-	RestoreBinary string
+	BackupBinary string
+	ClientBinary string
 
 	BackupMethod string
 
@@ -83,9 +81,6 @@ func (d Database) Normalize() Database {
 	}
 	if d.ClientBinary == "" {
 		d.ClientBinary = defaults.ClientBinary
-	}
-	if d.RestoreBinary == "" {
-		d.RestoreBinary = defaults.RestoreBinary
 	}
 	if d.Engine == EngineMongoDB && d.MongoDB.AuthSource == "" {
 		d.MongoDB.AuthSource = defaultMongoAuthSource
@@ -159,8 +154,6 @@ func (d Database) validateBinaries() error {
 	}
 
 	if d.Engine == EngineMongoDB {
-		// RestoreBinary is intentionally not validated here; the restore
-		// command validates it when restore support needs it.
 		return nil
 	}
 
@@ -191,17 +184,15 @@ func DefaultDatabase(engine string) Database {
 	engine = normalizeEngine(engine)
 
 	db := Database{
-		Engine:         engine,
-		Host:           "",
-		Port:           0,
-		User:           "",
-		Password:       "",
-		BackupOptions:  "",
-		RestoreOptions: "",
-		BackupBinary:   "",
-		ClientBinary:   "",
-		RestoreBinary:  "",
-		BackupMethod:   "",
+		Engine:        engine,
+		Host:          "",
+		Port:          0,
+		User:          "",
+		Password:      "",
+		BackupOptions: "",
+		BackupBinary:  "",
+		ClientBinary:  "",
+		BackupMethod:  "",
 		MongoDB: MongoDB{
 			URI:                   "",
 			AuthSource:            "",
@@ -222,7 +213,6 @@ func DefaultDatabase(engine string) Database {
 		db.Host = "localhost"
 		db.Port = 27017
 		db.BackupMethod = BackupMethodMongoDB
-		db.RestoreBinary = "mongorestore"
 	}
 
 	db.BackupBinary = DefaultBackupBinary(engine, db.BackupMethod)

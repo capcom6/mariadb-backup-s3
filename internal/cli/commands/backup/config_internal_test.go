@@ -38,7 +38,6 @@ func TestParseDatabase_MongoDBDefaults(t *testing.T) {
 	assert.Equal(t, 27017, db.Port)
 	assert.Equal(t, config.BackupMethodMongoDB, db.BackupMethod)
 	assert.Equal(t, "mongodump", db.BackupBinary)
-	assert.Equal(t, "mongorestore", db.RestoreBinary)
 	assert.Equal(t, "admin", db.MongoDB.AuthSource)
 }
 

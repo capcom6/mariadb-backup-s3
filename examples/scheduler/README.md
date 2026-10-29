@@ -273,14 +273,14 @@ jobs:
 | `engine`                  | Database engine: `mariadb` or `mongodb`              | `mariadb`                   |
 | `host` / `port` / `user` / `password` | Connection settings                         | engine-specific defaults     |
 | `backup_method`           | `mariadb-backup`, `mariadb-dump`, or `mongodump`     | per engine                  |
-| `backup_binary` / `client_binary` / `restore_binary` | Tool paths; omitted keys use built-in defaults | per method/engine |
-| `backup_options` / `restore_options` | Extra command-line options                | empty                       |
+| `backup_binary` / `client_binary` | Tool paths; omitted keys use built-in defaults | per method/engine |
+| `backup_options` | Extra backup command-line options                | empty                       |
 | `uri`                     | MongoDB connection URI (alternative to host/port)    | empty                       |
 | `auth_source`             | MongoDB authentication database                      | empty                       |
 | `tls`                     | Enable MongoDB TLS                                   | `false`                     |
 | `tls_ca_file` / `tls_certificate_key_file` | MongoDB TLS material files             | empty                       |
 
-> **Note:** `restore_binary` supplies `mongorestore` for MongoDB restores. MariaDB restore stays extract-only, so `restore_binary` is unused for MariaDB.
+Restore downloads and extracts backup files only. MongoDB dump imports, when needed, are performed separately using `mongorestore`.
 
 ### Encryption Configuration
 

@@ -2,9 +2,9 @@
 
 Config loaded from: CLI flags > env vars > `.env` file (in working directory).
 
-`DB__*` env vars are preferred; legacy `MARIADB__*` names (HOST, PORT, USER, PASSWORD, BACKUP_METHOD, BACKUP_BINARY, CLIENT_BINARY, BACKUP_OPTIONS) still work as fallback when the `DB__*` variable is unset. `DB__RESTORE_BINARY` and `DB__RESTORE_OPTIONS` have no legacy equivalent.
+`DB__*` env vars are preferred; legacy `MARIADB__*` names (HOST, PORT, USER, PASSWORD, BACKUP_METHOD, BACKUP_BINARY, CLIENT_BINARY, BACKUP_OPTIONS) still work as fallback when the `DB__*` variable is unset.
 
-Two Docker images: `ghcr.io/capcom6/mariadb-backup-s3` (MariaDB tools + pigz) and `ghcr.io/capcom6/mongodb-backup-s3` (mongodump/mongorestore + pigz). Native installs need MongoDB Database Tools separately for the `mongodb` engine; `pigz` is required for all engines.
+Two Docker images: `ghcr.io/capcom6/mariadb-backup-s3` (MariaDB tools + pigz) and `ghcr.io/capcom6/mongodb-backup-s3` (mongodump + pigz). Native installs need MongoDB Database Tools separately for the `mongodb` engine; `pigz` is required for all engines. MongoDB backups are extracted to a directory; install `mongorestore` separately if you need to import the dump.
 
 ## Database
 
@@ -19,15 +19,13 @@ Two Docker images: `ghcr.io/capcom6/mariadb-backup-s3` (MariaDB tools + pigz) an
 | `--db-backup-binary` | `DB__BACKUP_BINARY` | auto-derived | Path to backup binary (derived from engine and method) |
 | `--db-client-binary` | `DB__CLIENT_BINARY` | `mariadb` (mariadb) | Path to client binary (database discovery for `mariadb-dump`; unused for mongodb) |
 | `--db-backup-options` | `DB__BACKUP_OPTIONS` | `""` | Extra backup options (sanitized) |
-| `--db-restore-binary` | `DB__RESTORE_BINARY` | engine default (`mongorestore` for mongodb) | Restore binary path (mongodb only; mariadb restore is extract-only) |
-| `--db-restore-options` | `DB__RESTORE_OPTIONS` | `""` | Extra restore tool options (sanitized, mongodb) |
 | `--mongo-uri` | `MONGODB__URI` | `""` | MongoDB connection URI (replaces host/port/user) |
 | `--mongo-auth-source` | `MONGODB__AUTH_SOURCE` | `admin` (mongodb) | MongoDB authentication source database |
 | `--mongo-tls` | `MONGODB__TLS` | `false` | Enable MongoDB TLS |
 | `--mongo-tls-ca-file` | `MONGODB__TLS_CA_FILE` | `""` | MongoDB TLS CA file |
 | `--mongo-tls-certificate-key-file` | `MONGODB__TLS_CERTIFICATE_KEY_FILE` | `""` | MongoDB TLS certificate key file |
 
-Engine defaults (when unset): mariadb -> port `3306`, method `mariadb-backup`, client binary `mariadb`, restore binary unused; mongodb -> port `27017`, method `mongodump`, backup binary `mongodump`, restore binary `mongorestore`, client binary empty, auth source `admin`.
+Engine defaults (when unset): mariadb -> port `3306`, method `mariadb-backup`, client binary `mariadb`; mongodb -> port `27017`, method `mongodump`, backup binary `mongodump`, client binary empty, auth source `admin`.
 
 Backup method must match the engine (`mariadb-backup`/`mariadb-dump` -> mariadb, `mongodump` -> mongodb) or validation fails.
 
@@ -98,29 +96,19 @@ All optional. If none set, retention is skipped.
 
 | Flag | Env var | Default | Description |
 |---|---|---|---|
-| `--target-dir` | `RESTORE__TARGET_DIR` | required | Extraction/staging directory for mongodb (`mongorestore --dir=` runs against it); destination directory for mariadb (extract-only) |
-| `--latest` | - | false | Restore most recent ready backup |
-| `--backup-id` | - | `""` | Restore specific backup by registry ID |
-| `--db-engine` | `DB__ENGINE` | auto-detected | Restore engine override |
-| `--db-restore-binary` | `DB__RESTORE_BINARY` | engine default | Restore binary path (validated for mongodb) |
-| `--db-restore-options` | `DB__RESTORE_OPTIONS` | `""` | Extra restore tool options, e.g. `--drop --oplogReplay` |
-| `--mongo-uri` | `MONGODB__URI` | `""` | MongoDB connection URI |
-| `--mongo-auth-source` | `MONGODB__AUTH_SOURCE` | `admin` (mongodb) | MongoDB authentication source database |
-| `--mongo-tls` | `MONGODB__TLS` | `false` | Enable MongoDB TLS |
-| `--mongo-tls-ca-file` | `MONGODB__TLS_CA_FILE` | `""` | MongoDB TLS CA file |
-| `--mongo-tls-certificate-key-file` | `MONGODB__TLS_CERTIFICATE_KEY_FILE` | `""` | MongoDB TLS certificate key file |
+| `--target-dir` | `RESTORE__TARGET_DIR` | required | Directory to extract backup files into (all engines) |
+| `--latest` | - | false | Extract most recent ready backup |
+| `--backup-id` | - | `""` | Extract backup selected by registry backup ID |
 
 Exactly one backup selector required: positional filename, `--latest`, or `--backup-id`.
 
-Engine detection order: explicit `--db-engine` (flag or `DB__ENGINE`) > registry `tool.method` of the selected backup (for `--latest`/`--backup-id`; `mongodump` selects `mongodb`) > default `mariadb`. Filename restores without `--db-engine` use `mariadb`. An explicit engine contradicting the registry wins and logs a warning.
-
-MongoDB restore requirements: host or `--mongo-uri`, and a `mongorestore` binary in PATH (override with `--db-restore-binary`). MariaDB restore never invokes a binary.
+Restore extracts files only and does not connect to either database engine. MongoDB dump imports, when needed, are performed separately using `mongorestore`.
 
 ## Scheduler YAML
 
 Per-job database section `database:` supports both engines; legacy `mariadb:` still works. Setting both in one job is an error.
 
-`database:` keys: `engine`, `host`, `port`, `user`, `password`, `backup_method`, `backup_binary`, `client_binary`, `restore_binary`, `backup_options`, `restore_options`, `uri`, `auth_source`, `tls`, `tls_ca_file`, `tls_certificate_key_file`.
+`database:` keys: `engine`, `host`, `port`, `user`, `password`, `backup_method`, `backup_binary`, `client_binary`, `backup_options`, `uri`, `auth_source`, `tls`, `tls_ca_file`, `tls_certificate_key_file`.
 
 ## Logging (env vars only)
 

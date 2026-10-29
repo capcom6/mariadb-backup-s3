@@ -59,12 +59,12 @@ MariaDB Backup to S3 is a CLI tool that backs up MariaDB and MongoDB databases, 
 | ---------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | **Physical** (default) | `mariadb-backup` | Hot backup at the storage engine level. Produces a tar.gz archive. Restore by copying files back to the data directory. |
 | **Logical**            | `mariadb-dump`   | SQL dump of each database as a separate `.sql` file, tarred together. Restore by importing the `.sql` files you need.   |
-| **MongoDB**            | `mongodump`      | Logical BSON dump of all databases via MongoDB Database Tools. Restore with `mongorestore`.                             |
+| **MongoDB**            | `mongodump`      | Logical BSON dump of all databases via MongoDB Database Tools. Extract backups to a directory for manual restore.       |
 
 **Key features:**
 
 - Compress backups with pigz (parallel gzip)
-- MongoDB engine support alongside MariaDB (`mongodump` / `mongorestore`)
+- MongoDB backups alongside MariaDB (`mongodump`)
 - Optional AES-256-GCM client-side encryption
 - Multiple storage backends: S3-compatible, FTP, filesystem
 - Automatic backup rotation with configurable retention policies
@@ -78,7 +78,7 @@ MariaDB Backup to S3 is a CLI tool that backs up MariaDB and MongoDB databases, 
 
 - [Go](https://go.dev/)
 - [mariadb-backup](https://mariadb.com/docs/server/server-usage/backup-and-restore/backup-and-restore-overview#mariadb-backup) / [mariadb-dump](https://mariadb.com/docs/server/server-usage/backup-and-restore/backup-and-restore-overview#mariadb-dump)
-- MongoDB Database Tools (`mongodump` / `mongorestore`)
+- MongoDB Database Tools (`mongodump`; install `mongorestore` separately only if needed for manual restore)
 - [AWS SDK for Go v2](https://aws.github.io/aws-sdk-go-v2/)
 - [pigz](https://zlib.net/pigz/) (parallel gzip)
 
@@ -91,7 +91,7 @@ MariaDB Backup to S3 is a CLI tool that backs up MariaDB and MongoDB databases, 
 
 - Go 1.25+ (for building from source)
 - MariaDB server with `mariadb-backup` (for physical) or `mariadb-dump` (for logical) available in PATH, and `mariadb` client binary for listing databases (logical backup only)
-- For the `mongodb` engine: MongoDB Database Tools (`mongodump` for backup, `mongorestore` for restore) available in PATH; native installs must provide them separately (the Docker images bundle the tools for their engine)
+- For the `mongodb` engine: MongoDB Database Tools (`mongodump`) available in PATH; native installs must provide it separately (the Docker images bundle it)
 - `pigz` in PATH (required for all engines; bundled in both Docker images)
 - `tar` in PATH
 - At least 2x the database size in free temp space
@@ -123,14 +123,14 @@ Two images are published:
 # MariaDB tools (mariadb-backup, mariadb-dump, mariadb) + pigz
 docker pull ghcr.io/capcom6/mariadb-backup-s3:latest
 
-# MongoDB Database Tools (mongodump, mongorestore) + pigz
+# MongoDB Database Tools (mongodump) + pigz
 docker pull ghcr.io/capcom6/mongodb-backup-s3:latest
 ```
 
 | Image                               | Base           | Contents                        |
 | ----------------------------------- | -------------- | ------------------------------- |
 | `ghcr.io/capcom6/mariadb-backup-s3` | `mariadb:lts`  | MariaDB tools + `pigz`          |
-| `ghcr.io/capcom6/mongodb-backup-s3` | `ubuntu:24.04` | MongoDB Database Tools + `pigz` |
+| `ghcr.io/capcom6/mongodb-backup-s3` | `ubuntu:24.04` | `mongodump` + `pigz`          |
 
 > **Note**
 > The MariaDB image uses MariaDB's `lts` version; the MongoDB image bundles a pinned MongoDB Database Tools version. For specific versions, clone the repo, modify `Dockerfile.goreleaser` or `Dockerfile.mongodb.goreleaser`, and build a custom image.
@@ -174,8 +174,6 @@ mariadb-backup-s3 backup [options]
 | `--db-backup-binary`               | `DB__BACKUP_BINARY`                 | Backup binary path (auto-derived from engine and method)              | auto-derived from engine and method  |
 | `--db-client-binary`               | `DB__CLIENT_BINARY`                 | Client binary (lists databases for logical mariadb-dump backup)       | `mariadb` (mariadb), empty (mongodb) |
 | `--db-backup-options`              | `DB__BACKUP_OPTIONS`                | Extra backup options (sanitized)                                      | `""`                                 |
-| `--db-restore-binary`              | `DB__RESTORE_BINARY`                | Restore binary (used by mongodb; mariadb restore is extract-only)     | `mongorestore` (mongodb)             |
-| `--db-restore-options`             | `DB__RESTORE_OPTIONS`               | Extra restore tool options (sanitized)                                | `""`                                 |
 | `--mongo-uri`                      | `MONGODB__URI`                      | MongoDB connection URI (replaces host/port/user)                      | `""`                                 |
 | `--mongo-auth-source`              | `MONGODB__AUTH_SOURCE`              | MongoDB authentication source database                                | `admin` (mongodb)                    |
 | `--mongo-tls`                      | `MONGODB__TLS`                      | Enable MongoDB TLS                                                    | `false`                              |
@@ -194,7 +192,7 @@ mariadb-backup-s3 backup [options]
 | `--skip-retention`                 | `BACKUP__SKIP_RETENTION`            | Skip retention policy after backup                                    | `false`                              |
 
 > **Note**
-> `DB__*` variables are preferred. Legacy `MARIADB__*` names (`MARIADB__HOST`, `MARIADB__PORT`, `MARIADB__USER`, `MARIADB__PASSWORD`, `MARIADB__BACKUP_METHOD`, `MARIADB__BACKUP_BINARY`, `MARIADB__CLIENT_BINARY`, `MARIADB__BACKUP_OPTIONS`) still work as fallback when the `DB__*` variable is unset. `DB__RESTORE_BINARY` and `DB__RESTORE_OPTIONS` have no legacy equivalent.
+> `DB__*` variables are preferred. Legacy `MARIADB__*` names (`MARIADB__HOST`, `MARIADB__PORT`, `MARIADB__USER`, `MARIADB__PASSWORD`, `MARIADB__BACKUP_METHOD`, `MARIADB__BACKUP_BINARY`, `MARIADB__CLIENT_BINARY`, `MARIADB__BACKUP_OPTIONS`) still work as fallback when the `DB__*` variable is unset.
 
 **Physical backup example:**
 
@@ -264,48 +262,26 @@ mariadb-backup-s3 restore [options] [backup_name.tar.gz | --latest | --backup-id
 
 Exactly one backup selector must be specified: a filename argument, `--latest`, or `--backup-id`.
 
-**Engine detection:** the restore engine is resolved in this order:
-
-1. Explicit `--db-engine` (flag or `DB__ENGINE`) -- always wins, a warning is logged if it contradicts the registry.
-2. Registry `tool.method` of the selected backup (for `--latest` and `--backup-id`): `mongodump` selects `mongodb`, anything else selects `mariadb`.
-3. Default: `mariadb`.
-
-A filename argument without `--db-engine` restores as `mariadb` (MariaDB restore is extract-only).
-
 **Options:**
 
-| Option                             | Env Var                             | Description                                                  | Default                                     |
-| ---------------------------------- | ----------------------------------- | ------------------------------------------------------------ | ------------------------------------------- |
-| **Database**                       |                                     |                                                              |                                             |
-| `--db-engine`                      | `DB__ENGINE`                        | Restore engine: `mariadb` or `mongodb` (see detection above) | auto-detected                               |
-| `--db-host`, `--host`              | `DB__HOST`                          | Database hostname                                            | `localhost`                                 |
-| `--db-port`, `--port`              | `DB__PORT`                          | Database port (engine-dependent)                             | `3306` / `27017`                            |
-| `--db-user`, `--user`              | `DB__USER`                          | Database username                                            | `root` (mariadb), empty (mongodb)           |
-| `--db-password`, `--password`      | `DB__PASSWORD`                      | Database password                                            | `""`                                        |
-| `--db-restore-binary`              | `DB__RESTORE_BINARY`                | Restore binary path                                          | engine default (`mongorestore` for mongodb) |
-| `--db-restore-options`             | `DB__RESTORE_OPTIONS`               | Extra restore tool options (sanitized)                       | `""`                                        |
-| `--mongo-uri`                      | `MONGODB__URI`                      | MongoDB connection URI (replaces host/port/user)             | `""`                                        |
-| `--mongo-auth-source`              | `MONGODB__AUTH_SOURCE`              | MongoDB authentication source database                       | `admin` (mongodb)                           |
-| `--mongo-tls`                      | `MONGODB__TLS`                      | Enable MongoDB TLS                                           | `false`                                     |
-| `--mongo-tls-ca-file`              | `MONGODB__TLS_CA_FILE`              | MongoDB TLS CA file                                          | `""`                                        |
-| `--mongo-tls-certificate-key-file` | `MONGODB__TLS_CERTIFICATE_KEY_FILE` | MongoDB TLS certificate key file                             | `""`                                        |
-| **Storage / Encryption / Restore** |                                     |                                                              |                                             |
-| `--storage-url`, `--storage`       | `STORAGE__URL`                      | Storage URL                                                  | **required**                                |
-| `--encryption-key`                 | `ENCRYPTION__KEY`                   | Encryption key                                               | `""`                                        |
-| `--target-dir`                     | `RESTORE__TARGET_DIR`               | Target directory (meaning depends on engine, see note)       | **required**                                |
-| `--latest`                         |                                     | Restore latest ready backup from registry                    | `false`                                     |
-| `--backup-id`                      |                                     | Restore backup by registry ID                                | `""`                                        |
+| Option                       | Env Var               | Description                                   | Default      |
+| ---------------------------- | --------------------- | --------------------------------------------- | ------------ |
+| `--storage-url`, `--storage` | `STORAGE__URL`        | Storage URL                                   | **required** |
+| `--encryption-key`           | `ENCRYPTION__KEY`      | Encryption key                                | `""`         |
+| `--target-dir`               | `RESTORE__TARGET_DIR` | Directory to extract the backup into          | **required** |
+| `--latest`                   |                       | Extract latest ready backup from registry     | `false`      |
+| `--backup-id`                |                       | Extract backup selected by registry backup ID | `""`         |
 
-**Restore latest backup:**
+**Extract latest backup:**
 
 ```sh
 mariadb-backup-s3 restore \
   --storage-url="s3://bucket/path" \
-  --target-dir=/var/lib/mysql \
+  --target-dir=/tmp/restore \
   --latest
 ```
 
-**Restore by filename or ID:**
+**Extract by filename or ID:**
 
 ```sh
 mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
@@ -322,34 +298,29 @@ mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
 ```
 
 > **Note**
-> Logical backups (`mariadb-dump`) restore by extracting `.sql` files from the archive. Import them manually:
+> Logical backups (`mariadb-dump`) extract `.sql` files from the archive. Import them manually:
 > ```sh
 > mariadb-backup-s3 restore --storage-url="s3://bucket/path" --target-dir=/tmp/restore --latest
 > mariadb -u root -p < /tmp/restore/mydb.sql
 > ```
 
-**Restore a MongoDB backup:**
+**Extract a MongoDB backup:**
 
 ```sh
-# Engine auto-detected from the registry tool.method=mongodump entry
+# No database engine or connection settings are required
 mariadb-backup-s3 restore \
   --storage-url="s3://my-bucket/mongodb-backups" \
   --target-dir=/tmp/mongo-restore \
-  --latest \
-  --db-restore-options="--drop --oplogReplay"
+  --latest
 
-# Filename argument: pass the engine explicitly
+# Filename argument: no engine or database connection is needed
 mariadb-backup-s3 restore \
   --storage-url="s3://my-bucket/mongodb-backups" \
   --target-dir=/tmp/mongo-restore \
-  --db-engine=mongodb \
   2026-07-03-12-00-00.tar.gz
 ```
 
-`--drop` and `--oplogReplay` are passed through to `mongorestore` via `--db-restore-options` (sanitized before execution).
-
-> **Note**
-> For the `mongodb` engine, `--target-dir` is the extraction/staging directory: the archive is decrypted, decompressed, and extracted there, then `mongorestore --dir=<target-dir>` runs against it. For `mariadb`, `--target-dir` remains the destination directory (restore is extract-only).
+The restore command only downloads, decrypts, and extracts backup files into `--target-dir` for all engines. To import MongoDB data, install MongoDB Database Tools and run `mongorestore` separately against the extracted dump.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -505,7 +476,7 @@ jobs:
       auth_source: admin
 ```
 
-The `database:` section works for both engines. Keys: `engine`, `host`, `port`, `user`, `password`, `backup_method`, `backup_binary`, `client_binary`, `restore_binary`, `backup_options`, `restore_options`, `uri`, `auth_source`, `tls`, `tls_ca_file`, `tls_certificate_key_file`.
+The `database:` section works for both engines. Keys: `engine`, `host`, `port`, `user`, `password`, `backup_method`, `backup_binary`, `client_binary`, `backup_options`, `uri`, `auth_source`, `tls`, `tls_ca_file`, `tls_certificate_key_file`.
 
 > **Note**
 > The legacy `mariadb:` section is still supported. Setting both `database:` and `mariadb:` in one job is a validation error.

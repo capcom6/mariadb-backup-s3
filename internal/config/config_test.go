@@ -19,7 +19,6 @@ func TestDefaultDatabase_MariaDB(t *testing.T) {
 	assert.Equal(t, "root", cfg.User)
 	assert.Equal(t, "mariadb-backup", cfg.BackupBinary)
 	assert.Equal(t, "mariadb", cfg.ClientBinary)
-	assert.Empty(t, cfg.RestoreBinary)
 	assert.Equal(t, config.BackupMethodPhysical, cfg.BackupMethod)
 	assert.False(t, cfg.IsLogical())
 }
@@ -31,7 +30,6 @@ func TestDefaultDatabase_MongoDB(t *testing.T) {
 	assert.Equal(t, 27017, cfg.Port)
 	assert.Equal(t, "mongodump", cfg.BackupBinary)
 	assert.Empty(t, cfg.ClientBinary)
-	assert.Equal(t, "mongorestore", cfg.RestoreBinary)
 	assert.Equal(t, config.BackupMethodMongoDB, cfg.BackupMethod)
 	assert.False(t, cfg.IsLogical())
 }
@@ -47,31 +45,28 @@ func TestDefaultDatabase_EmptyEngineDefaultsToMariaDB(t *testing.T) {
 func TestDatabase_Normalize_EngineAwareDefaults(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name        string
-		engine      string
-		wantPort    int
-		wantMethod  string
-		wantBackup  string
-		wantClient  string
-		wantRestore string
+		name       string
+		engine     string
+		wantPort   int
+		wantMethod string
+		wantBackup string
+		wantClient string
 	}{
 		{
-			name:        "mariaDB default",
-			engine:      "",
-			wantPort:    3306,
-			wantMethod:  config.BackupMethodPhysical,
-			wantBackup:  "mariadb-backup",
-			wantClient:  "mariadb",
-			wantRestore: "",
+			name:       "mariaDB default",
+			engine:     "",
+			wantPort:   3306,
+			wantMethod: config.BackupMethodPhysical,
+			wantBackup: "mariadb-backup",
+			wantClient: "mariadb",
 		},
 		{
-			name:        "mongoDB default",
-			engine:      config.EngineMongoDB,
-			wantPort:    27017,
-			wantMethod:  config.BackupMethodMongoDB,
-			wantBackup:  "mongodump",
-			wantClient:  "",
-			wantRestore: "mongorestore",
+			name:       "mongoDB default",
+			engine:     config.EngineMongoDB,
+			wantPort:   27017,
+			wantMethod: config.BackupMethodMongoDB,
+			wantBackup: "mongodump",
+			wantClient: "",
 		},
 	}
 
@@ -83,7 +78,6 @@ func TestDatabase_Normalize_EngineAwareDefaults(t *testing.T) {
 			assert.Equal(t, tt.wantMethod, cfg.BackupMethod)
 			assert.Equal(t, tt.wantBackup, cfg.BackupBinary)
 			assert.Equal(t, tt.wantClient, cfg.ClientBinary)
-			assert.Equal(t, tt.wantRestore, cfg.RestoreBinary)
 		})
 	}
 }
@@ -91,14 +85,13 @@ func TestDatabase_Normalize_EngineAwareDefaults(t *testing.T) {
 func TestDatabase_Normalize_PreservesExplicitValues(t *testing.T) {
 	t.Parallel()
 	cfg := config.Database{
-		Engine:        config.EngineMongoDB,
-		Host:          "mongo.internal",
-		Port:          1234,
-		User:          "backup",
-		BackupMethod:  config.BackupMethodMongoDB,
-		BackupBinary:  "/opt/mongodump",
-		ClientBinary:  "/opt/mongo",
-		RestoreBinary: "/opt/mongorestore",
+		Engine:       config.EngineMongoDB,
+		Host:         "mongo.internal",
+		Port:         1234,
+		User:         "backup",
+		BackupMethod: config.BackupMethodMongoDB,
+		BackupBinary: "/opt/mongodump",
+		ClientBinary: "/opt/mongo",
 	}.Normalize()
 
 	assert.Equal(t, "mongo.internal", cfg.Host)
@@ -106,7 +99,6 @@ func TestDatabase_Normalize_PreservesExplicitValues(t *testing.T) {
 	assert.Equal(t, "backup", cfg.User)
 	assert.Equal(t, "/opt/mongodump", cfg.BackupBinary)
 	assert.Equal(t, "/opt/mongo", cfg.ClientBinary)
-	assert.Equal(t, "/opt/mongorestore", cfg.RestoreBinary)
 }
 
 // TestDatabase_Normalize_MongoDBAuthSourceDefault mirrors the CLI parse path
@@ -250,20 +242,6 @@ func TestDatabase_Validate_MongoDBBackupBinaryNotFound(t *testing.T) {
 	err := cfg.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found in PATH")
-}
-
-func TestDatabase_Validate_MongoDBRestoreBinaryNotRequired(t *testing.T) {
-	t.Parallel()
-	exe, err := os.Executable()
-	require.NoError(t, err)
-
-	cfg := config.Database{
-		Engine:        config.EngineMongoDB,
-		BackupBinary:  exe,
-		RestoreBinary: "nonexistent-restore-binary-12345",
-	}
-	err = cfg.Validate()
-	assert.NoError(t, err)
 }
 
 func TestDatabase_Validate_LogicalMethod(t *testing.T) {

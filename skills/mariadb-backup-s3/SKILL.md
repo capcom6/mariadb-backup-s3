@@ -24,7 +24,7 @@ FTP, or local filesystem storage.
 | Command | Alias | Description |
 |---|--|---|
 | `backup` | `b` | Full backup + upload to storage (default command) |
-| `restore` | `r` | Download + decrypt + extract; runs `mongorestore` for mongodb engine |
+| `restore` | `r` | Download + decrypt + extract backup files into a directory |
 | `retention` | `ret` | Prune old backups per policy |
 | `registry list` | `reg ls` | List backups in the registry |
 
@@ -141,24 +141,18 @@ mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
   --backup-id="2026-07-03-12-00-00-a1b2c3d4"
 ```
 
-### MongoDB restore (mongorestore)
-
-Engine detection: explicit `--db-engine` (or `DB__ENGINE`) wins; otherwise the
-registry `tool.method` of the selected backup decides (`mongodump` ->
-`mongodb`); default is `mariadb`. Filename restores without `--db-engine` are
-MariaDB. An explicit engine contradicting the registry logs a warning.
+### MongoDB backup extraction
 
 ```shell
 mariadb-backup-s3 restore \
   --storage-url="s3://bucket/path" \
   --target-dir=/tmp/mongo-restore \
-  --latest \
-  --db-restore-options="--drop --oplogReplay"
+  --latest
 ```
 
-For `mongodb`, `--target-dir` is the extraction/staging directory: the archive
-is extracted there, then `mongorestore --dir=<target-dir>` runs against it.
-MariaDB restore stays extract-only (`--db-restore-binary` unused).
+Restore only extracts backup files into `--target-dir` for all engines. MongoDB
+archives contain a logical BSON dump; install MongoDB Database Tools and import
+it separately with `mongorestore` if needed.
 
 ### List backups
 
@@ -181,10 +175,10 @@ Preview with `--dry-run` before deleting.
 
 ## Requirements
 
-- **External binaries**: `mariadb-backup` or `mariadb-dump` (mariadb engine); `mongodump`/`mongorestore` (mongodb engine, MongoDB Database Tools) - available via PATH or configured full path; `pigz` (or `gzip`), `tar` - must be in PATH
+- **External binaries**: `mariadb-backup` or `mariadb-dump` (mariadb engine); `mongodump` (mongodb engine, MongoDB Database Tools) - available via PATH or configured full path; `pigz` (or `gzip`), `tar` - must be in PATH. Install `mongorestore` separately for manual imports.
 - **Temp space**: ~2x database size in `$TMPDIR` (default `/tmp`)
 - **Storage**: S3 (AWS SDK v2 - reads `AWS_*` env vars), FTP, or local `file://` URL
-- **Docker images**: `ghcr.io/capcom6/mariadb-backup-s3` (MariaDB tools + pigz) or `ghcr.io/capcom6/mongodb-backup-s3` (mongodump/mongorestore + pigz); native installs must provide MongoDB Database Tools separately
+- **Docker images**: `ghcr.io/capcom6/mariadb-backup-s3` (MariaDB tools + pigz) or `ghcr.io/capcom6/mongodb-backup-s3` (mongodump + pigz); native installs must provide MongoDB Database Tools separately
 
 ## Encryption (optional)
 

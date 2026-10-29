@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v3"
 
-	"github.com/capcom6/mariadb-backup-s3/internal/config"
 	"github.com/capcom6/mariadb-backup-s3/internal/registry"
 )
 
@@ -87,11 +86,6 @@ func TestResolveBackupSelection_FilenameDefaultsToMariaDB(t *testing.T) {
 	sel, err := runResolveSelection(t, "backup.tar.gz")
 	require.NoError(t, err)
 	assert.Equal(t, "backup.tar.gz", sel.filename)
-	assert.Empty(t, sel.method)
-
-	engine, conflict := resolveEngine("", sel.method)
-	assert.Equal(t, config.EngineMariaDB, engine)
-	assert.False(t, conflict)
 }
 
 func TestResolveBackupSelection_MissingSelector(t *testing.T) {
@@ -106,77 +100,23 @@ func TestResolveBackupSelection_MultipleSelectors(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidParams)
 }
 
-func TestResolveBackupSelection_LatestDerivesEngineFromRegistry(t *testing.T) {
+func TestResolveBackupSelection_LatestIgnoresBackupMethod(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name           string
-		method         string
-		expectedEngine string
-	}{
-		{
-			name:           "mongodump selects mongodb",
-			method:         config.BackupMethodMongoDB,
-			expectedEngine: config.EngineMongoDB,
-		},
-		{
-			name:           "mariadb-dump selects mariadb",
-			method:         config.BackupMethodLogical,
-			expectedEngine: config.EngineMariaDB,
-		},
-		{
-			name:           "mariadb-backup selects mariadb",
-			method:         config.BackupMethodPhysical,
-			expectedEngine: config.EngineMariaDB,
-		},
-		{
-			name:           "empty method defaults to mariadb",
-			method:         "",
-			expectedEngine: config.EngineMariaDB,
-		},
-	}
+	storageURL := writeRegistry(t, newReadyEntry(t, "mongodump"))
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			storageURL := writeRegistry(t, newReadyEntry(t, tt.method))
-
-			sel, err := runResolveSelection(t, "--storage-url="+storageURL, "--latest")
-			require.NoError(t, err)
-			assert.Equal(t, registryBackupName, sel.filename)
-			assert.Equal(t, tt.method, sel.method)
-
-			engine, conflict := resolveEngine("", sel.method)
-			assert.Equal(t, tt.expectedEngine, engine)
-			assert.False(t, conflict)
-		})
-	}
+	sel, err := runResolveSelection(t, "--storage-url="+storageURL, "--latest")
+	require.NoError(t, err)
+	assert.Equal(t, registryBackupName, sel.filename)
 }
 
-func TestResolveBackupSelection_BackupIDDerivesEngineFromRegistry(t *testing.T) {
+func TestResolveBackupSelection_BackupIDIgnoresBackupMethod(t *testing.T) {
 	t.Parallel()
-	entry := newReadyEntry(t, config.BackupMethodMongoDB)
+	entry := newReadyEntry(t, "mongodump")
 	storageURL := writeRegistry(t, entry)
 
 	sel, err := runResolveSelection(t, "--storage-url="+storageURL, "--backup-id="+entry.ID)
 	require.NoError(t, err)
 	assert.Equal(t, entry.Filename, sel.filename)
-	assert.Equal(t, config.BackupMethodMongoDB, sel.method)
-
-	engine, conflict := resolveEngine("", sel.method)
-	assert.Equal(t, config.EngineMongoDB, engine)
-	assert.False(t, conflict)
-}
-
-func TestResolveBackupSelection_ExplicitEngineWins(t *testing.T) {
-	t.Parallel()
-	storageURL := writeRegistry(t, newReadyEntry(t, config.BackupMethodMongoDB))
-
-	sel, err := runResolveSelection(t, "--storage-url="+storageURL, "--latest")
-	require.NoError(t, err)
-
-	engine, conflict := resolveEngine(config.EngineMariaDB, sel.method)
-	assert.Equal(t, config.EngineMariaDB, engine)
-	assert.True(t, conflict, "explicit engine contradicting registry method must be reported")
 }
 
 func TestResolveBackupSelection_LatestWithoutReadyBackups(t *testing.T) {
@@ -189,78 +129,8 @@ func TestResolveBackupSelection_LatestWithoutReadyBackups(t *testing.T) {
 
 func TestResolveBackupSelection_BackupIDNotFound(t *testing.T) {
 	t.Parallel()
-	storageURL := writeRegistry(t, newReadyEntry(t, config.BackupMethodMongoDB))
+	storageURL := writeRegistry(t, newReadyEntry(t, "mongodump"))
 
 	_, err := runResolveSelection(t, "--storage-url="+storageURL, "--backup-id=missing-id")
 	require.ErrorIs(t, err, ErrBackupNotFound)
-}
-
-func TestResolveEngine(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name             string
-		explicit         string
-		method           string
-		expectedEngine   string
-		expectedConflict bool
-	}{
-		{
-			name:             "explicit wins over registry method",
-			explicit:         config.EngineMongoDB,
-			method:           config.BackupMethodPhysical,
-			expectedEngine:   config.EngineMongoDB,
-			expectedConflict: true,
-		},
-		{
-			name:             "explicit mariadb over mongodump",
-			explicit:         config.EngineMariaDB,
-			method:           config.BackupMethodMongoDB,
-			expectedEngine:   config.EngineMariaDB,
-			expectedConflict: true,
-		},
-		{
-			name:             "explicit without registry method has no conflict",
-			explicit:         config.EngineMongoDB,
-			method:           "",
-			expectedEngine:   config.EngineMongoDB,
-			expectedConflict: false,
-		},
-		{
-			name:             "derived from registry mongodump",
-			explicit:         "",
-			method:           config.BackupMethodMongoDB,
-			expectedEngine:   config.EngineMongoDB,
-			expectedConflict: false,
-		},
-		{
-			name:             "derived from registry mariadb-dump",
-			explicit:         "",
-			method:           config.BackupMethodLogical,
-			expectedEngine:   config.EngineMariaDB,
-			expectedConflict: false,
-		},
-		{
-			name:             "empty method defaults to mariadb",
-			explicit:         "",
-			method:           "",
-			expectedEngine:   config.EngineMariaDB,
-			expectedConflict: false,
-		},
-		{
-			name:             "unknown method defaults to mariadb",
-			explicit:         "",
-			method:           "future-method",
-			expectedEngine:   config.EngineMariaDB,
-			expectedConflict: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			engine, conflict := resolveEngine(tt.explicit, tt.method)
-			assert.Equal(t, tt.expectedEngine, engine)
-			assert.Equal(t, tt.expectedConflict, conflict)
-		})
-	}
 }

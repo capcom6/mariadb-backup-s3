@@ -61,12 +61,10 @@ type Database struct {
 	User     string `yaml:"user,omitempty"`
 	Password string `yaml:"password,omitempty"`
 
-	BackupMethod   string `yaml:"backup_method,omitempty"`
-	BackupBinary   string `yaml:"backup_binary,omitempty"`
-	ClientBinary   string `yaml:"client_binary,omitempty"`
-	RestoreBinary  string `yaml:"restore_binary,omitempty"`
-	BackupOptions  string `yaml:"backup_options,omitempty"`
-	RestoreOptions string `yaml:"restore_options,omitempty"`
+	BackupMethod  string `yaml:"backup_method,omitempty"`
+	BackupBinary  string `yaml:"backup_binary,omitempty"`
+	ClientBinary  string `yaml:"client_binary,omitempty"`
+	BackupOptions string `yaml:"backup_options,omitempty"`
 
 	URI                   string `yaml:"uri,omitempty"`
 	AuthSource            string `yaml:"auth_source,omitempty"`

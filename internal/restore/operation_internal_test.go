@@ -7,7 +7,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -53,103 +52,35 @@ func storageURL(dir string) string {
 	return "file://" + dir
 }
 
-// TestRun_MariaDBExtractOnly proves the historical MariaDB behavior: the
-// pipeline downloads, decrypts nothing, and extracts into target-dir. No
-// database binary is looked up or executed, even when RestoreBinary points
-// at a path that does not exist.
-func TestRun_MariaDBExtractOnly(t *testing.T) {
-	t.Parallel()
-	storageDir := t.TempDir()
-	targetDir := t.TempDir()
-	writeTestArchive(t, filepath.Join(storageDir, archiveName), map[string]string{
-		extractedMarker: extractedContent,
-	})
-
-	cfg := Config{
-		Storage:    config.Storage{URL: storageURL(storageDir)},
-		Encryption: config.Encryption{EncryptionKey: ""},
-		Database: config.Database{
-			Engine:        config.EngineMariaDB,
-			RestoreBinary: "/nonexistent/restore-binary-must-not-run",
-		},
-		TargetDir: targetDir,
-	}
-
-	op, err := NewOperation(cfg, logging.NewTestLogger())
-	require.NoError(t, err)
-	require.NoError(t, op.Run(context.Background(), archiveName))
-
-	data, readErr := os.ReadFile(filepath.Join(targetDir, extractedMarker))
-	require.NoError(t, readErr)
-	assert.Equal(t, extractedContent, string(data))
-}
-
-// TestRun_MongoDBRestoresAfterExtraction runs a full download-extract-restore
-// cycle against a fake mongorestore. The fake fails unless the extracted dump
-// already exists when it starts, so a passing run proves the restore hook runs
-// after the pipeline and receives --dir=<target-dir>.
-func TestRun_MongoDBRestoresAfterExtraction(t *testing.T) {
+func TestRun_ExtractOnly(t *testing.T) {
 	binDir := t.TempDir()
-	workDir := t.TempDir()
-	argsFile := filepath.Join(workDir, "args")
-
-	script := `#!/bin/sh
-set -e
-dir=""
-for arg in "$@"; do
-	case "$arg" in
-	--dir=*) dir="${arg#--dir=}" ;;
-	esac
-done
-if [ -z "$dir" ] || [ ! -f "$dir/testdb/dump.bson" ]; then
-	echo "extraction not finished before mongorestore" >&2
-	exit 9
-fi
-: > "$FAKE_MONGORESTORE_ARGS"
-for arg in "$@"; do
-	printf '%s\n' "$arg" >> "$FAKE_MONGORESTORE_ARGS"
-done
-`
+	markerPath := filepath.Join(t.TempDir(), "mongorestore-ran")
+	script := "#!/bin/sh\nprintf called > \"$MONGORESTORE_MARKER\"\nexit 99\n"
 	require.NoError(t, os.WriteFile(filepath.Join(binDir, "mongorestore"), []byte(script), 0o755))
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	t.Setenv("FAKE_MONGORESTORE_ARGS", argsFile)
+	t.Setenv("MONGORESTORE_MARKER", markerPath)
 
 	storageDir := t.TempDir()
 	targetDir := t.TempDir()
 	writeTestArchive(t, filepath.Join(storageDir, archiveName), map[string]string{
+		extractedMarker:    extractedContent,
 		"testdb/dump.bson": "fake-bson-data",
 	})
 
 	cfg := Config{
 		Storage:    config.Storage{URL: storageURL(storageDir)},
 		Encryption: config.Encryption{EncryptionKey: ""},
-		Database: config.Database{
-			Engine:        config.EngineMongoDB,
-			Host:          "localhost",
-			Port:          27017,
-			RestoreBinary: "mongorestore",
-		},
-		TargetDir: targetDir,
+		TargetDir:  targetDir,
 	}
 
-	op, err := NewOperation(cfg, logging.NewTestLogger())
-	require.NoError(t, err)
-	require.NoError(t, op.Run(context.Background(), archiveName))
+	require.NoError(t, NewOperation(cfg, logging.NewTestLogger()).Run(context.Background(), archiveName))
 
-	argsData, readErr := os.ReadFile(argsFile)
+	data, readErr := os.ReadFile(filepath.Join(targetDir, extractedMarker))
 	require.NoError(t, readErr)
-	args := strings.Split(strings.TrimRight(string(argsData), "\n"), "\n")
-	assert.Contains(t, args, "--dir="+targetDir)
-	assert.Contains(t, args, "--host=localhost")
-	assert.Contains(t, args, "--port=27017")
-}
-
-func TestNewOperation_UnknownEngine(t *testing.T) {
-	t.Parallel()
-	_, err := NewOperation(Config{
-		Database: config.Database{Engine: "oracle"},
-	}, logging.NewTestLogger())
-
-	require.Error(t, err)
-	assert.ErrorIs(t, err, config.ErrInvalidEngine)
+	require.Equal(t, extractedContent, string(data))
+	bson, bsonErr := os.ReadFile(filepath.Join(targetDir, "testdb/dump.bson"))
+	require.NoError(t, bsonErr)
+	require.Equal(t, "fake-bson-data", string(bson))
+	_, markerErr := os.Stat(markerPath)
+	assert.True(t, os.IsNotExist(markerErr), "restore must extract without invoking mongorestore")
 }
