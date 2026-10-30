@@ -27,6 +27,8 @@ Two Docker images: `ghcr.io/capcom6/mariadb-backup-s3` (MariaDB tools + pigz) an
 
 Engine defaults (when unset): mariadb -> port `3306`, method `mariadb-backup`, client binary `mariadb`; mongodb -> port `27017`, method `mongodump`, backup binary `mongodump`, client binary empty, auth source `admin`.
 
+A database name in the `MONGODB__URI` path is rejected (backups dump all databases). Select a different authentication database with `?authSource=<db>` in the URI; when the URI carries `authSource`, `MONGODB__AUTH_SOURCE` is not passed to `mongodump`.
+
 Backup method must match the engine (`mariadb-backup`/`mariadb-dump` -> mariadb, `mongodump` -> mongodb) or validation fails.
 
 ## Storage

@@ -91,7 +91,7 @@ MariaDB Backup to S3 is a CLI tool that backs up MariaDB and MongoDB databases, 
 
 - Go 1.25+ (for building from source)
 - MariaDB server with `mariadb-backup` (for physical) or `mariadb-dump` (for logical) available in PATH, and `mariadb` client binary for listing databases (logical backup only)
-- For the `mongodb` engine: MongoDB Database Tools (`mongodump`) available in PATH; native installs must provide it separately (the Docker images bundle it)
+- For the `mongodb` engine: MongoDB Database Tools (`mongodump`) available in PATH; native installs must provide it separately (the MongoDB image bundles it)
 - `pigz` in PATH (required for all engines; bundled in both Docker images)
 - `tar` in PATH
 - At least 2x the database size in free temp space
