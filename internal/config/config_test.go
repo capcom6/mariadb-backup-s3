@@ -250,28 +250,40 @@ func TestDatabase_Validate_MongoDBURIPathDatabase(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name       string
-		engine     string
-		uri        string
-		wantReject bool
+		name    string
+		engine  string
+		uri     string
+		wantErr error
 	}{
 		{
-			name:       "path names a database",
-			engine:     config.EngineMongoDB,
-			uri:        "mongodb://dbuser@mongo1:27017/appdb",
-			wantReject: true,
+			name:    "path names a database",
+			engine:  config.EngineMongoDB,
+			uri:     "mongodb://dbuser@mongo1:27017/appdb",
+			wantErr: config.ErrMongoURIPathDatabase,
 		},
 		{
-			name:       "path names a database below a collection path",
-			engine:     config.EngineMongoDB,
-			uri:        "mongodb://dbuser@mongo1:27017/appdb/coll",
-			wantReject: true,
+			name:    "path names a database below a collection path",
+			engine:  config.EngineMongoDB,
+			uri:     "mongodb://dbuser@mongo1:27017/appdb/coll",
+			wantErr: config.ErrMongoURIPathDatabase,
 		},
 		{
-			name:       "srv uri names a database",
-			engine:     config.EngineMongoDB,
-			uri:        "mongodb+srv://dbuser@cluster0.example.mongodb.net/appdb",
-			wantReject: true,
+			name:    "srv uri names a database",
+			engine:  config.EngineMongoDB,
+			uri:     "mongodb+srv://dbuser@cluster0.example.mongodb.net/appdb",
+			wantErr: config.ErrMongoURIPathDatabase,
+		},
+		{
+			name:    "unparseable uri fails closed even with a path",
+			engine:  config.EngineMongoDB,
+			uri:     "mongodb://user:pass[abc@host/appdb",
+			wantErr: config.ErrInvalidMongoURI,
+		},
+		{
+			name:    "unparseable uri fails closed without a path",
+			engine:  config.EngineMongoDB,
+			uri:     "mongodb://user:pass[abc@host",
+			wantErr: config.ErrInvalidMongoURI,
 		},
 		{
 			name:   "path-less uri",
@@ -304,9 +316,9 @@ func TestDatabase_Validate_MongoDBURIPathDatabase(t *testing.T) {
 				MongoDB:      config.MongoDB{URI: tt.uri},
 			}
 			vErr := cfg.Validate()
-			if tt.wantReject {
+			if tt.wantErr != nil {
 				require.Error(t, vErr)
-				require.ErrorIs(t, vErr, config.ErrMongoURIPathDatabase)
+				require.ErrorIs(t, vErr, tt.wantErr)
 				assert.NotContains(t, vErr.Error(), tt.uri, "error must not echo the URI")
 				return
 			}

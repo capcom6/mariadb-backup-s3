@@ -34,6 +34,13 @@ var (
 	// be silent. The message never echoes the URI because it may embed a
 	// password.
 	ErrMongoURIPathDatabase = errors.New("mongo URI must not name a database in its path")
+
+	// ErrInvalidMongoURI rejects a mongo connection URI that cannot be
+	// parsed: the database tools' parser accepts URIs net/url rejects (and
+	// may then dump a path database this check could not see), so
+	// validation fails closed. The message never echoes the URI or the
+	// parser error because the URI may embed a password.
+	ErrInvalidMongoURI = errors.New("invalid mongo URI: it could not be parsed, so a database path cannot be ruled out")
 )
 
 type Database struct {
@@ -161,15 +168,20 @@ func (d Database) validateMongoURI() error {
 	}
 
 	u, err := url.Parse(d.MongoDB.URI)
-	// Unparseable URIs keep their existing behavior and reach the tools,
-	// which report them; only a parsed path can be judged here.
-	if err == nil {
-		if seg, _, _ := strings.Cut(strings.TrimPrefix(u.Path, "/"), "/"); seg != "" {
-			return fmt.Errorf(
-				"%w: backups dump all databases, put the authentication database in ?authSource=",
-				ErrMongoURIPathDatabase,
-			)
-		}
+	if err != nil {
+		// The tools' parser is more lenient than net/url, so a URI this
+		// check cannot parse might still carry a path database; fail
+		// closed instead of letting a narrowed dump through. Neither the
+		// URI nor the parser error is echoed because both can contain
+		// credentials.
+		return ErrInvalidMongoURI
+	}
+
+	if seg, _, _ := strings.Cut(strings.TrimPrefix(u.Path, "/"), "/"); seg != "" {
+		return fmt.Errorf(
+			"%w: backups dump all databases, put the authentication database in ?authSource=",
+			ErrMongoURIPathDatabase,
+		)
 	}
 
 	return nil
