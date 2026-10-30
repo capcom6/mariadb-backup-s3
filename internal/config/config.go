@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os/exec"
+	"strings"
 )
 
 const (
@@ -26,6 +27,13 @@ var (
 	ErrInvalidBackupMethod      = errors.New("invalid backup method")
 	ErrIncompatibleBackupMethod = errors.New("backup method is incompatible with database engine")
 	ErrBackupBinaryRequired     = errors.New("backup binary is required")
+
+	// ErrMongoURIPathDatabase rejects a mongo connection URI that names a
+	// database in its path: the database tools then dump only that database
+	// while backups are documented as full-instance, so the narrowing would
+	// be silent. The message never echoes the URI because it may embed a
+	// password.
+	ErrMongoURIPathDatabase = errors.New("mongo URI must not name a database in its path")
 )
 
 type Database struct {
@@ -98,6 +106,9 @@ func (d Database) Validate() error {
 	if err := normalized.validateBackupMethod(); err != nil {
 		return err
 	}
+	if err := normalized.validateMongoURI(); err != nil {
+		return err
+	}
 
 	return normalized.validateBinaries()
 }
@@ -139,6 +150,26 @@ func (d Database) validateBackupMethod() error {
 			BackupMethodLogical,
 			BackupMethodMongoDB,
 		)
+	}
+
+	return nil
+}
+
+func (d Database) validateMongoURI() error {
+	if d.Engine != EngineMongoDB || d.MongoDB.URI == "" {
+		return nil
+	}
+
+	u, err := url.Parse(d.MongoDB.URI)
+	// Unparseable URIs keep their existing behavior and reach the tools,
+	// which report them; only a parsed path can be judged here.
+	if err == nil {
+		if seg, _, _ := strings.Cut(strings.TrimPrefix(u.Path, "/"), "/"); seg != "" {
+			return fmt.Errorf(
+				"%w: backups dump all databases, put the authentication database in ?authSource=",
+				ErrMongoURIPathDatabase,
+			)
+		}
 	}
 
 	return nil

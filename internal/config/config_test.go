@@ -244,6 +244,77 @@ func TestDatabase_Validate_MongoDBBackupBinaryNotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found in PATH")
 }
 
+func TestDatabase_Validate_MongoDBURIPathDatabase(t *testing.T) {
+	t.Parallel()
+	exe, err := os.Executable()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		engine     string
+		uri        string
+		wantReject bool
+	}{
+		{
+			name:       "path names a database",
+			engine:     config.EngineMongoDB,
+			uri:        "mongodb://dbuser@mongo1:27017/appdb",
+			wantReject: true,
+		},
+		{
+			name:       "path names a database below a collection path",
+			engine:     config.EngineMongoDB,
+			uri:        "mongodb://dbuser@mongo1:27017/appdb/coll",
+			wantReject: true,
+		},
+		{
+			name:       "srv uri names a database",
+			engine:     config.EngineMongoDB,
+			uri:        "mongodb+srv://dbuser@cluster0.example.mongodb.net/appdb",
+			wantReject: true,
+		},
+		{
+			name:   "path-less uri",
+			engine: config.EngineMongoDB,
+			uri:    "mongodb://dbuser@mongo1:27017",
+		},
+		{
+			name:   "root path uri",
+			engine: config.EngineMongoDB,
+			uri:    "mongodb://dbuser@mongo1:27017/",
+		},
+		{
+			name:   "authSource query without path database",
+			engine: config.EngineMongoDB,
+			uri:    "mongodb://dbuser@mongo1:27017/?authSource=admin",
+		},
+		{
+			name:   "mariadb engine ignores mongo uri path",
+			engine: config.EngineMariaDB,
+			uri:    "mongodb://dbuser@mongo1:27017/appdb",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := config.Database{
+				Engine:       tt.engine,
+				BackupBinary: exe,
+				MongoDB:      config.MongoDB{URI: tt.uri},
+			}
+			vErr := cfg.Validate()
+			if tt.wantReject {
+				require.Error(t, vErr)
+				require.ErrorIs(t, vErr, config.ErrMongoURIPathDatabase)
+				assert.NotContains(t, vErr.Error(), tt.uri, "error must not echo the URI")
+				return
+			}
+			assert.NoError(t, vErr)
+		})
+	}
+}
+
 func TestDatabase_Validate_LogicalMethod(t *testing.T) {
 	t.Parallel()
 	exe, err := os.Executable()
