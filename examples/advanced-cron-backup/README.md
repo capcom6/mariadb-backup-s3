@@ -127,6 +127,9 @@ AWS_REGION=us-east-1
 RETENTION__COUNT=30  # Keep last 30 backups
 ```
 
+> **Note**
+> For MongoDB add `DB__ENGINE=mongodb` and connection settings (`DB__HOST`, `DB__PORT=27017`, `DB__USER`, `DB__PASSWORD`, or `MONGODB__URI`); `mongodump` must be in PATH. `DB__*` variables are preferred; `MARIADB__*` names remain supported as fallback.
+
 ### Backup Script Options
 
 The `backup.sh` script can be customized:

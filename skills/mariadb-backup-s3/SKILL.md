@@ -1,28 +1,30 @@
 ---
 name: mariadb-backup-s3
 description: >-
-  Perform MariaDB backup, restore, retention management, and registry operations
-  using the mariadb-backup-s3 CLI tool. Use when the task involves: (1) Creating
-  a full MariaDB backup and uploading to S3/FTP/local storage, (2) Restoring a
-  backup from storage, (3) Applying retention policies to prune old backups,
-  (4) Listing or inspecting the backup registry, (5) Setting up or troubleshooting
-  automated backup pipelines for MariaDB. Targets DevOps/operations workflows
-  running the binary directly on a server.
+  Perform MariaDB and MongoDB backup, restore, retention management, and
+  registry operations using the mariadb-backup-s3 CLI tool. Use when the task
+  involves: (1) Creating a full MariaDB or MongoDB backup and uploading to
+  S3/FTP/local storage, (2) Restoring a backup from storage, (3) Applying
+  retention policies to prune old backups, (4) Listing or inspecting the backup
+  registry, (5) Setting up or troubleshooting automated backup pipelines for
+  MariaDB or MongoDB. Targets DevOps/operations workflows running the binary
+  directly on a server.
 license: Apache-2.0
 ---
 
 # mariadb-backup-s3
 
-CLI tool that backs up MariaDB using either `mariadb-backup` (physical) or
-`mariadb-dump` (logical), compresses (pigz/gzip), optionally encrypts
-(AES-256-GCM), and uploads to S3-compatible, FTP, or local filesystem storage.
+CLI tool that backs up MariaDB (`mariadb-backup` physical or `mariadb-dump`
+logical) or MongoDB (`mongodump` logical, engine `mongodb`), compresses
+(pigz/gzip), optionally encrypts (AES-256-GCM), and uploads to S3-compatible,
+FTP, or local filesystem storage.
 
 ## Subcommands
 
 | Command | Alias | Description |
 |---|--|---|
 | `backup` | `b` | Full backup + upload to storage (default command) |
-| `restore` | `r` | Download + decrypt + extract to target directory |
+| `restore` | `r` | Download + decrypt + extract backup files into a directory |
 | `retention` | `ret` | Prune old backups per policy |
 | `registry list` | `reg ls` | List backups in the registry |
 
@@ -56,7 +58,8 @@ virtual `information_schema` and `performance_schema` schemas. Dumps use
 `mariadb-dump`'s default per-table locking for consistency across all storage
 engines; writes are briefly blocked while each table is dumped. For
 non-blocking dumps (InnoDB only), add `--single-transaction` via
-`MARIADB__BACKUP_OPTIONS`, accepting that non-transactional tables are then
+`DB__BACKUP_OPTIONS` (or legacy `MARIADB__BACKUP_OPTIONS`), accepting that
+non-transactional tables are then
 not guaranteed consistent. Restore by importing the `.sql` files you need:
 
 ```shell
@@ -70,7 +73,41 @@ mariadb-backup-s3 restore \
 mysql -u root -p < /tmp/restore/mydb.sql
 ```
 
-Minimal (env-only):
+### MongoDB backup (mongodump)
+
+```shell
+mariadb-backup-s3 backup \
+  --db-engine=mongodb \
+  --storage-url="s3://bucket/path" \
+  --db-host=db.example.com \
+  --db-user=backup
+```
+
+With `--db-engine=mongodb` the method defaults to `mongodump`; a single
+invocation dumps all databases. Credentials go to a temporary config file
+outside the backup directory, never into argv or the archive. Use `--mongo-uri`
+instead of host/port/user for a connection URI. Registry entries get
+`tool.method=mongodump`.
+
+Consistency: `mongodump` is logical, not PITR. For replica sets opt in with
+`DB__BACKUP_OPTIONS="--oplog"`; sharded clusters are out of scope. Keep
+mixed-engine buckets on separate storage prefixes.
+
+Minimal (env-only, MongoDB):
+
+```shell
+export DB__ENGINE=mongodb
+export DB__HOST=localhost
+export DB__USER=backup
+export DB__PASSWORD=secret
+export STORAGE__URL=s3://my-bucket/mongodb-backups
+export AWS_REGION=eu-west-1
+export AWS_ACCESS_KEY_ID=xxx
+export AWS_SECRET_ACCESS_KEY=yyy
+mariadb-backup-s3
+```
+
+Minimal (env-only, MariaDB):
 
 ```shell
 export MARIADB__HOST=localhost
@@ -104,6 +141,19 @@ mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
   --backup-id="2026-07-03-12-00-00-a1b2c3d4"
 ```
 
+### MongoDB backup extraction
+
+```shell
+mariadb-backup-s3 restore \
+  --storage-url="s3://bucket/path" \
+  --target-dir=/tmp/mongo-restore \
+  --latest
+```
+
+Restore only extracts backup files into `--target-dir` for all engines. MongoDB
+archives contain a logical BSON dump; install MongoDB Database Tools and import
+it separately with `mongorestore` if needed.
+
 ### List backups
 
 ```shell
@@ -125,9 +175,10 @@ Preview with `--dry-run` before deleting.
 
 ## Requirements
 
-- **External binaries**: `mariadb-backup` or `mariadb-dump` — available via PATH or configured full path; `pigz` (or `gzip`), `tar` — must be in PATH
-- **Temp space**: ~2× database size in `$TMPDIR` (default `/tmp`)
-- **Storage**: S3 (AWS SDK v2 — reads `AWS_*` env vars), FTP, or local `file://` URL
+- **External binaries**: `mariadb-backup` or `mariadb-dump` (mariadb engine); `mongodump` (mongodb engine, MongoDB Database Tools) - available via PATH or configured full path; `pigz` (or `gzip`), `tar` - must be in PATH. Install `mongorestore` separately for manual imports.
+- **Temp space**: ~2x database size in `$TMPDIR` (default `/tmp`)
+- **Storage**: S3 (AWS SDK v2 - reads `AWS_*` env vars), FTP, or local `file://` URL
+- **Docker images**: `ghcr.io/capcom6/mariadb-backup-s3` (MariaDB tools + pigz) or `ghcr.io/capcom6/mongodb-backup-s3` (mongodump + pigz); native installs must provide MongoDB Database Tools separately
 
 ## Encryption (optional)
 

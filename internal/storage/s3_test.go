@@ -10,6 +10,7 @@ import (
 )
 
 func TestNewS3Storage_PartSizeValidation_InvalidValues(t *testing.T) {
+	t.Parallel()
 	// Test cases that should fail validation BEFORE AWS config is loaded
 	tests := []struct {
 		name        string
@@ -50,6 +51,7 @@ func TestNewS3Storage_PartSizeValidation_InvalidValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			u, err := url.Parse("s3://test-bucket/backups?part-size=" + tt.partSize)
 			if err != nil {
 				t.Fatalf("Failed to parse URL: %v", err)
@@ -69,6 +71,7 @@ func TestNewS3Storage_PartSizeValidation_InvalidValues(t *testing.T) {
 }
 
 func TestNewS3Storage_PartSize_ValidValues(t *testing.T) {
+	t.Parallel()
 	// Test that valid part-size values don't fail at validation stage
 	// These may succeed or fail later (e.g., at AWS config loading), but should NOT fail validation
 	tests := []struct {
@@ -99,6 +102,7 @@ func TestNewS3Storage_PartSize_ValidValues(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			u, err := url.Parse("s3://test-bucket/backups")
 			if err != nil {
 				t.Fatalf("Failed to parse URL: %v", err)
@@ -133,6 +137,7 @@ func TestNewS3Storage_PartSize_ValidValues(t *testing.T) {
 }
 
 func TestNewS3Storage_PartSize_ErrInvalidArgument(t *testing.T) {
+	t.Parallel()
 	// Test that validation errors wrap ErrInvalidArgument
 	tests := []struct {
 		name     string
@@ -150,6 +155,7 @@ func TestNewS3Storage_PartSize_ErrInvalidArgument(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			u, err := url.Parse("s3://test-bucket/backups?part-size=" + tt.partSize)
 			if err != nil {
 				t.Fatalf("Failed to parse URL: %v", err)
@@ -168,6 +174,7 @@ func TestNewS3Storage_PartSize_ErrInvalidArgument(t *testing.T) {
 }
 
 func TestS3Storage_PartSize_Constants(t *testing.T) {
+	t.Parallel()
 	// Verify constant values are correct
 	if storage.S3DefaultPartSize != 10*1024*1024 {
 		t.Errorf("S3DefaultPartSize = %d, want %d", storage.S3DefaultPartSize, 10*1024*1024)

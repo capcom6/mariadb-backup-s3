@@ -7,6 +7,7 @@ import (
 )
 
 func TestSanitizeOptions(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		options     string
@@ -52,10 +53,16 @@ func TestSanitizeOptions(t *testing.T) {
 			options:     "parallel=4",
 			expectError: true,
 		},
+		{
+			name:        "Restore option with namespace glob pattern",
+			options:     "--nsInclude=appdb.* --drop",
+			expectError: false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			_, err := sanitizer.SanitizeOptions(tt.options)
 			if (err != nil) != tt.expectError {
 				t.Errorf("SanitizeOptions() error = %v, expectError %v", err, tt.expectError)

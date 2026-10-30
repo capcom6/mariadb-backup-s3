@@ -39,6 +39,9 @@ sudo install -m 600 -o backup -g backup .env.example /var/backups/.env
 sudo nano /var/backups/.env
 ```
 
+> **Note**
+> Engine selection: set `DB__ENGINE=mongodb` (default `mariadb`) in the `.env` file to back up MongoDB with `mongodump`. `DB__*` variables are preferred; `MARIADB__*` names remain supported as fallback.
+
 ### 3. Install CRON Job
 
 Add the CRON job:

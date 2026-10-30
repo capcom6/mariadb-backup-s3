@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/cloudevents/sdk-go/v2/client"
@@ -21,7 +22,14 @@ type Service struct {
 	client client.Client
 }
 
+// NewService builds the webhook service. An empty (or whitespace-only)
+// DefaultURL yields a disabled service: no client, nil error, and Notify is a
+// no-op. A configured URL keeps the existing client construction behavior.
 func NewService(config Config) (*Service, error) {
+	if strings.TrimSpace(config.DefaultURL) == "" {
+		return &Service{config: config, client: nil}, nil
+	}
+
 	client, err := cloudevents.NewClientHTTP(
 		cloudevents.WithTarget(config.DefaultURL),
 		eventshttp.WithClient(http.Client{
@@ -40,6 +48,10 @@ func NewService(config Config) (*Service, error) {
 }
 
 func (s *Service) Notify(ctx context.Context, payload Payload) error {
+	if s.client == nil {
+		return nil
+	}
+
 	event := cloudevents.NewEvent()
 	event.SetSource(eventSource)
 	event.SetType(eventType)

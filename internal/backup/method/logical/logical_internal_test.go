@@ -10,6 +10,7 @@ import (
 )
 
 func TestConnectionArgs_AppliesSharedOptionsToDiscovery(t *testing.T) {
+	t.Parallel()
 	m := New(method.Config{
 		Host:          "db.example.com",
 		Port:          3307,
@@ -33,6 +34,7 @@ func TestConnectionArgs_AppliesSharedOptionsToDiscovery(t *testing.T) {
 }
 
 func TestConnectionArgs_EmptyOptions(t *testing.T) {
+	t.Parallel()
 	m := New(method.Config{
 		Host: "localhost",
 		User: "root",

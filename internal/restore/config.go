@@ -36,7 +36,6 @@ func DefaultConfig() Config {
 		Encryption: config.Encryption{
 			EncryptionKey: "",
 		},
-
 		TargetDir: "",
 	}
 }

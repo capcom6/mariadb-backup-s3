@@ -2,23 +2,24 @@ package backup
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/capcom6/mariadb-backup-s3/internal/backup"
 	"github.com/capcom6/mariadb-backup-s3/internal/cli/flags"
-	"github.com/capcom6/mariadb-backup-s3/internal/config"
 	"github.com/capcom6/mariadb-backup-s3/internal/core/codes"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
 	"github.com/capcom6/mariadb-backup-s3/internal/registry"
 	"github.com/capcom6/mariadb-backup-s3/internal/retention"
 	"github.com/capcom6/mariadb-backup-s3/internal/storage"
-	"github.com/capcom6/mariadb-backup-s3/pkg/cliutil"
 	"github.com/urfave/cli/v3"
 )
 
 const (
+	logFieldDBEngine          = "db_engine"
 	logFieldDBHost            = "db_host"
 	logFieldDBPort            = "db_port"
 	logFieldDBUser            = "db_user"
+	logFieldBackupMethod      = "backup_method"
 	logFieldStorageURL        = "storage_url"
 	logFieldEncryptionEnabled = "encryption_enabled"
 )
@@ -29,33 +30,6 @@ func Command() *cli.Command {
 	fl = append(fl, flags.Encryption()...)
 	fl = append(fl, flags.Retention()...)
 	fl = append(fl,
-		&cli.StringFlag{
-			Name:    "db-backup-options",
-			Usage:   "mariadb-backup additional options",
-			Sources: cli.EnvVars("MARIADB__BACKUP_OPTIONS"),
-		},
-		&cli.StringFlag{
-			Name:        "db-backup-binary",
-			Usage:       "backup binary path (auto-derived from --backup-method if not set)",
-			DefaultText: "auto-derived from --backup-method",
-			Sources:     cli.EnvVars("MARIADB__BACKUP_BINARY"),
-		},
-		&cli.StringFlag{
-			Name:        "db-client-binary",
-			Usage:       "mariadb client binary path for listing databases",
-			DefaultText: "mariadb",
-			Sources:     cli.EnvVars("MARIADB__CLIENT_BINARY"),
-		},
-		&cli.StringFlag{
-			Name:        "backup-method",
-			Usage:       "backup method: mariadb-backup (physical) or mariadb-dump (logical)",
-			DefaultText: config.BackupMethodPhysical,
-			Sources: cli.NewValueSourceChain(
-				cli.EnvVar("MARIADB__BACKUP_METHOD"),
-				cliutil.DefaultValue(config.BackupMethodPhysical),
-			),
-		},
-
 		&cli.BoolFlag{
 			Name:    "skip-retention",
 			Usage:   "skip retention policy",
@@ -66,7 +40,7 @@ func Command() *cli.Command {
 	return &cli.Command{
 		Name:    "backup",
 		Aliases: []string{"b"},
-		Usage:   "Backup MariaDB database",
+		Usage:   "Backup database",
 		Flags:   fl,
 		Action:  backupAction,
 	}
@@ -85,15 +59,16 @@ func backupAction(ctx context.Context, cmd *cli.Command) error {
 
 	// Log command parameters for debugging
 	logger.Debug(ctx, "Parsing command parameters", logging.Fields{
-		logFieldDBHost:      cmd.String("db-host"),
-		logFieldDBPort:      cmd.Int("db-port"),
-		logFieldDBUser:      cmd.String("db-user"),
-		"db_password":       "***", // Don't log actual password
-		"db_backup_options": cmd.String("db-backup-options"),
-		"db_backup_binary":  cmd.String("db-backup-binary"),
-		"backup_method":     cmd.String("backup-method"),
-		logFieldStorageURL:  cmd.String("storage-url"),
-		"encryption_key":    "***", // Don't log actual key
+		logFieldDBEngine:     cmd.String("db-engine"),
+		logFieldDBHost:       cmd.String("db-host"),
+		logFieldDBPort:       cmd.Int("db-port"),
+		logFieldDBUser:       cmd.String("db-user"),
+		"db_password":        "***", // Don't log actual password
+		"db_backup_options":  cmd.String("db-backup-options"),
+		"db_backup_binary":   cmd.String("db-backup-binary"),
+		logFieldBackupMethod: cmd.String("backup-method"),
+		logFieldStorageURL:   cmd.String("storage-url"),
+		"encryption_key":     "***", // Don't log actual key
 	})
 
 	cfg, err := parseConfig(cmd)
@@ -103,9 +78,11 @@ func backupAction(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	logger.Debug(ctx, "Configuration validated successfully", logging.Fields{
-		logFieldDBHost:            cfg.MariaDB.Host,
-		logFieldDBPort:            cfg.MariaDB.Port,
-		logFieldDBUser:            cfg.MariaDB.User,
+		logFieldDBEngine:          cfg.Database.Engine,
+		logFieldBackupMethod:      cfg.Database.BackupMethod,
+		logFieldDBHost:            cfg.Database.Host,
+		logFieldDBPort:            cfg.Database.Port,
+		logFieldDBUser:            cfg.Database.User,
 		logFieldStorageURL:        cfg.Storage.URL,
 		logFieldEncryptionEnabled: cfg.Encryption.Enabled(),
 	})
@@ -130,13 +107,21 @@ func backupAction(ctx context.Context, cmd *cli.Command) error {
 	registrySvc := registry.NewService(storageSvc)
 
 	logger.Info(ctx, "Starting backup execution", logging.Fields{
-		logFieldDBHost:            cfg.MariaDB.Host,
-		logFieldDBPort:            cfg.MariaDB.Port,
+		logFieldDBEngine:          cfg.Database.Engine,
+		logFieldBackupMethod:      cfg.Database.BackupMethod,
+		logFieldDBHost:            cfg.Database.Host,
+		logFieldDBPort:            cfg.Database.Port,
 		logFieldEncryptionEnabled: cfg.Encryption.Enabled(),
 	})
 
-	if opErr := backup.NewOperation(cfg, registrySvc, storageSvc, logger).Run(ctx); opErr != nil {
-		logger.Error(ctx, "Backup command failed", opErr)
+	op, opCreateErr := backup.NewOperation(cfg, registrySvc, storageSvc, logger)
+	if opCreateErr != nil {
+		logger.Error(ctx, "Failed to create backup operation", opCreateErr)
+		return fmt.Errorf("backup command failed: %w", opCreateErr)
+	}
+
+	if runErr := op.Run(ctx); runErr != nil {
+		logger.Error(ctx, "Backup command failed", runErr)
 		return cli.Exit("backup command failed", codes.InternalError)
 	}
 

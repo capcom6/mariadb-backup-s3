@@ -13,8 +13,8 @@
 <div align="center">
   <h1>MariaDB Backup to S3</h1>
   <p>
-    Automated MariaDB backups with S3-compatible storage support.<br />
-    Physical (<code>mariadb-backup</code>) or logical (<code>mariadb-dump</code>) backups, compressed, optionally encrypted, stored locally or in S3/FTP.
+    Automated MariaDB and MongoDB backups with S3-compatible storage support.<br />
+    Physical (<code>mariadb-backup</code>), logical (<code>mariadb-dump</code>), or MongoDB (<code>mongodump</code>) backups, compressed, optionally encrypted, stored locally or in S3/FTP.
   </p>
 
   <a href="https://github.com/capcom6/mariadb-backup-s3/releases/latest">Download</a>
@@ -51,18 +51,20 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
-MariaDB Backup to S3 is a CLI tool that backs up MariaDB databases, compresses them, optionally encrypts them with AES-256-GCM, and uploads to S3-compatible, FTP, or local filesystem storage.
+MariaDB Backup to S3 is a CLI tool that backs up MariaDB and MongoDB databases, compresses them, optionally encrypts them with AES-256-GCM, and uploads to S3-compatible, FTP, or local filesystem storage.
 
-**Two backup methods are supported:**
+**Three backup methods are supported:**
 
 | Method                 | Binary           | Description                                                                                                             |
 | ---------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | **Physical** (default) | `mariadb-backup` | Hot backup at the storage engine level. Produces a tar.gz archive. Restore by copying files back to the data directory. |
 | **Logical**            | `mariadb-dump`   | SQL dump of each database as a separate `.sql` file, tarred together. Restore by importing the `.sql` files you need.   |
+| **MongoDB**            | `mongodump`      | Logical BSON dump of all databases via MongoDB Database Tools. Extract backups to a directory for manual restore.       |
 
 **Key features:**
 
 - Compress backups with pigz (parallel gzip)
+- MongoDB backups alongside MariaDB (`mongodump`)
 - Optional AES-256-GCM client-side encryption
 - Multiple storage backends: S3-compatible, FTP, filesystem
 - Automatic backup rotation with configurable retention policies
@@ -76,6 +78,7 @@ MariaDB Backup to S3 is a CLI tool that backs up MariaDB databases, compresses t
 
 - [Go](https://go.dev/)
 - [mariadb-backup](https://mariadb.com/docs/server/server-usage/backup-and-restore/backup-and-restore-overview#mariadb-backup) / [mariadb-dump](https://mariadb.com/docs/server/server-usage/backup-and-restore/backup-and-restore-overview#mariadb-dump)
+- MongoDB Database Tools (`mongodump`; install `mongorestore` separately only if needed for manual restore)
 - [AWS SDK for Go v2](https://aws.github.io/aws-sdk-go-v2/)
 - [pigz](https://zlib.net/pigz/) (parallel gzip)
 
@@ -88,7 +91,8 @@ MariaDB Backup to S3 is a CLI tool that backs up MariaDB databases, compresses t
 
 - Go 1.25+ (for building from source)
 - MariaDB server with `mariadb-backup` (for physical) or `mariadb-dump` (for logical) available in PATH, and `mariadb` client binary for listing databases (logical backup only)
-- `pigz` in PATH
+- For the `mongodb` engine: MongoDB Database Tools (`mongodump`) available in PATH; native installs must provide it separately (the MongoDB image bundles it)
+- `pigz` in PATH (required for all engines; bundled in both Docker images)
 - `tar` in PATH
 - At least 2x the database size in free temp space
 - Storage backend credentials (depending on chosen storage type)
@@ -113,12 +117,23 @@ go install github.com/capcom6/mariadb-backup-s3@latest
 
 **Docker:**
 
+Two images are published:
+
 ```sh
+# MariaDB tools (mariadb-backup, mariadb-dump, mariadb) + pigz
 docker pull ghcr.io/capcom6/mariadb-backup-s3:latest
+
+# MongoDB Database Tools (mongodump) + pigz
+docker pull ghcr.io/capcom6/mongodb-backup-s3:latest
 ```
 
+| Image                               | Base           | Contents                        |
+| ----------------------------------- | -------------- | ------------------------------- |
+| `ghcr.io/capcom6/mariadb-backup-s3` | `mariadb:lts`  | MariaDB tools + `pigz`          |
+| `ghcr.io/capcom6/mongodb-backup-s3` | `ubuntu:24.04` | `mongodump` + `pigz`          |
+
 > **Note**
-> The Docker image uses MariaDB's `lts` version. For specific versions, clone the repo, modify `Dockerfile.goreleaser` base image, and build a custom image.
+> The MariaDB image uses MariaDB's `lts` version; the MongoDB image bundles a pinned MongoDB Database Tools version. For specific versions, clone the repo, modify `Dockerfile.goreleaser` or `Dockerfile.mongodb.goreleaser`, and build a custom image.
 
 **From source:**
 
@@ -147,28 +162,37 @@ mariadb-backup-s3 backup [options]
 
 **Options:**
 
-| Option                        | Env Var                   | Description                                                | Default                             |
-| ----------------------------- | ------------------------- | ---------------------------------------------------------- | ----------------------------------- |
-| **Database**                  |                           |                                                            |                                     |
-| `--db-host`, `--host`         | `MARIADB__HOST`           | MariaDB hostname                                           | `localhost`                         |
-| `--db-port`, `--port`         | `MARIADB__PORT`           | MariaDB port                                               | `3306`                              |
-| `--db-user`, `--user`         | `MARIADB__USER`           | MariaDB username                                           | `root`                              |
-| `--db-password`, `--password` | `MARIADB__PASSWORD`       | MariaDB password                                           | `""`                                |
-| `--backup-method`             | `MARIADB__BACKUP_METHOD`  | `mariadb-backup` (physical) or `mariadb-dump` (logical)    | `mariadb-backup`                    |
-| `--db-backup-binary`          | `MARIADB__BACKUP_BINARY`  | Backup binary path                                         | auto-derived from `--backup-method` |
-| `--db-client-binary`          | `MARIADB__CLIENT_BINARY`  | mariadb client binary (lists databases for logical backup) | `mariadb`                           |
-| `--db-backup-options`         | `MARIADB__BACKUP_OPTIONS` | Extra backup options                                       | `""`                                |
-| **Storage**                   |                           |                                                            |                                     |
-| `--storage-url`, `--storage`  | `STORAGE__URL`            | Storage URL (see [Storage Types](#storage-types))          | **required**                        |
-| **Encryption**                |                           |                                                            |                                     |
-| `--encryption-key`            | `ENCRYPTION__KEY`         | Base64-encoded AES-256 key                                 | `""`                                |
-| **Retention**                 |                           |                                                            |                                     |
-| `--retention-count`           | `RETENTION__COUNT`        | Number of backups to retain (0 = unlimited)                | `0`                                 |
-| `--max-age`                   | `RETENTION__MAX_AGE`      | Maximum age of backups (e.g. `24h`, `168h`)                | unlimited                           |
-| `--keep-daily`                | `RETENTION__KEEP_DAILY`   | Number of daily backups to keep                            | `0` (disabled)                      |
-| `--keep-weekly`               | `RETENTION__KEEP_WEEKLY`  | Number of weekly backups to keep                           | `0` (disabled)                      |
-| `--keep-monthly`              | `RETENTION__KEEP_MONTHLY` | Number of monthly backups to keep                          | `0` (disabled)                      |
-| `--skip-retention`            | `BACKUP__SKIP_RETENTION`  | Skip retention policy after backup                         | `false`                             |
+| Option                             | Env Var                             | Description                                                           | Default                              |
+| ---------------------------------- | ----------------------------------- | --------------------------------------------------------------------- | ------------------------------------ |
+| **Database**                       |                                     |                                                                       |                                      |
+| `--db-engine`                      | `DB__ENGINE`                        | Database engine: `mariadb` or `mongodb`                               | `mariadb`                            |
+| `--db-host`, `--host`              | `DB__HOST`                          | Database hostname                                                     | `localhost`                          |
+| `--db-port`, `--port`              | `DB__PORT`                          | Database port (engine-dependent)                                      | `3306` / `27017`                     |
+| `--db-user`, `--user`              | `DB__USER`                          | Database username                                                     | `root` (mariadb), empty (mongodb)    |
+| `--db-password`, `--password`      | `DB__PASSWORD`                      | Database password                                                     | `""`                                 |
+| `--backup-method`                  | `DB__BACKUP_METHOD`                 | `mariadb-backup` (physical), `mariadb-dump` (logical), or `mongodump` | derived from `--db-engine`           |
+| `--db-backup-binary`               | `DB__BACKUP_BINARY`                 | Backup binary path (auto-derived from engine and method)              | auto-derived from engine and method  |
+| `--db-client-binary`               | `DB__CLIENT_BINARY`                 | Client binary (lists databases for logical mariadb-dump backup)       | `mariadb` (mariadb), empty (mongodb) |
+| `--db-backup-options`              | `DB__BACKUP_OPTIONS`                | Extra backup options (sanitized)                                      | `""`                                 |
+| `--mongo-uri`                      | `MONGODB__URI`                      | MongoDB connection URI (replaces host/port/user)                      | `""`                                 |
+| `--mongo-auth-source`              | `MONGODB__AUTH_SOURCE`              | MongoDB authentication source database                                | `admin` (mongodb)                    |
+| `--mongo-tls`                      | `MONGODB__TLS`                      | Enable MongoDB TLS                                                    | `false`                              |
+| `--mongo-tls-ca-file`              | `MONGODB__TLS_CA_FILE`              | MongoDB TLS CA file                                                   | `""`                                 |
+| `--mongo-tls-certificate-key-file` | `MONGODB__TLS_CERTIFICATE_KEY_FILE` | MongoDB TLS certificate key file                                      | `""`                                 |
+| **Storage**                        |                                     |                                                                       |                                      |
+| `--storage-url`, `--storage`       | `STORAGE__URL`                      | Storage URL (see [Storage Types](#storage-types))                     | **required**                         |
+| **Encryption**                     |                                     |                                                                       |                                      |
+| `--encryption-key`                 | `ENCRYPTION__KEY`                   | Base64-encoded AES-256 key                                            | `""`                                 |
+| **Retention**                      |                                     |                                                                       |                                      |
+| `--retention-count`                | `RETENTION__COUNT`                  | Number of backups to retain (0 = unlimited)                           | `0`                                  |
+| `--max-age`                        | `RETENTION__MAX_AGE`                | Maximum age of backups (e.g. `24h`, `168h`)                           | unlimited                            |
+| `--keep-daily`                     | `RETENTION__KEEP_DAILY`             | Number of daily backups to keep                                       | `0` (disabled)                       |
+| `--keep-weekly`                    | `RETENTION__KEEP_WEEKLY`            | Number of weekly backups to keep                                      | `0` (disabled)                       |
+| `--keep-monthly`                   | `RETENTION__KEEP_MONTHLY`           | Number of monthly backups to keep                                     | `0` (disabled)                       |
+| `--skip-retention`                 | `BACKUP__SKIP_RETENTION`            | Skip retention policy after backup                                    | `false`                              |
+
+> **Note**
+> `DB__*` variables are preferred. Legacy `MARIADB__*` names (`MARIADB__HOST`, `MARIADB__PORT`, `MARIADB__USER`, `MARIADB__PASSWORD`, `MARIADB__BACKUP_METHOD`, `MARIADB__BACKUP_BINARY`, `MARIADB__CLIENT_BINARY`, `MARIADB__BACKUP_OPTIONS`) still work as fallback when the `DB__*` variable is unset.
 
 **Physical backup example:**
 
@@ -192,6 +216,27 @@ mariadb-backup-s3 backup \
 ```
 
 By default `mariadb-dump` locks tables per database using `READ LOCAL` locks, so concurrent inserts into non-transactional tables (e.g. MyISAM/Aria) may still occur while a table is dumped, and cross-database consistency is not guaranteed. Each database is dumped in a separate invocation, so the generated `.sql` files are not point-in-time consistent with each other; as a result, logical (`mariadb-dump`) backups do not provide a global snapshot of all databases. The virtual schemas `information_schema` and `performance_schema` are skipped. For non-blocking dumps (InnoDB only), use `--db-backup-options="--single-transaction"`, accepting that non-transactional tables are then not guaranteed consistent.
+
+**MongoDB backup example:**
+
+```sh
+mariadb-backup-s3 backup \
+  --db-engine=mongodb \
+  --db-host=mongo.example.com \
+  --db-port=27017 \
+  --db-user=backup \
+  --db-password=secret \
+  --storage-url="s3://my-bucket/mongodb-backups"
+```
+
+With `--db-engine=mongodb`, the method defaults to `mongodump` and a single `mongodump` invocation dumps all databases. Credentials are passed to `mongodump` through a temporary config file outside the backup directory, so they never reach the command line or the archive. Use `--mongo-uri` instead of host/port/user to connect via a MongoDB connection URI.
+
+**MongoDB limitations and consistency:**
+
+- `mongodump` is a logical backup, not a physical snapshot or PITR solution.
+- Without `--oplog`, a dump is not a globally consistent point-in-time snapshot. For replica sets, opt in with `--db-backup-options="--oplog"`.
+- Sharded clusters are out of scope: they need per-shard handling.
+- Mixed-engine buckets are supported through registry metadata, but separate storage prefixes (or explicit `--backup-id`) are recommended for strict separation.
 
 **Environment-only (minimal):**
 
@@ -219,24 +264,24 @@ Exactly one backup selector must be specified: a filename argument, `--latest`, 
 
 **Options:**
 
-| Option                       | Env Var               | Description                               | Default      |
-| ---------------------------- | --------------------- | ----------------------------------------- | ------------ |
-| `--storage-url`, `--storage` | `STORAGE__URL`        | Storage URL                               | **required** |
-| `--encryption-key`           | `ENCRYPTION__KEY`     | Encryption key                            | `""`         |
-| `--target-dir`               | `RESTORE__TARGET_DIR` | Target directory to restore to            | **required** |
-| `--latest`                   |                       | Restore latest ready backup from registry | `false`      |
-| `--backup-id`                |                       | Restore backup by registry ID             | `""`         |
+| Option                       | Env Var               | Description                                   | Default      |
+| ---------------------------- | --------------------- | --------------------------------------------- | ------------ |
+| `--storage-url`, `--storage` | `STORAGE__URL`        | Storage URL                                   | **required** |
+| `--encryption-key`           | `ENCRYPTION__KEY`      | Encryption key                                | `""`         |
+| `--target-dir`               | `RESTORE__TARGET_DIR` | Directory to extract the backup into          | **required** |
+| `--latest`                   |                       | Extract latest ready backup from registry     | `false`      |
+| `--backup-id`                |                       | Extract backup selected by registry backup ID | `""`         |
 
-**Restore latest backup:**
+**Extract latest backup:**
 
 ```sh
 mariadb-backup-s3 restore \
   --storage-url="s3://bucket/path" \
-  --target-dir=/var/lib/mysql \
+  --target-dir=/tmp/restore \
   --latest
 ```
 
-**Restore by filename or ID:**
+**Extract by filename or ID:**
 
 ```sh
 mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
@@ -253,11 +298,29 @@ mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
 ```
 
 > **Note**
-> Logical backups (`mariadb-dump`) restore by extracting `.sql` files from the archive. Import them manually:
+> Logical backups (`mariadb-dump`) extract `.sql` files from the archive. Import them manually:
 > ```sh
 > mariadb-backup-s3 restore --storage-url="s3://bucket/path" --target-dir=/tmp/restore --latest
 > mariadb -u root -p < /tmp/restore/mydb.sql
 > ```
+
+**Extract a MongoDB backup:**
+
+```sh
+# No database engine or connection settings are required
+mariadb-backup-s3 restore \
+  --storage-url="s3://my-bucket/mongodb-backups" \
+  --target-dir=/tmp/mongo-restore \
+  --latest
+
+# Filename argument: no engine or database connection is needed
+mariadb-backup-s3 restore \
+  --storage-url="s3://my-bucket/mongodb-backups" \
+  --target-dir=/tmp/mongo-restore \
+  2026-07-03-12-00-00.tar.gz
+```
+
+The restore command only downloads, decrypts, and extracts backup files into `--target-dir` for all engines. To import MongoDB data, install MongoDB Database Tools and run `mongorestore` separately against the extracted dump.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -334,18 +397,18 @@ mariadb-backup-s3 registry list \
 
 **Registry entry fields:**
 
-| Field                       | Description                                       |
-| --------------------------- | ------------------------------------------------- |
-| `id`                        | Unique identifier (timestamp + SHA256 prefix)     |
-| `filename`                  | Backup filename                                   |
-| `created_at`                | Creation timestamp                                |
-| `size_bytes`                | File size in bytes                                |
-| `sha256`                    | SHA256 hash of the backup file                    |
-| `status`                    | `ready`, `failed`, or `deleted`                   |
-| `encrypted`                 | Whether the backup is encrypted                   |
-| `encryption`                | Encryption metadata (algorithm)                   |
-| `tool.name`, `tool.version` | Tool name and version                             |
-| `tool.method`               | Backup method: `mariadb-backup` or `mariadb-dump` |
+| Field                       | Description                                                     |
+| --------------------------- | --------------------------------------------------------------- |
+| `id`                        | Unique identifier (timestamp + SHA256 prefix)                   |
+| `filename`                  | Backup filename                                                 |
+| `created_at`                | Creation timestamp                                              |
+| `size_bytes`                | File size in bytes                                              |
+| `sha256`                    | SHA256 hash of the backup file                                  |
+| `status`                    | `ready`, `failed`, or `deleted`                                 |
+| `encrypted`                 | Whether the backup is encrypted                                 |
+| `encryption`                | Encryption metadata (algorithm)                                 |
+| `tool.name`, `tool.version` | Tool name and version                                           |
+| `tool.method`               | Backup method: `mariadb-backup`, `mariadb-dump`, or `mongodump` |
 
 > **Note**
 > Entries rebuilt with `--rebuild` use timestamp-only IDs, set `sha256` to `"unknown"`, and have an empty `tool.method`.
@@ -396,7 +459,27 @@ jobs:
       backup_method: mariadb-backup
     retention:
       max_count: 7
+
+  - name: nightly-mongodb-backup
+    schedule: "30 2 * * *"
+    command: backup
+    timeout: 4h
+    storage:
+      url: s3://my-bucket/mongodb-backups
+    database:
+      engine: mongodb
+      host: localhost
+      port: 27017
+      user: backup
+      password: ${DB__PASSWORD}
+      backup_method: mongodump
+      auth_source: admin
 ```
+
+The `database:` section works for both engines. Keys: `engine`, `host`, `port`, `user`, `password`, `backup_method`, `backup_binary`, `client_binary`, `backup_options`, `uri`, `auth_source`, `tls`, `tls_ca_file`, `tls_certificate_key_file`.
+
+> **Note**
+> The legacy `mariadb:` section is still supported. Setting both `database:` and `mariadb:` in one job is a validation error.
 
 ```sh
 # Validate the config

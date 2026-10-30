@@ -14,7 +14,9 @@ import (
 
 	"github.com/capcom6/mariadb-backup-s3/internal/backup/method"
 	"github.com/capcom6/mariadb-backup-s3/internal/backup/method/logical"
+	"github.com/capcom6/mariadb-backup-s3/internal/backup/method/mongodb"
 	"github.com/capcom6/mariadb-backup-s3/internal/backup/method/physical"
+	"github.com/capcom6/mariadb-backup-s3/internal/config"
 	"github.com/capcom6/mariadb-backup-s3/internal/encryption"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
 	"github.com/capcom6/mariadb-backup-s3/internal/registry"
@@ -43,29 +45,21 @@ type Operation struct {
 }
 
 func NewOperation(
-	config Config,
+	cfg Config,
 	registrySvc *registry.Service,
 	storage storage.Backend,
 	logger logging.Logger,
-) *Operation {
-	var m method.Method
-	mConfig := method.Config{
-		Host:          config.MariaDB.Host,
-		Port:          config.MariaDB.Port,
-		User:          config.MariaDB.User,
-		Password:      config.MariaDB.Password,
-		BackupOptions: config.MariaDB.BackupOptions,
-		BackupBinary:  config.MariaDB.BackupBinary,
-		ClientBinary:  config.MariaDB.ClientBinary,
-	}
-	if config.MariaDB.IsLogical() {
-		m = logical.New(mConfig)
-	} else {
-		m = physical.New(mConfig)
+) (*Operation, error) {
+	database := cfg.Database.Normalize()
+	cfg.Database = database
+
+	m, err := newMethod(database)
+	if err != nil {
+		return nil, err
 	}
 
 	return &Operation{
-		config: config,
+		config: cfg,
 
 		method: m,
 
@@ -74,7 +68,57 @@ func NewOperation(
 		storage: storage,
 
 		logger: logger,
+	}, nil
+}
+
+func newMethod(database config.Database) (method.Method, error) {
+	switch database.Engine {
+	case config.EngineMariaDB:
+		return newMariaDBMethod(database)
+	case config.EngineMongoDB:
+		return newMongoDBMethod(database)
+	default:
+		return nil, fmt.Errorf("%w: %q", config.ErrInvalidEngine, database.Engine)
 	}
+}
+
+func newMariaDBMethod(database config.Database) (method.Method, error) {
+	mConfig := method.Config{
+		Host:          database.Host,
+		Port:          database.Port,
+		User:          database.User,
+		Password:      database.Password,
+		BackupOptions: database.BackupOptions,
+		BackupBinary:  database.BackupBinary,
+		ClientBinary:  database.ClientBinary,
+	}
+
+	switch database.BackupMethod {
+	case config.BackupMethodPhysical:
+		return physical.New(mConfig), nil
+	case config.BackupMethodLogical:
+		return logical.New(mConfig), nil
+	default:
+		return nil, fmt.Errorf("%w: %q", config.ErrInvalidBackupMethod, database.BackupMethod)
+	}
+}
+
+func newMongoDBMethod(database config.Database) (method.Method, error) {
+	if database.BackupMethod != config.BackupMethodMongoDB {
+		return nil, fmt.Errorf("%w: %q", config.ErrInvalidBackupMethod, database.BackupMethod)
+	}
+
+	mConfig := mongodb.Config{
+		Host:          database.Host,
+		Port:          database.Port,
+		User:          database.User,
+		Password:      database.Password,
+		BackupOptions: database.BackupOptions,
+		BackupBinary:  database.BackupBinary,
+		MongoDB:       database.MongoDB,
+	}
+
+	return mongodb.New(mConfig), nil
 }
 
 func (o *Operation) Run(ctx context.Context) error {
