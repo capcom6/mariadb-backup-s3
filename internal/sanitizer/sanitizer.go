@@ -38,8 +38,10 @@ func SanitizeOptions(options string) ([]string, error) {
 func validateOption(option string) error {
 	// Basic pattern for safe options:
 	// --flag=value or --flag or --flag value
-	// Only allows letters, numbers, hyphens, underscores, equals, dots, and spaces
-	validPattern := regexp.MustCompile(`^--([a-zA-Z0-9_-]+)(?:=([a-zA-Z0-9_./-]+))?$`)
+	// Only allows letters, numbers, hyphens, underscores, equals, dots, slashes,
+	// asterisks, question marks, and spaces (asterisks and question marks are
+	// needed for namespace patterns such as --nsInclude=appdb.*).
+	validPattern := regexp.MustCompile(`^--([a-zA-Z0-9_-]+)(?:=([a-zA-Z0-9_./?*-]+))?$`)
 
 	if !validPattern.MatchString(option) {
 		return ErrInvalidOptionFormat
