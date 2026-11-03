@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type Duration time.Duration //nolint:recvcheck // For marshaling
+type Duration time.Duration
 
 func (d Duration) String() string {
 	return time.Duration(d).String()
