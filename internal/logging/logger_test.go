@@ -23,6 +23,7 @@ func newBufferedLogger(t *testing.T, cfg logging.Config) (logging.Logger, *bytes
 }
 
 func TestNew_DefaultConfig(t *testing.T) {
+	t.Parallel()
 	cfg := logging.Config{
 		Level:        logging.LogLevelDebug,
 		Format:       logging.FormatJSON,
@@ -35,6 +36,7 @@ func TestNew_DefaultConfig(t *testing.T) {
 }
 
 func TestNew_InvalidFormat(t *testing.T) {
+	t.Parallel()
 	cfg := logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       "invalid",
@@ -47,6 +49,7 @@ func TestNew_InvalidFormat(t *testing.T) {
 }
 
 func TestNew_InvalidLevel(t *testing.T) {
+	t.Parallel()
 	cfg := logging.Config{
 		Level:        logging.LogLevel(99),
 		Format:       logging.FormatHuman,
@@ -59,6 +62,7 @@ func TestNew_InvalidLevel(t *testing.T) {
 }
 
 func TestLogger_Debug_BelowLevel(t *testing.T) {
+	t.Parallel()
 	logger, buf := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       logging.FormatJSON,
@@ -71,6 +75,7 @@ func TestLogger_Debug_BelowLevel(t *testing.T) {
 }
 
 func TestLogger_Info_AtLevel(t *testing.T) {
+	t.Parallel()
 	logger, buf := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       logging.FormatJSON,
@@ -83,6 +88,7 @@ func TestLogger_Info_AtLevel(t *testing.T) {
 }
 
 func TestLogger_Warn_AtLevel(t *testing.T) {
+	t.Parallel()
 	logger, buf := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelWarn,
 		Format:       logging.FormatJSON,
@@ -98,6 +104,7 @@ func TestLogger_Warn_AtLevel(t *testing.T) {
 }
 
 func TestLogger_Error_WithError(t *testing.T) {
+	t.Parallel()
 	logger, buf := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelError,
 		Format:       logging.FormatJSON,
@@ -112,6 +119,7 @@ func TestLogger_Error_WithError(t *testing.T) {
 }
 
 func TestLogger_SetLevel(t *testing.T) {
+	t.Parallel()
 	logger, buf := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelError,
 		Format:       logging.FormatJSON,
@@ -129,6 +137,7 @@ func TestLogger_SetLevel(t *testing.T) {
 }
 
 func TestLogger_WithContext_Component(t *testing.T) {
+	t.Parallel()
 	logger, buf := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       logging.FormatJSON,
@@ -148,6 +157,7 @@ func TestLogger_WithContext_Component(t *testing.T) {
 }
 
 func TestLogger_WithContext_Fields(t *testing.T) {
+	t.Parallel()
 	logger, buf := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       logging.FormatJSON,
@@ -168,6 +178,7 @@ func TestLogger_WithContext_Fields(t *testing.T) {
 }
 
 func TestLogger_ContextEnrichment(t *testing.T) {
+	t.Parallel()
 	logger, buf := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       logging.FormatJSON,
@@ -188,6 +199,7 @@ func TestLogger_ContextEnrichment(t *testing.T) {
 }
 
 func TestLogger_ContextFields(t *testing.T) {
+	t.Parallel()
 	logger, buf := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       logging.FormatJSON,
@@ -207,6 +219,7 @@ func TestLogger_ContextFields(t *testing.T) {
 }
 
 func TestLogger_WithContext_MergesFields(t *testing.T) {
+	t.Parallel()
 	logger, buf := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       logging.FormatJSON,
@@ -229,6 +242,7 @@ func TestLogger_WithContext_MergesFields(t *testing.T) {
 }
 
 func TestLogger_WithContext_OverwritesFields(t *testing.T) {
+	t.Parallel()
 	logger, buf := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       logging.FormatJSON,
@@ -249,6 +263,7 @@ func TestLogger_WithContext_OverwritesFields(t *testing.T) {
 }
 
 func TestLogger_Flush_NoFlusher(t *testing.T) {
+	t.Parallel()
 	logger, _ := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       logging.FormatJSON,
@@ -261,6 +276,7 @@ func TestLogger_Flush_NoFlusher(t *testing.T) {
 }
 
 func TestLogger_Close_NoCloser(t *testing.T) {
+	t.Parallel()
 	logger, _ := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       logging.FormatJSON,
@@ -273,6 +289,7 @@ func TestLogger_Close_NoCloser(t *testing.T) {
 }
 
 func TestHumanFormatter_Output(t *testing.T) {
+	t.Parallel()
 	formatter := logging.NewHumanFormatter(false, "2006-01-02 15:04:05.000")
 	entry := &logging.LogEntry{
 		Timestamp:   fixedTime(),
@@ -295,6 +312,7 @@ func TestHumanFormatter_Output(t *testing.T) {
 }
 
 func TestHumanFormatter_Colors(t *testing.T) {
+	t.Parallel()
 	formatter := logging.NewHumanFormatter(true, "2006-01-02 15:04:05.000")
 	entry := &logging.LogEntry{
 		Timestamp:   fixedTime(),
@@ -319,6 +337,7 @@ func TestHumanFormatter_Colors(t *testing.T) {
 }
 
 func TestHumanFormatter_NoColors(t *testing.T) {
+	t.Parallel()
 	formatter := logging.NewHumanFormatter(false, "2006-01-02 15:04:05.000")
 	entry := &logging.LogEntry{
 		Timestamp:   fixedTime(),
@@ -340,6 +359,7 @@ func TestHumanFormatter_NoColors(t *testing.T) {
 }
 
 func TestHumanFormatter_Fields(t *testing.T) {
+	t.Parallel()
 	formatter := logging.NewHumanFormatter(false, "2006-01-02 15:04:05.000")
 	entry := &logging.LogEntry{
 		Timestamp:   fixedTime(),
@@ -362,6 +382,7 @@ func TestHumanFormatter_Fields(t *testing.T) {
 }
 
 func TestHumanFormatter_ComponentOperationID(t *testing.T) {
+	t.Parallel()
 	formatter := logging.NewHumanFormatter(false, "2006-01-02 15:04:05.000")
 	entry := &logging.LogEntry{
 		Timestamp:   fixedTime(),
@@ -383,6 +404,7 @@ func TestHumanFormatter_ComponentOperationID(t *testing.T) {
 }
 
 func TestJSONFormatter_Output(t *testing.T) {
+	t.Parallel()
 	formatter := logging.NewJSONFormatter("")
 	entry := &logging.LogEntry{
 		Timestamp:   fixedTime(),
@@ -406,6 +428,7 @@ func TestJSONFormatter_Output(t *testing.T) {
 }
 
 func TestJSONFormatter_ErrorField(t *testing.T) {
+	t.Parallel()
 	formatter := logging.NewJSONFormatter("")
 	entry := &logging.LogEntry{
 		Timestamp:   fixedTime(),
@@ -429,6 +452,7 @@ func TestJSONFormatter_ErrorField(t *testing.T) {
 }
 
 func TestJSONFormatter_AllFields(t *testing.T) {
+	t.Parallel()
 	formatter := logging.NewJSONFormatter("")
 	entry := &logging.LogEntry{
 		Timestamp:   fixedTime(),
@@ -453,11 +477,13 @@ func TestJSONFormatter_AllFields(t *testing.T) {
 }
 
 func TestGenerateOperationID(t *testing.T) {
+	t.Parallel()
 	id := logging.GenerateOperationID("testcomp")
 	assert.Contains(t, id, "testcomp-")
 }
 
 func TestGenerateOperationID_EmptyComponent(t *testing.T) {
+	t.Parallel()
 	id := logging.GenerateOperationID("")
 	assert.Contains(t, id, "unknown-")
 }
@@ -485,6 +511,7 @@ func TestDefaultConfig_DefaultValues(t *testing.T) {
 }
 
 func TestWithLogger_GetLogger(t *testing.T) {
+	t.Parallel()
 	logger, _ := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       logging.FormatJSON,
@@ -499,11 +526,13 @@ func TestWithLogger_GetLogger(t *testing.T) {
 }
 
 func TestGetLogger_NoLogger(t *testing.T) {
+	t.Parallel()
 	got := logging.GetLogger(context.Background())
 	assert.Nil(t, got)
 }
 
 func TestWithComponent_GetComponent(t *testing.T) {
+	t.Parallel()
 	logger, buf := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       logging.FormatJSON,
@@ -524,6 +553,7 @@ func TestWithComponent_GetComponent(t *testing.T) {
 }
 
 func TestWithFields_MergesFields(t *testing.T) {
+	t.Parallel()
 	logger, buf := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       logging.FormatJSON,
@@ -545,6 +575,7 @@ func TestWithFields_MergesFields(t *testing.T) {
 }
 
 func TestLogger_Error_WithoutError(t *testing.T) {
+	t.Parallel()
 	logger, buf := newBufferedLogger(t, logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       logging.FormatJSON,
@@ -562,6 +593,7 @@ func TestLogger_Error_WithoutError(t *testing.T) {
 }
 
 func TestLogger_OutputNotNil(t *testing.T) {
+	t.Parallel()
 	cfg := logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       logging.FormatJSON,
@@ -575,6 +607,7 @@ func TestLogger_OutputNotNil(t *testing.T) {
 }
 
 func TestValidateConfig_Valid(t *testing.T) {
+	t.Parallel()
 	err := logging.Config{
 		Level:        logging.LogLevelWarn,
 		Format:       logging.FormatHuman,
@@ -586,6 +619,7 @@ func TestValidateConfig_Valid(t *testing.T) {
 }
 
 func TestValidateConfig_InvalidLevel(t *testing.T) {
+	t.Parallel()
 	err := logging.Config{
 		Level:        logging.LogLevel(99),
 		Format:       logging.FormatHuman,
@@ -597,6 +631,7 @@ func TestValidateConfig_InvalidLevel(t *testing.T) {
 }
 
 func TestValidateConfig_InvalidFormat(t *testing.T) {
+	t.Parallel()
 	err := logging.Config{
 		Level:        logging.LogLevelInfo,
 		Format:       "bad",

@@ -11,6 +11,7 @@ import (
 )
 
 func TestAES256GCMStreamingWorkflow(t *testing.T) {
+	t.Parallel()
 	// Generate a random 32-byte key for testing
 	key := make([]byte, 32)
 	for i := range key {
@@ -56,6 +57,7 @@ func TestAES256GCMStreamingWorkflow(t *testing.T) {
 }
 
 func TestAES256GCMStreamingWorkflowTamperedData(t *testing.T) {
+	t.Parallel()
 	// Generate a random 32-byte key for testing
 	key := make([]byte, 32)
 	for i := range key {
