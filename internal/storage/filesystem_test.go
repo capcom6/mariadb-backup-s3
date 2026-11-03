@@ -25,12 +25,14 @@ func newFilesystem(t *testing.T) (storage.Backend, string) {
 }
 
 func TestNewFilesystemStorage_EmptyPath(t *testing.T) {
+	t.Parallel()
 	u := &url.URL{Path: ""}
 	_, err := storage.NewFilesystemStorage(u)
 	assert.ErrorIs(t, err, storage.ErrInvalidArgument)
 }
 
 func TestFilesystemUpload_Download_Roundtrip(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -45,6 +47,7 @@ func TestFilesystemUpload_Download_Roundtrip(t *testing.T) {
 }
 
 func TestFilesystemUpload_CreatesBaseDir(t *testing.T) {
+	t.Parallel()
 	baseDir := filepath.Join(t.TempDir(), "new", "nested", "dir")
 	u := &url.URL{Path: baseDir}
 	s, err := storage.NewFilesystemStorage(u)
@@ -59,6 +62,7 @@ func TestFilesystemUpload_CreatesBaseDir(t *testing.T) {
 }
 
 func TestFilesystemUpload_NestedPathFails(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -67,6 +71,7 @@ func TestFilesystemUpload_NestedPathFails(t *testing.T) {
 }
 
 func TestFilesystemUpload_ContextCancellation(t *testing.T) {
+	t.Parallel()
 	s, dir := newFilesystem(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -80,6 +85,7 @@ func TestFilesystemUpload_ContextCancellation(t *testing.T) {
 }
 
 func TestFilesystemUpload_ContextCancellation_MidUpload(t *testing.T) {
+	t.Parallel()
 	s, dir := newFilesystem(t)
 
 	pr, pw := io.Pipe()
@@ -104,6 +110,7 @@ func TestFilesystemUpload_ContextCancellation_MidUpload(t *testing.T) {
 }
 
 func TestFilesystemUpload_ContextCancellation_PartialWrite(t *testing.T) {
+	t.Parallel()
 	s, dir := newFilesystem(t)
 
 	pr, pw := io.Pipe()
@@ -128,6 +135,7 @@ func TestFilesystemUpload_ContextCancellation_PartialWrite(t *testing.T) {
 }
 
 func TestFilesystemDownload_NotFound(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -137,6 +145,7 @@ func TestFilesystemDownload_NotFound(t *testing.T) {
 }
 
 func TestFilesystemDelete_Success(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -148,6 +157,7 @@ func TestFilesystemDelete_Success(t *testing.T) {
 }
 
 func TestFilesystemDelete_NotFound(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -156,6 +166,7 @@ func TestFilesystemDelete_NotFound(t *testing.T) {
 }
 
 func TestFilesystemDelete_ContextCancellation(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 
 	err := s.Upload(context.Background(), "file.txt", bytes.NewReader([]byte("data")))
@@ -169,6 +180,7 @@ func TestFilesystemDelete_ContextCancellation(t *testing.T) {
 }
 
 func TestFilesystemList_ReturnsFiles(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -183,6 +195,7 @@ func TestFilesystemList_ReturnsFiles(t *testing.T) {
 }
 
 func TestFilesystemList_EmptyDir(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -192,6 +205,7 @@ func TestFilesystemList_EmptyDir(t *testing.T) {
 }
 
 func TestFilesystemList_NonExistentDir(t *testing.T) {
+	t.Parallel()
 	u := &url.URL{Path: filepath.Join(t.TempDir(), "nonexistent")}
 	s, err := storage.NewFilesystemStorage(u)
 	require.NoError(t, err)
@@ -203,6 +217,7 @@ func TestFilesystemList_NonExistentDir(t *testing.T) {
 }
 
 func TestFilesystemList_SkipsDirectories(t *testing.T) {
+	t.Parallel()
 	s, dir := newFilesystem(t)
 	ctx := context.Background()
 
@@ -217,6 +232,7 @@ func TestFilesystemList_SkipsDirectories(t *testing.T) {
 }
 
 func TestFilesystemList_ContextCancellation(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -230,6 +246,7 @@ func TestFilesystemList_ContextCancellation(t *testing.T) {
 }
 
 func TestFilesystemLock_AcquireUnlock(t *testing.T) {
+	t.Parallel()
 	s, dir := newFilesystem(t)
 	ctx := context.Background()
 
@@ -248,6 +265,7 @@ func TestFilesystemLock_AcquireUnlock(t *testing.T) {
 }
 
 func TestFilesystemLock_DoubleLock(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -260,6 +278,7 @@ func TestFilesystemLock_DoubleLock(t *testing.T) {
 }
 
 func TestFilesystemMakePath_NormalizesRelativeTraversal(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -274,6 +293,7 @@ func TestFilesystemMakePath_NormalizesRelativeTraversal(t *testing.T) {
 }
 
 func TestFilesystemMakePath_NormalizesDeepTraversal(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -287,6 +307,7 @@ func TestFilesystemMakePath_NormalizesDeepTraversal(t *testing.T) {
 }
 
 func TestFilesystemMakePath_NormalizesAbsolutePath(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -300,6 +321,7 @@ func TestFilesystemMakePath_NormalizesAbsolutePath(t *testing.T) {
 }
 
 func TestFilesystemMakePath_EmptyFilename(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -308,6 +330,7 @@ func TestFilesystemMakePath_EmptyFilename(t *testing.T) {
 }
 
 func TestFilesystemMakePath_JustDot(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -316,6 +339,7 @@ func TestFilesystemMakePath_JustDot(t *testing.T) {
 }
 
 func TestFilesystemUpload_LargeFile(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -334,6 +358,7 @@ func TestFilesystemUpload_LargeFile(t *testing.T) {
 }
 
 func TestFilesystemUploadBytes_DownloadBytes(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -347,6 +372,7 @@ func TestFilesystemUploadBytes_DownloadBytes(t *testing.T) {
 }
 
 func TestFilesystemUploadBytes_PathTraversal(t *testing.T) {
+	t.Parallel()
 	s, dir := newFilesystem(t)
 	ctx := context.Background()
 
@@ -358,6 +384,7 @@ func TestFilesystemUploadBytes_PathTraversal(t *testing.T) {
 }
 
 func TestFilesystemDownload_EmptyFile(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -371,6 +398,7 @@ func TestFilesystemDownload_EmptyFile(t *testing.T) {
 }
 
 func TestFilesystemUpload_Overwrite(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	ctx := context.Background()
 
@@ -387,6 +415,7 @@ func TestFilesystemUpload_Overwrite(t *testing.T) {
 }
 
 func TestFilesystemClose(t *testing.T) {
+	t.Parallel()
 	s, _ := newFilesystem(t)
 	err := s.Close()
 	assert.NoError(t, err)

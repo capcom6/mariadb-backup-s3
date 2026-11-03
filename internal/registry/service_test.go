@@ -54,6 +54,7 @@ func validRegistryJSON() string {
 }
 
 func TestNew(t *testing.T) {
+	t.Parallel()
 	reg := registry.New()
 	assert.Equal(t, 1, reg.Version)
 	assert.False(t, reg.UpdatedAt.IsZero())
@@ -61,6 +62,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestNewBackupEntry(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	entry := registry.NewBackupEntry(
 		"backup.tar.gz", now, 2048, "abcdef1234567890",
@@ -75,12 +77,14 @@ func TestNewBackupEntry(t *testing.T) {
 }
 
 func TestRegistryValidate_Valid(t *testing.T) {
+	t.Parallel()
 	reg := registry.New()
 	reg.UpdatedAt = fixedNow()
 	assert.NoError(t, reg.Validate())
 }
 
 func TestRegistryValidate_InvalidVersion(t *testing.T) {
+	t.Parallel()
 	reg := registry.New()
 	reg.UpdatedAt = fixedNow()
 	reg.Version = 99
@@ -88,12 +92,14 @@ func TestRegistryValidate_InvalidVersion(t *testing.T) {
 }
 
 func TestRegistryValidate_ZeroUpdatedAt(t *testing.T) {
+	t.Parallel()
 	reg := registry.New()
 	reg.UpdatedAt = time.Time{}
 	assert.ErrorIs(t, reg.Validate(), registry.ErrValidationFailed)
 }
 
 func TestRegistryValidate_DuplicateID(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	reg := registry.New()
 	reg.UpdatedAt = now
@@ -105,6 +111,7 @@ func TestRegistryValidate_DuplicateID(t *testing.T) {
 }
 
 func TestRegistryValidate_DuplicateFilename(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	reg := registry.New()
 	reg.UpdatedAt = now
@@ -116,12 +123,14 @@ func TestRegistryValidate_DuplicateFilename(t *testing.T) {
 }
 
 func TestBackupEntryValidate_Valid(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	e := entry("id1", "backup.tar.gz", now, registry.StatusReady)
 	assert.NoError(t, e.Validate())
 }
 
 func TestBackupEntryValidate_AllStatuses(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	for _, status := range []string{registry.StatusReady, registry.StatusFailed, registry.StatusDeleted} {
 		e := entry("id1", "backup.tar.gz", now, status)
@@ -130,23 +139,27 @@ func TestBackupEntryValidate_AllStatuses(t *testing.T) {
 }
 
 func TestBackupEntryValidate_EmptyID(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	e := entry("", "backup.tar.gz", now, registry.StatusReady)
 	assert.ErrorIs(t, e.Validate(), registry.ErrValidationFailed)
 }
 
 func TestBackupEntryValidate_EmptyFilename(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	e := entry("id1", "", now, registry.StatusReady)
 	assert.ErrorIs(t, e.Validate(), registry.ErrValidationFailed)
 }
 
 func TestBackupEntryValidate_ZeroCreatedAt(t *testing.T) {
+	t.Parallel()
 	e := entry("id1", "backup.tar.gz", time.Time{}, registry.StatusReady)
 	assert.ErrorIs(t, e.Validate(), registry.ErrValidationFailed)
 }
 
 func TestBackupEntryValidate_NegativeSize(t *testing.T) {
+	t.Parallel()
 	e := registry.BackupEntry{
 		ID:         "id1",
 		Filename:   "backup.tar.gz",
@@ -162,6 +175,7 @@ func TestBackupEntryValidate_NegativeSize(t *testing.T) {
 }
 
 func TestBackupEntryValidate_EmptySHA256(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	e := registry.BackupEntry{
 		ID:         "id1",
@@ -178,6 +192,7 @@ func TestBackupEntryValidate_EmptySHA256(t *testing.T) {
 }
 
 func TestBackupEntryValidate_InvalidStatus(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	e := registry.BackupEntry{
 		ID:         "id1",
@@ -194,6 +209,7 @@ func TestBackupEntryValidate_InvalidStatus(t *testing.T) {
 }
 
 func TestRegistrySortByCreatedAtDesc(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	reg := registry.New()
 	reg.Backups = []registry.BackupEntry{
@@ -208,6 +224,7 @@ func TestRegistrySortByCreatedAtDesc(t *testing.T) {
 }
 
 func TestBackupTimeFromFilename(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		filename string
 		want     time.Time
@@ -229,18 +246,22 @@ func TestBackupTimeFromFilename(t *testing.T) {
 }
 
 func TestNewService(t *testing.T) {
+	t.Parallel()
 	t.Run("default", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := buildService()
 		assert.NotNil(t, svc)
 	})
 
 	t.Run("with recovery", func(t *testing.T) {
+		t.Parallel()
 		svc, _ := buildService(registry.WithRecovery())
 		assert.NotNil(t, svc)
 	})
 }
 
 func TestServiceLoad_HappyPath(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService()
 	locker := mockLock(backend)
 
@@ -261,6 +282,7 @@ func TestServiceLoad_HappyPath(t *testing.T) {
 }
 
 func TestServiceLoad_NotFound_NoRecovery(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService()
 	mockLock(backend)
 
@@ -275,6 +297,7 @@ func TestServiceLoad_NotFound_NoRecovery(t *testing.T) {
 }
 
 func TestServiceLoad_NotFound_WithRecovery(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService(registry.WithRecovery())
 	mockLock(backend)
 
@@ -292,6 +315,7 @@ func TestServiceLoad_NotFound_WithRecovery(t *testing.T) {
 }
 
 func TestServiceLoad_NotFound_WithRecovery_NoFiles(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService(registry.WithRecovery())
 	mockLock(backend)
 
@@ -307,6 +331,7 @@ func TestServiceLoad_NotFound_WithRecovery_NoFiles(t *testing.T) {
 }
 
 func TestServiceLoad_DownloadError(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService()
 	mockLock(backend)
 
@@ -319,6 +344,7 @@ func TestServiceLoad_DownloadError(t *testing.T) {
 }
 
 func TestServiceLoad_ParseError(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService()
 	mockLock(backend)
 
@@ -336,6 +362,7 @@ func TestServiceLoad_ParseError(t *testing.T) {
 }
 
 func TestServiceAppend_HappyPath(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService()
 	now := fixedNow()
 	mockLock(backend)
@@ -358,6 +385,7 @@ func TestServiceAppend_HappyPath(t *testing.T) {
 }
 
 func TestServiceAppend_DownloadError(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService()
 	mockLock(backend)
 
@@ -371,6 +399,7 @@ func TestServiceAppend_DownloadError(t *testing.T) {
 }
 
 func TestServiceAppend_SaveError(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService()
 	mockLock(backend)
 
@@ -390,6 +419,7 @@ func TestServiceAppend_SaveError(t *testing.T) {
 }
 
 func TestServiceMarkDeleted_HappyPath(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService()
 	now := fixedNow()
 	mockLock(backend)
@@ -415,6 +445,7 @@ func TestServiceMarkDeleted_HappyPath(t *testing.T) {
 }
 
 func TestServiceMarkDeleted_IDNotFound(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService()
 	now := fixedNow()
 	mockLock(backend)
@@ -440,6 +471,7 @@ func TestServiceMarkDeleted_IDNotFound(t *testing.T) {
 }
 
 func TestServiceParse_ValidJSON(t *testing.T) {
+	t.Parallel()
 	svc, _ := buildService()
 	r := strings.NewReader(validRegistryJSON())
 	reg, err := svc.Parse(r)
@@ -448,6 +480,7 @@ func TestServiceParse_ValidJSON(t *testing.T) {
 }
 
 func TestServiceParse_InvalidJSON(t *testing.T) {
+	t.Parallel()
 	svc, _ := buildService()
 	r := strings.NewReader("not json")
 	_, err := svc.Parse(r)
@@ -455,6 +488,7 @@ func TestServiceParse_InvalidJSON(t *testing.T) {
 }
 
 func TestServiceParse_InvalidVersion(t *testing.T) {
+	t.Parallel()
 	svc, _ := buildService()
 	r := strings.NewReader(`{"version":99,"updated_at":"2024-01-15T10:30:00Z","backups":[]}`)
 	_, err := svc.Parse(r)
@@ -462,6 +496,7 @@ func TestServiceParse_InvalidVersion(t *testing.T) {
 }
 
 func TestServiceParse_MissingRequiredField(t *testing.T) {
+	t.Parallel()
 	svc, _ := buildService()
 	r := strings.NewReader(`{"version":1,"updated_at":"2024-01-15T10:30:00Z","backups":[{"id":""}]}`)
 	_, err := svc.Parse(r)
@@ -469,6 +504,7 @@ func TestServiceParse_MissingRequiredField(t *testing.T) {
 }
 
 func TestServiceSave_InvalidRegistry(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService()
 
 	reg := &registry.Registry{Version: 99, UpdatedAt: fixedNow(), Backups: nil}
@@ -478,6 +514,7 @@ func TestServiceSave_InvalidRegistry(t *testing.T) {
 }
 
 func TestServiceSave_StorageError(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService()
 	backend.On("Upload", mock.Anything, ".backup-registry.json", mock.Anything).Return(errors.New("upload failed"))
 
@@ -491,6 +528,7 @@ func TestServiceSave_StorageError(t *testing.T) {
 }
 
 func TestServiceRebuild_WithoutRecovery(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService()
 	reg, err := svc.Rebuild(context.Background())
 	require.NoError(t, err)
@@ -499,6 +537,7 @@ func TestServiceRebuild_WithoutRecovery(t *testing.T) {
 }
 
 func TestServiceRebuild_WithRecovery_ListsFiles(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService(registry.WithRecovery())
 
 	backend.On("List", mock.Anything).Return([]string{
@@ -516,6 +555,7 @@ func TestServiceRebuild_WithRecovery_ListsFiles(t *testing.T) {
 }
 
 func TestServiceRebuild_WithRecovery_NoFiles(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService(registry.WithRecovery())
 
 	backend.On("List", mock.Anything).Return([]string{}, nil)
@@ -528,6 +568,7 @@ func TestServiceRebuild_WithRecovery_NoFiles(t *testing.T) {
 }
 
 func TestServiceRebuild_WithRecovery_IgnoresRegistryFile(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService(registry.WithRecovery())
 
 	backend.On("List", mock.Anything).Return([]string{
@@ -545,6 +586,7 @@ func TestServiceRebuild_WithRecovery_IgnoresRegistryFile(t *testing.T) {
 }
 
 func TestServiceRebuild_WithRecovery_IgnoresDirectories(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService(registry.WithRecovery())
 
 	backend.On("List", mock.Anything).Return([]string{
@@ -561,6 +603,7 @@ func TestServiceRebuild_WithRecovery_IgnoresDirectories(t *testing.T) {
 }
 
 func TestServiceRebuild_WithRecovery_IgnoresInvalidFilenames(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService(registry.WithRecovery())
 
 	backend.On("List", mock.Anything).Return([]string{
@@ -577,6 +620,7 @@ func TestServiceRebuild_WithRecovery_IgnoresInvalidFilenames(t *testing.T) {
 }
 
 func TestServiceRebuild_WithRecovery_SetsEncryptedFlag(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService(registry.WithRecovery())
 
 	backend.On("List", mock.Anything).Return([]string{
@@ -593,6 +637,7 @@ func TestServiceRebuild_WithRecovery_SetsEncryptedFlag(t *testing.T) {
 }
 
 func TestServiceRebuild_WithRecovery_ListError(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService(registry.WithRecovery())
 
 	backend.On("List", mock.Anything).Return(nil, errors.New("list failed"))
@@ -604,6 +649,7 @@ func TestServiceRebuild_WithRecovery_ListError(t *testing.T) {
 }
 
 func TestServiceRebuild_WithRecovery_SaveError(t *testing.T) {
+	t.Parallel()
 	svc, backend := buildService(registry.WithRecovery())
 
 	backend.On("List", mock.Anything).Return([]string{
@@ -618,6 +664,7 @@ func TestServiceRebuild_WithRecovery_SaveError(t *testing.T) {
 }
 
 func TestServiceParse_EmptyReader(t *testing.T) {
+	t.Parallel()
 	svc, _ := buildService()
 	r := bytes.NewReader(nil)
 	_, err := svc.Parse(r)
@@ -625,6 +672,7 @@ func TestServiceParse_EmptyReader(t *testing.T) {
 }
 
 func TestNewBackupEntry_WithEncryption(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	enc := &registry.EncryptionMetadata{Algorithm: "AES-256-GCM"}
 	tool := &registry.ToolMetadata{Name: "test-tool", Version: "1.0.0"}
@@ -640,6 +688,7 @@ func TestNewBackupEntry_WithEncryption(t *testing.T) {
 }
 
 func TestNewBackupEntry_WithMethod(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	tool := &registry.ToolMetadata{
 		Name:    "mariadb-backup-s3",
@@ -655,6 +704,7 @@ func TestNewBackupEntry_WithMethod(t *testing.T) {
 }
 
 func TestToolMetadata_Method_SerializationRoundTrip(t *testing.T) {
+	t.Parallel()
 	now := fixedNow()
 	reg := registry.New()
 	reg.UpdatedAt = now
@@ -686,12 +736,14 @@ func TestToolMetadata_Method_SerializationRoundTrip(t *testing.T) {
 }
 
 func TestRegistryValidate_EmptyBackupsOK(t *testing.T) {
+	t.Parallel()
 	reg := registry.New()
 	reg.UpdatedAt = fixedNow()
 	assert.NoError(t, reg.Validate())
 }
 
 func TestBackupEntryValidate_ZeroSizeOK(t *testing.T) {
+	t.Parallel()
 	e := registry.BackupEntry{
 		ID:         "id1",
 		Filename:   "backup.tar.gz",

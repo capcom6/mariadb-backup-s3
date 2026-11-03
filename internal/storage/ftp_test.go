@@ -32,6 +32,7 @@ func (e testFTPError) Temporary() bool {
 }
 
 func TestValidateFilename_Valid(t *testing.T) {
+	t.Parallel()
 	s := storage.NewTestFTPStorage("/base")
 	tests := []struct {
 		filename string
@@ -45,6 +46,7 @@ func TestValidateFilename_Valid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.filename, func(t *testing.T) {
+			t.Parallel()
 			got, err := s.ValidateFilename(tt.filename)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, got)
@@ -53,18 +55,21 @@ func TestValidateFilename_Valid(t *testing.T) {
 }
 
 func TestValidateFilename_Empty(t *testing.T) {
+	t.Parallel()
 	s := storage.NewTestFTPStorage("/base")
 	_, err := s.ValidateFilename("")
 	assert.ErrorIs(t, err, storage.ErrInvalidArgument)
 }
 
 func TestValidateFilename_Absolute(t *testing.T) {
+	t.Parallel()
 	s := storage.NewTestFTPStorage("/base")
 	_, err := s.ValidateFilename("/etc/passwd")
 	assert.ErrorIs(t, err, storage.ErrInvalidArgument)
 }
 
 func TestValidateFilename_NormalizesTraversal(t *testing.T) {
+	t.Parallel()
 	s := storage.NewTestFTPStorage("/base")
 	tests := []struct {
 		name     string
@@ -78,6 +83,7 @@ func TestValidateFilename_NormalizesTraversal(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := s.ValidateFilename(tt.filename)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, got,
@@ -87,6 +93,7 @@ func TestValidateFilename_NormalizesTraversal(t *testing.T) {
 }
 
 func TestValidateFilename_DotDot(t *testing.T) {
+	t.Parallel()
 	s := storage.NewTestFTPStorage("/base")
 	tests := []struct {
 		name     string
@@ -98,6 +105,7 @@ func TestValidateFilename_DotDot(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, err := s.ValidateFilename(tt.filename)
 			require.NoError(t, err)
 			assert.Empty(t, got, "filename %q should normalize to empty path", tt.filename)
@@ -106,6 +114,7 @@ func TestValidateFilename_DotDot(t *testing.T) {
 }
 
 func TestValidateFilename_TrailingSlash(t *testing.T) {
+	t.Parallel()
 	s := storage.NewTestFTPStorage("/base")
 	got, err := s.ValidateFilename("dir/")
 	require.NoError(t, err)
@@ -113,6 +122,7 @@ func TestValidateFilename_TrailingSlash(t *testing.T) {
 }
 
 func TestIsFTPNotFoundError_Code550(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		message string
@@ -126,6 +136,7 @@ func TestIsFTPNotFoundError_Code550(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			err := testFTPError{code: 550, message: tt.message}
 			assert.True(t, storage.IsFTPNotFoundError(err),
 				"expected true for code 550 with message %q", tt.message)
@@ -134,22 +145,26 @@ func TestIsFTPNotFoundError_Code550(t *testing.T) {
 }
 
 func TestIsFTPNotFoundError_Code550_WrongMessage(t *testing.T) {
+	t.Parallel()
 	err := testFTPError{code: 550, message: "Permission denied"}
 	assert.False(t, storage.IsFTPNotFoundError(err),
 		"code 550 without 'not found' message should return false")
 }
 
 func TestIsFTPNotFoundError_OtherCode(t *testing.T) {
+	t.Parallel()
 	err := testFTPError{code: 530, message: "Not found"}
 	assert.False(t, storage.IsFTPNotFoundError(err),
 		"code 530 should return false even with 'not found' message")
 }
 
 func TestIsFTPNotFoundError_NonFTPError(t *testing.T) {
+	t.Parallel()
 	err := errors.New("some generic error")
 	assert.False(t, storage.IsFTPNotFoundError(err))
 }
 
 func TestIsFTPNotFoundError_NilError(t *testing.T) {
+	t.Parallel()
 	assert.False(t, storage.IsFTPNotFoundError(nil))
 }

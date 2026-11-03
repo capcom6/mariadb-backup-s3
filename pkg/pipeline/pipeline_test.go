@@ -47,6 +47,7 @@ func errorStage(stageNum int, msg string) pipeline.StageFunc {
 
 // Test successful execution with no stages (direct src→dst copy).
 func TestRun_NoStages(t *testing.T) {
+	t.Parallel()
 	input := "test data"
 	expected := input
 
@@ -65,6 +66,7 @@ func TestRun_NoStages(t *testing.T) {
 
 // Test successful execution with single stage (identity transform).
 func TestRun_SingleStage(t *testing.T) {
+	t.Parallel()
 	input := "test data"
 	expected := input
 
@@ -83,6 +85,7 @@ func TestRun_SingleStage(t *testing.T) {
 
 // Test successful execution with multiple stages (chained transforms).
 func TestRun_MultipleStages(t *testing.T) {
+	t.Parallel()
 	input := "hello"
 	expected := "hello world transformed"
 
@@ -106,6 +109,7 @@ func TestRun_MultipleStages(t *testing.T) {
 
 // Test error propagation from intermediate stage.
 func TestRun_ErrorFromIntermediateStage(t *testing.T) {
+	t.Parallel()
 	input := "test data"
 	var dst bytes.Buffer
 	src := strings.NewReader(input)
@@ -133,6 +137,7 @@ func TestRun_ErrorFromIntermediateStage(t *testing.T) {
 
 // Test error propagation from final copy operation.
 func TestRun_ErrorFromFinalCopy(t *testing.T) {
+	t.Parallel()
 	// Create a reader that will fail on read
 	failingReader := &errorReader{err: errors.New("read failure")}
 	var dst bytes.Buffer
@@ -150,6 +155,7 @@ func TestRun_ErrorFromFinalCopy(t *testing.T) {
 
 // Test concurrent stage execution validation.
 func TestRun_ConcurrentExecution(t *testing.T) {
+	t.Parallel()
 	// Test that concurrent execution doesn't cause data races
 	// by running the pipeline multiple times in goroutines
 	input := "test data"
@@ -191,6 +197,7 @@ func TestRun_ConcurrentExecution(t *testing.T) {
 
 // Table-driven tests for transform validation.
 func TestRun_TransformValidation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string
@@ -251,6 +258,7 @@ func TestRun_TransformValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var dst bytes.Buffer
 			src := strings.NewReader(tt.input)
 
@@ -270,6 +278,7 @@ func TestRun_TransformValidation(t *testing.T) {
 
 // Test error messages contain correct stage numbers.
 func TestRun_ErrorStageNumbers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name        string
 		stages      []pipeline.StageFunc
@@ -294,6 +303,7 @@ func TestRun_ErrorStageNumbers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var dst bytes.Buffer
 			src := strings.NewReader("test")
 
@@ -312,6 +322,7 @@ func TestRun_ErrorStageNumbers(t *testing.T) {
 
 // Test error wrapping with [errors.Is].
 func TestRun_ErrorWrapping(t *testing.T) {
+	t.Parallel()
 	// Test that original error is preserved in wrapped error
 	var dst bytes.Buffer
 	src := strings.NewReader("test")
@@ -331,6 +342,7 @@ func TestRun_ErrorWrapping(t *testing.T) {
 
 // Test large data handling.
 func TestRun_LargeData(t *testing.T) {
+	t.Parallel()
 	// Create a large input (1MB)
 	input := strings.Repeat("a", 1024*1024)
 	expected := input + "suffix"
@@ -352,6 +364,7 @@ func TestRun_LargeData(t *testing.T) {
 
 // Test empty input.
 func TestRun_EmptyInput(t *testing.T) {
+	t.Parallel()
 	input := ""
 	expected := "suffix"
 
@@ -372,6 +385,7 @@ func TestRun_EmptyInput(t *testing.T) {
 
 // Test that errors from multiple failed stages are all collected.
 func TestRun_MultipleErrors(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name       string
 		stages     []pipeline.StageFunc
@@ -412,6 +426,7 @@ func TestRun_MultipleErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var dst bytes.Buffer
 			src := strings.NewReader("test")
 
