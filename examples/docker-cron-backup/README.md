@@ -21,6 +21,9 @@ DB_BACKUP__SCHEDULE="0 2 * * *"
 TIMEZONE="America/New_York"
 ```
 
+> **Note**
+> For MongoDB, use image `ghcr.io/capcom6/mongodb-backup-s3:latest` and add `DB__ENGINE=mongodb` to the backup service environment (adjust `MARIADB__*` connection variables to `DB__HOST`/`DB__PORT=27017`/`DB__USER` or `MONGODB__URI`). The default image `ghcr.io/capcom6/mariadb-backup-s3:latest` ships MariaDB tools only.
+
 ## 🚀 Installation
 You can deploy this example using either `docker stack deploy` or `docker service create`.
 

@@ -8,6 +8,8 @@ import (
 
 	"github.com/robfig/cron/v3"
 	"gopkg.in/yaml.v3"
+
+	"github.com/capcom6/mariadb-backup-s3/internal/config"
 )
 
 var (
@@ -17,6 +19,10 @@ var (
 	ErrSchedule     = errors.New("schedule is required")
 	ErrCommand      = errors.New("unsupported command")
 	ErrStorageURL   = errors.New("storage.url is required")
+
+	// ErrBothDatabaseSections is returned when a job defines both the new
+	// database section and the legacy mariadb section.
+	ErrBothDatabaseSections = errors.New("database and mariadb sections are mutually exclusive")
 )
 
 const (
@@ -40,10 +46,31 @@ type Job struct {
 	Command   string     `yaml:"command"`
 	Timeout   Duration   `yaml:"timeout,omitempty"`
 	Enabled   *bool      `yaml:"enabled,omitempty"`
+	Database  *Database  `yaml:"database,omitempty"`
 	MariaDB   *MariaDB   `yaml:"mariadb,omitempty"`
 	Storage   Storage    `yaml:"storage"`
 	Encrypt   *Encrypt   `yaml:"encrypt,omitempty"`
 	Retention *Retention `yaml:"retention,omitempty"`
+}
+
+// Database is the engine-aware database section of a scheduler job.
+type Database struct {
+	Engine   string `yaml:"engine,omitempty"`
+	Host     string `yaml:"host,omitempty"`
+	Port     int    `yaml:"port,omitempty"`
+	User     string `yaml:"user,omitempty"`
+	Password string `yaml:"password,omitempty"`
+
+	BackupMethod  string `yaml:"backup_method,omitempty"`
+	BackupBinary  string `yaml:"backup_binary,omitempty"`
+	ClientBinary  string `yaml:"client_binary,omitempty"`
+	BackupOptions string `yaml:"backup_options,omitempty"`
+
+	URI                   string `yaml:"uri,omitempty"`
+	AuthSource            string `yaml:"auth_source,omitempty"`
+	TLS                   bool   `yaml:"tls,omitempty"`
+	TLSCAFile             string `yaml:"tls_ca_file,omitempty"`
+	TLSCertificateKeyFile string `yaml:"tls_certificate_key_file,omitempty"`
 }
 
 type MariaDB struct {
@@ -120,6 +147,14 @@ func (j Job) Validate() error {
 	}
 	if j.Storage.URL == "" {
 		return ErrStorageURL
+	}
+	if j.Database != nil && j.MariaDB != nil {
+		return ErrBothDatabaseSections
+	}
+	if j.Database != nil && j.Database.Engine != "" &&
+		j.Database.Engine != config.EngineMariaDB &&
+		j.Database.Engine != config.EngineMongoDB {
+		return fmt.Errorf("%w: %q", config.ErrInvalidEngine, j.Database.Engine)
 	}
 	return nil
 }

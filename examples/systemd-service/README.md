@@ -41,6 +41,9 @@ SCHEDULER__CONFIG=/etc/mariadb-backup-s3/scheduler.yaml
 SCHEDULER__STATE_FILE=/var/lib/mariadb-backup-s3/state.json
 ```
 
+> **Note**
+> For MongoDB, set `DB__ENGINE=mongodb` and adjust the connection variables (`DB__HOST`, `DB__PORT=27017`, `DB__USER`, `DB__PASSWORD`, or `MONGODB__URI`); `mongodump` must be in PATH. `DB__*` variables are preferred; `MARIADB__*` names above remain supported as fallback.
+
 Set appropriate permissions:
 ```bash
 sudo chmod 600 /etc/default/mariadb-backup-s3

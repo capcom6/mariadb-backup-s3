@@ -77,6 +77,9 @@ Configure the following variables:
 - Storage configuration
 - **Encryption key** (required for encrypted backups)
 
+> **Note**
+> Encryption is engine-agnostic: it works for both MariaDB and MongoDB backups. To back up MongoDB, add `DB__ENGINE=mongodb` plus MongoDB connection settings (`MONGODB__URI` or `DB__HOST`/`DB__PORT=27017`) and ensure `mongodump` is in PATH; `DB__*` variables are preferred over legacy `MARIADB__*`.
+
 ### 3. Make Backup Script Executable
 
 ```bash
@@ -208,7 +211,7 @@ cat /tmp/backup-test.log
 source .env && echo "ENCRYPTION__KEY: ${ENCRYPTION__KEY:0:8}..."
 
 # Check if all required variables are set
-source .env && env | grep -E '^(MARIADB__|STORAGE__|ENCRYPTION__|BACKUP__)'
+source .env && env | grep -E '^(DB__|MONGODB__|MARIADB__|STORAGE__|ENCRYPTION__|BACKUP__)'
 ```
 
 #### Encryption-Specific Issues

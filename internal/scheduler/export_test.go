@@ -9,6 +9,11 @@ func LoadState(filePath string) (*State, error) {
 	return loadState(filePath)
 }
 
-func BuildMariaDB(job repository.Job) config.MariaDB {
-	return (&Scheduler{}).buildMariaDB(job)
+func BuildDatabase(job repository.Job) config.Database {
+	return (&Scheduler{}).buildDatabase(job)
+}
+
+// BuildMariaDB keeps the legacy test helper name while returning the generalized database config.
+func BuildMariaDB(job repository.Job) config.Database {
+	return BuildDatabase(job)
 }

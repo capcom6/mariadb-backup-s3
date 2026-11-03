@@ -56,9 +56,9 @@ func main() {
 
 	app := &cli.Command{
 		Name:           "mariadb-backup-s3",
-		Usage:          "🔁 Automated MariaDB database backups with S3-compatible storage integration",
+		Usage:          "Automated database backups for MariaDB and MongoDB with S3-compatible storage integration",
 		Version:        appVersion,
-		Description:    "Open-source solution for reliable, cloud-native MariaDB database backups with S3-compatible storage integration. 🛡️\nEasy setup with environment variables and command-line flags. ☁️",
+		Description:    "Open-source solution for reliable, cloud-native database backups with S3-compatible storage integration.\nSupports MariaDB physical and logical backups and MongoDB logical backups.\nEasy setup with environment variables and command-line flags.",
 		DefaultCommand: "backup",
 		Commands: []*cli.Command{
 			backup.Command(),
@@ -68,7 +68,7 @@ func main() {
 			scheduler.Command(),
 		},
 		Before: func(ctx context.Context, _ *cli.Command) (context.Context, error) {
-			logger.Info(ctx, "Starting MariaDB Backup S3 application")
+			logger.Info(ctx, "Starting Database Backup S3 application")
 
 			return ctx, nil
 		},

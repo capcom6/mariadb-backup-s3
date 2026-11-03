@@ -318,9 +318,9 @@ func (s *Scheduler) executeBackup(
 	jobLogger logging.Logger,
 ) error {
 	cfg := backup.Config{
-		Version: "",
-		MariaDB: s.buildMariaDB(job),
-		Storage: config.Storage{URL: job.Storage.URL},
+		Version:  "",
+		Database: s.buildDatabase(job),
+		Storage:  config.Storage{URL: job.Storage.URL},
 		Encryption: config.Encryption{
 			EncryptionKey: job.EncryptionKey(),
 		},
@@ -330,7 +330,10 @@ func (s *Scheduler) executeBackup(
 		return fmt.Errorf("validate backup config: %w", err)
 	}
 
-	op := backup.NewOperation(cfg, registrySvc, storageSvc, jobLogger)
+	op, opErr := backup.NewOperation(cfg, registrySvc, storageSvc, jobLogger)
+	if opErr != nil {
+		return fmt.Errorf("create backup operation: %w", opErr)
+	}
 	if runErr := op.Run(ctx); runErr != nil {
 		return fmt.Errorf("backup failed: %w", runErr)
 	}
@@ -387,50 +390,75 @@ func (s *Scheduler) executeRetention(
 	return nil
 }
 
-func (s *Scheduler) buildMariaDB(job repository.Job) config.MariaDB {
-	cfg := config.DefaultMariaDB()
+func (s *Scheduler) buildDatabase(job repository.Job) config.Database {
+	if job.Database != nil {
+		return buildDatabaseSection(job.Database)
+	}
 
 	if job.MariaDB == nil {
-		return cfg
+		return config.DefaultDatabase(config.EngineMariaDB)
 	}
 
-	m := job.MariaDB
-
-	if m.Host != "" {
-		cfg.Host = m.Host
-	}
-	if m.Port > 0 {
-		cfg.Port = m.Port
-	}
-	if m.User != "" {
-		cfg.User = m.User
-	}
-	if m.Password != "" {
-		cfg.Password = m.Password
-	}
-	if m.BackupMethod != "" {
-		cfg.BackupMethod = m.BackupMethod
-	}
-	if m.BackupBinary != "" {
-		cfg.BackupBinary = m.BackupBinary
-	} else {
-		cfg.BackupBinary = defaultBinaryForMethod(cfg.BackupMethod)
-	}
-	if m.ClientBinary != "" {
-		cfg.ClientBinary = m.ClientBinary
-	}
-	if m.BackupOptions != "" {
-		cfg.BackupOptions = m.BackupOptions
-	}
-
-	return cfg
+	return buildDatabaseSection(legacyMariaDBSection(job.MariaDB))
 }
 
-func defaultBinaryForMethod(method string) string {
-	switch method {
-	case config.BackupMethodLogical:
-		return "mariadb-dump"
-	default:
-		return "mariadb-backup"
+// legacyMariaDBSection maps the legacy mariadb section onto the unified
+// database section with the engine fixed to mariadb.
+func legacyMariaDBSection(m *repository.MariaDB) *repository.Database {
+	return &repository.Database{
+		Engine:                config.EngineMariaDB,
+		Host:                  m.Host,
+		Port:                  m.Port,
+		User:                  m.User,
+		Password:              m.Password,
+		BackupMethod:          m.BackupMethod,
+		BackupBinary:          m.BackupBinary,
+		ClientBinary:          m.ClientBinary,
+		BackupOptions:         m.BackupOptions,
+		URI:                   "",
+		AuthSource:            "",
+		TLS:                   false,
+		TLSCAFile:             "",
+		TLSCertificateKeyFile: "",
 	}
+}
+
+func buildDatabaseSection(section *repository.Database) config.Database {
+	cfg := config.DefaultDatabase(section.Engine)
+
+	if section.Host != "" {
+		cfg.Host = section.Host
+	}
+	if section.Port > 0 {
+		cfg.Port = section.Port
+	}
+	if section.User != "" {
+		cfg.User = section.User
+	}
+	if section.Password != "" {
+		cfg.Password = section.Password
+	}
+	if section.BackupMethod != "" {
+		cfg.BackupMethod = section.BackupMethod
+	}
+	if section.BackupBinary != "" {
+		cfg.BackupBinary = section.BackupBinary
+	} else {
+		cfg.BackupBinary = config.DefaultBackupBinary(cfg.Engine, cfg.BackupMethod)
+	}
+	if section.ClientBinary != "" {
+		cfg.ClientBinary = section.ClientBinary
+	}
+	if section.BackupOptions != "" {
+		cfg.BackupOptions = section.BackupOptions
+	}
+	cfg.MongoDB = config.MongoDB{
+		URI:                   section.URI,
+		AuthSource:            section.AuthSource,
+		TLS:                   section.TLS,
+		TLSCAFile:             section.TLSCAFile,
+		TLSCertificateKeyFile: section.TLSCertificateKeyFile,
+	}
+
+	return cfg.Normalize()
 }
