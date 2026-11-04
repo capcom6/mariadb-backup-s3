@@ -22,6 +22,7 @@ const streamedBackup = "-- mariadb-backup-s3: database=db1\ndump of db1\n" +
 	"-- mariadb-backup-s3: database=db2\ndump of db2\n"
 
 func TestOperation_Run_SQLStream(t *testing.T) {
+	t.Parallel()
 	storageDir := t.TempDir()
 	targetDir := t.TempDir()
 
@@ -39,6 +40,7 @@ func TestOperation_Run_SQLStream(t *testing.T) {
 }
 
 func TestOperation_Run_SQLStream_Encrypted(t *testing.T) {
+	t.Parallel()
 	storageDir := t.TempDir()
 	targetDir := t.TempDir()
 
@@ -59,6 +61,7 @@ func TestOperation_Run_SQLStream_Encrypted(t *testing.T) {
 }
 
 func TestOperation_Run_Archive(t *testing.T) {
+	t.Parallel()
 	storageDir := t.TempDir()
 	targetDir := t.TempDir()
 
@@ -79,6 +82,7 @@ func TestOperation_Run_Archive(t *testing.T) {
 }
 
 func TestOperation_Run_SQLStream_NotGzip(t *testing.T) {
+	t.Parallel()
 	storageDir := t.TempDir()
 	targetDir := t.TempDir()
 

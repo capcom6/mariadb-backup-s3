@@ -13,6 +13,8 @@ import (
 )
 
 func TestWriteMarker(t *testing.T) {
+	t.Parallel()
+
 	var buf strings.Builder
 
 	require.NoError(t, sqlstream.WriteMarker(&buf, "mydb"))
@@ -20,6 +22,8 @@ func TestWriteMarker(t *testing.T) {
 }
 
 func TestWriteMarker_InvalidDatabaseName(t *testing.T) {
+	t.Parallel()
+
 	var buf strings.Builder
 
 	err := sqlstream.WriteMarker(&buf, "../escape")
@@ -29,6 +33,8 @@ func TestWriteMarker_InvalidDatabaseName(t *testing.T) {
 }
 
 func TestParseMarker(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		line     string
@@ -45,6 +51,8 @@ func TestParseMarker(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			db, ok := sqlstream.ParseMarker(tt.line)
 			assert.Equal(t, tt.ok, ok)
 			assert.Equal(t, tt.expected, db)
@@ -53,6 +61,8 @@ func TestParseMarker(t *testing.T) {
 }
 
 func TestValidateDatabaseName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		db      string
@@ -71,6 +81,8 @@ func TestValidateDatabaseName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			err := sqlstream.ValidateDatabaseName(tt.db)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -83,6 +95,8 @@ func TestValidateDatabaseName(t *testing.T) {
 }
 
 func TestSplitToDir(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	stream := "-- mariadb-backup-s3: database=mydb\n" +
@@ -99,6 +113,8 @@ func TestSplitToDir(t *testing.T) {
 }
 
 func TestSplitToDir_NoTrailingNewline(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	stream := "-- mariadb-backup-s3: database=mydb\nSELECT 1;"
@@ -109,6 +125,8 @@ func TestSplitToDir_NoTrailingNewline(t *testing.T) {
 }
 
 func TestSplitToDir_EmptyDatabase(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	stream := "-- mariadb-backup-s3: database=mydb\n"
@@ -119,6 +137,8 @@ func TestSplitToDir_EmptyDatabase(t *testing.T) {
 }
 
 func TestSplitToDir_PreservesEmptyLines(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	stream := "-- mariadb-backup-s3: database=mydb\n" +
@@ -136,6 +156,8 @@ func TestSplitToDir_PreservesEmptyLines(t *testing.T) {
 }
 
 func TestSplitToDir_NoMarker(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	err := sqlstream.SplitToDir(strings.NewReader("SELECT 1;\n"), dir)
@@ -144,6 +166,8 @@ func TestSplitToDir_NoMarker(t *testing.T) {
 }
 
 func TestSplitToDir_EmptyStream(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	err := sqlstream.SplitToDir(strings.NewReader(""), dir)
@@ -152,6 +176,8 @@ func TestSplitToDir_EmptyStream(t *testing.T) {
 }
 
 func TestSplitToDir_InvalidDatabaseName(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	stream := "-- mariadb-backup-s3: database=../escape\nSELECT 1;\n"
@@ -165,6 +191,8 @@ func TestSplitToDir_InvalidDatabaseName(t *testing.T) {
 }
 
 func TestSplitToDir_DuplicateDatabase(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	stream := "-- mariadb-backup-s3: database=mydb\nSELECT 1;\n" +

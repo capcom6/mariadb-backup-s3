@@ -469,6 +469,7 @@ func TestOperation_Run_Streaming(t *testing.T) {
 }
 
 func TestOperation_Run_StreamingFails_NoObjectUploaded(t *testing.T) {
+	t.Parallel()
 	storageDir := t.TempDir()
 
 	u, err := url.Parse("file://" + storageDir)
@@ -513,6 +514,7 @@ func TestOperation_Run_StreamingFails_NoObjectUploaded(t *testing.T) {
 }
 
 func TestNewOperation_WiresStreamerOnlyForStreamedLogicalBackup(t *testing.T) {
+	t.Parallel()
 	logger := logging.NewTestLogger()
 
 	logicalConfig := Config{

@@ -13,6 +13,7 @@ import (
 )
 
 func TestConfig_Validate_RejectsStreamWithPhysicalMethod(t *testing.T) {
+	t.Parallel()
 	cfg := backup.DefaultConfig()
 	cfg.Database.BackupMethod = config.BackupMethodPhysical
 	cfg.Database.BackupBinary = writeStubBinary(t, "mariadb-backup")
@@ -26,6 +27,7 @@ func TestConfig_Validate_RejectsStreamWithPhysicalMethod(t *testing.T) {
 }
 
 func TestConfig_Validate_AcceptsStreamWithLogicalMethod(t *testing.T) {
+	t.Parallel()
 	cfg := backup.DefaultConfig()
 	cfg.Database.BackupMethod = config.BackupMethodLogical
 	cfg.Database.BackupBinary = writeStubBinary(t, "mariadb-dump")
@@ -37,6 +39,7 @@ func TestConfig_Validate_AcceptsStreamWithLogicalMethod(t *testing.T) {
 }
 
 func TestConfig_Validate_AcceptsFileModeWithPhysicalMethod(t *testing.T) {
+	t.Parallel()
 	cfg := backup.DefaultConfig()
 	cfg.Database.BackupMethod = config.BackupMethodPhysical
 	cfg.Database.BackupBinary = writeStubBinary(t, "mariadb-backup")

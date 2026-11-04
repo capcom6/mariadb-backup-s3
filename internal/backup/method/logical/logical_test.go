@@ -52,6 +52,7 @@ func TestMethod_Prepare_NoOp(t *testing.T) {
 }
 
 func TestMethod_ArtifactExtension(t *testing.T) {
+	t.Parallel()
 	fileMode := logical.New(method.Config{BackupBinary: "mariadb-dump"})
 	assert.Equal(t, method.ArtifactTarGz, fileMode.ArtifactExtension())
 
@@ -60,6 +61,7 @@ func TestMethod_ArtifactExtension(t *testing.T) {
 }
 
 func TestMethod_Backup_DisabledInStreamMode(t *testing.T) {
+	t.Parallel()
 	m := logical.New(method.Config{BackupBinary: "mariadb-dump", Stream: true})
 
 	err := m.Backup(context.Background(), t.TempDir(), logging.NewTestLogger())
@@ -68,6 +70,7 @@ func TestMethod_Backup_DisabledInStreamMode(t *testing.T) {
 }
 
 func TestMethod_Stream_DisabledWithoutStreamMode(t *testing.T) {
+	t.Parallel()
 	m := logical.New(method.Config{BackupBinary: "mariadb-dump"})
 
 	var buf strings.Builder
@@ -78,6 +81,7 @@ func TestMethod_Stream_DisabledWithoutStreamMode(t *testing.T) {
 }
 
 func TestMethod_Stream_WritesMarkerPerDatabase(t *testing.T) {
+	t.Parallel()
 	cfg := method.Config{
 		User:         "root",
 		BackupBinary: writeStub(t, "mariadb-dump", "printf 'dump of %s\\n' \"$2\""),
@@ -95,6 +99,7 @@ func TestMethod_Stream_WritesMarkerPerDatabase(t *testing.T) {
 }
 
 func TestMethod_Stream_NoDatabases(t *testing.T) {
+	t.Parallel()
 	cfg := method.Config{
 		User:         "root",
 		BackupBinary: writeStub(t, "mariadb-dump", "printf 'dump\\n'"),
@@ -110,6 +115,7 @@ func TestMethod_Stream_NoDatabases(t *testing.T) {
 }
 
 func TestMethod_Stream_DumpFails(t *testing.T) {
+	t.Parallel()
 	cfg := method.Config{
 		User:         "root",
 		BackupBinary: writeStub(t, "mariadb-dump", "printf 'partial dump\\n'; exit 1"),
