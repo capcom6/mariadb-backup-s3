@@ -516,7 +516,7 @@ jobs:
     command: backup
     stream: true
     storage:
-      url: s3://my-bucket/backups
+      url: s3://my-bucket/streamed-backups
     mariadb:
       host: localhost
       user: root
