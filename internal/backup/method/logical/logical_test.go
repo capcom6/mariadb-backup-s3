@@ -110,7 +110,8 @@ func TestMethod_Stream_NoDatabases(t *testing.T) {
 	m := logical.New(cfg)
 
 	var buf strings.Builder
-	require.NoError(t, m.Stream(context.Background(), &buf, logging.NewTestLogger()))
+	err := m.Stream(context.Background(), &buf, logging.NewTestLogger())
+	require.ErrorIs(t, err, logical.ErrNoDatabases)
 	assert.Empty(t, buf.String())
 }
 

@@ -110,6 +110,10 @@ func (m *Method) Stream(ctx context.Context, w io.Writer, logger logging.Logger)
 		"count": strconv.Itoa(len(databases)),
 	})
 
+	if len(databases) == 0 {
+		return fmt.Errorf("%w: no user databases on the server", ErrNoDatabases)
+	}
+
 	for _, db := range databases {
 		if dumpErr := m.streamDatabase(ctx, w, db, logger); dumpErr != nil {
 			return fmt.Errorf("failed to dump database %q: %w", db, dumpErr)
