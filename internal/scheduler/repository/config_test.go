@@ -223,6 +223,88 @@ func TestConfig_Validate(t *testing.T) {
 			},
 			wantErr: `invalid database engine: "postgres"`,
 		},
+		{
+			name: "stream with logical method",
+			config: repository.Config{
+				Jobs: []repository.Job{
+					{
+						Name:     "streamed-logical",
+						Schedule: "0 2 * * *",
+						Command:  "backup",
+						Stream:   true,
+						Storage:  repository.Storage{URL: "s3://bucket/path"},
+						MariaDB:  &repository.MariaDB{Host: "localhost", BackupMethod: "mariadb-dump"},
+					},
+				},
+			},
+			wantErr: "",
+		},
+		{
+			name: "stream with omitted method defaults to physical",
+			config: repository.Config{
+				Jobs: []repository.Job{
+					{
+						Name:     "streamed-omitted-method",
+						Schedule: "0 2 * * *",
+						Command:  "backup",
+						Stream:   true,
+						Storage:  repository.Storage{URL: "s3://bucket/path"},
+						MariaDB:  &repository.MariaDB{Host: "localhost"},
+					},
+				},
+			},
+			wantErr: "streaming is supported by the logical backup method only",
+		},
+		{
+			name: "stream with physical method",
+			config: repository.Config{
+				Jobs: []repository.Job{
+					{
+						Name:     "streamed-physical",
+						Schedule: "0 2 * * *",
+						Command:  "backup",
+						Stream:   true,
+						Storage:  repository.Storage{URL: "s3://bucket/path"},
+						MariaDB:  &repository.MariaDB{Host: "localhost", BackupMethod: "mariadb-backup"},
+					},
+				},
+			},
+			wantErr: "streaming is supported by the logical backup method only",
+		},
+		{
+			name: "stream with mongodb engine",
+			config: repository.Config{
+				Jobs: []repository.Job{
+					{
+						Name:     "streamed-mongodb",
+						Schedule: "0 2 * * *",
+						Command:  "backup",
+						Stream:   true,
+						Storage:  repository.Storage{URL: "s3://bucket/path"},
+						Database: &repository.Database{Engine: "mongodb"},
+					},
+				},
+			},
+			wantErr: "streaming is supported by the logical backup method only",
+		},
+		{
+			name: "stream on retention job is not validated",
+			config: repository.Config{
+				Jobs: []repository.Job{
+					{
+						Name:     "retention-stream",
+						Schedule: "0 3 * * 0",
+						Command:  "retention",
+						Stream:   true,
+						Storage:  repository.Storage{URL: "s3://bucket/path"},
+						Retention: &repository.Retention{
+							MaxCount: 7,
+						},
+					},
+				},
+			},
+			wantErr: "",
+		},
 	}
 
 	for _, tt := range tests {
