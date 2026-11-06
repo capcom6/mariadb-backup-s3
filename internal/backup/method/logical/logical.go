@@ -261,8 +261,12 @@ func (m *Method) streamDatabase(ctx context.Context, w io.Writer, db string, log
 		return fmt.Errorf("failed to write database marker: %w", markerErr)
 	}
 
-	if dumpErr := m.dumpDatabaseTo(ctx, w, db); dumpErr != nil {
+	esc := sqlstream.NewEscaper(w)
+	if dumpErr := m.dumpDatabaseTo(ctx, esc, db); dumpErr != nil {
 		return dumpErr
+	}
+	if flushErr := esc.Flush(); flushErr != nil {
+		return fmt.Errorf("failed to flush dump stream: %w", flushErr)
 	}
 
 	return nil

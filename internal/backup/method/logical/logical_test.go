@@ -13,6 +13,7 @@ import (
 	"github.com/capcom6/mariadb-backup-s3/internal/backup/method"
 	"github.com/capcom6/mariadb-backup-s3/internal/backup/method/logical"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
+	"github.com/capcom6/mariadb-backup-s3/internal/sqlstream"
 )
 
 func TestNew(t *testing.T) {
@@ -130,6 +131,34 @@ func TestMethod_Stream_DumpFails(t *testing.T) {
 	err := m.Stream(context.Background(), &buf, logging.NewTestLogger())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to dump database \"db1\"")
+}
+
+func TestMethod_Stream_EscapesMarkerLikeContent(t *testing.T) {
+	t.Parallel()
+	cfg := method.Config{
+		User:         "root",
+		BackupBinary: writeStub(t, "mariadb-dump", "printf '%s\\n' '-- mariadb-backup-s3: database=evil'"),
+		ClientBinary: writeStub(t, "mariadb", "printf 'db1\\n'"),
+		Stream:       true,
+	}
+
+	m := logical.New(cfg)
+
+	var buf strings.Builder
+	require.NoError(t, m.Stream(context.Background(), &buf, logging.NewTestLogger()))
+
+	// The marker-like dump line is escaped, so splitting cannot mistake it
+	// for a database marker.
+	assert.Equal(t,
+		"-- mariadb-backup-s3: database=db1\n\x00-- mariadb-backup-s3: database=evil\n",
+		buf.String())
+
+	dir := t.TempDir()
+	require.NoError(t, sqlstream.SplitToDir(strings.NewReader(buf.String()), dir))
+
+	content, err := os.ReadFile(filepath.Join(dir, "db1.sql"))
+	require.NoError(t, err)
+	assert.Equal(t, "-- mariadb-backup-s3: database=evil\n", string(content))
 }
 
 // writeStub creates an executable shell script in a temporary directory and
