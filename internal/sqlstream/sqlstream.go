@@ -11,10 +11,15 @@
 //
 // The whole stream is compressed as one gzip member, so the resulting artifact
 // is a single file.
+//
+// Dump content that starts with the marker prefix (or with the escape byte) is
+// prefixed with the escape byte by NewEscaper and stripped again by SplitToDir,
+// so only markers written by WriteMarker parse as database markers.
 package sqlstream
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -34,6 +39,12 @@ const (
 	// dumpFileSuffix is the extension of the per-database files written by
 	// SplitToDir.
 	dumpFileSuffix = ".sql"
+
+	// escapeByte prefixes dump-content lines whose start would otherwise parse
+	// as a marker line. mariadb-dump escapes NUL bytes in dump output, so
+	// artifacts written before escaping was introduced never begin a line with
+	// it.
+	escapeByte = '\x00'
 )
 
 // WriteMarker writes the marker line for the given database to w.
@@ -77,14 +88,157 @@ func ValidateDatabaseName(db string) error {
 	return nil
 }
 
+// Escaper prefixes marker-like line starts in dump content with escapeByte so
+// SplitToDir cannot mistake them for database markers. Call Flush after the
+// last Write.
+type Escaper struct {
+	w           io.Writer
+	pending     []byte // line-start bytes awaiting classification
+	atLineStart bool
+}
+
+// NewEscaper returns a writer that escapes marker-like line starts for w.
+// Each dump must be wrapped in its own Escaper, starting at a line start.
+func NewEscaper(w io.Writer) *Escaper {
+	return &Escaper{w: w, pending: nil, atLineStart: true}
+}
+
+// Write escapes marker-like line starts of p before passing everything
+// through to the underlying writer.
+func (e *Escaper) Write(p []byte) (int, error) {
+	consumed := 0
+	for len(p) > 0 {
+		var (
+			n   int
+			err error
+		)
+		if e.atLineStart {
+			n, err = e.writeLineStart(p)
+		} else {
+			n, err = e.writeThrough(p)
+		}
+		consumed += n
+		p = p[n:]
+		if err != nil {
+			return consumed, err
+		}
+	}
+
+	return consumed, nil
+}
+
+// Flush writes any buffered line-start bytes to the underlying writer.
+func (e *Escaper) Flush() error {
+	if len(e.pending) == 0 {
+		return nil
+	}
+
+	_, err := e.writeAll(e.pending)
+	e.pending = nil
+
+	return err
+}
+
+// writeAll passes p to the underlying writer and wraps a write failure.
+func (e *Escaper) writeAll(p []byte) (int, error) {
+	n, err := e.w.Write(p)
+	if err != nil {
+		return n, fmt.Errorf("failed to write escaped stream: %w", err)
+	}
+
+	return n, nil
+}
+
+// writeThrough passes p to the underlying writer up to and including the next
+// newline, ending the line. It returns the number of bytes of p consumed.
+func (e *Escaper) writeThrough(p []byte) (int, error) {
+	i := bytes.IndexByte(p, '\n')
+	if i < 0 {
+		return e.writeAll(p)
+	}
+
+	n, err := e.writeAll(p[:i+1])
+	if err != nil {
+		return n, err
+	}
+	e.atLineStart = true
+
+	return n, nil
+}
+
+// writeLineStart classifies the start of the line beginning at p, escaping it
+// when it would parse as a marker. It returns the number of bytes of p
+// consumed; bytes of an undecided line start stay buffered in e.pending.
+func (e *Escaper) writeLineStart(p []byte) (int, error) {
+	if len(e.pending) == 0 {
+		return e.classifyFirstByte(p)
+	}
+
+	// pending holds a proper prefix of MarkerPrefix.
+	if b := p[0]; b != MarkerPrefix[len(e.pending)] {
+		// The line diverged from the marker prefix: it is plain content.
+		if _, err := e.writeAll(e.pending); err != nil {
+			return 0, err
+		}
+		e.pending = nil
+		e.atLineStart = false
+
+		return 0, nil
+	}
+
+	e.pending = append(e.pending, p[0])
+	if len(e.pending) < len(MarkerPrefix) {
+		return 1, nil
+	}
+
+	if _, err := e.writeAll([]byte{escapeByte}); err != nil {
+		return 1, err
+	}
+	if _, err := e.writeAll(e.pending); err != nil {
+		return 1, err
+	}
+	e.pending = nil
+	e.atLineStart = false
+
+	return 1, nil
+}
+
+// classifyFirstByte decides what the first byte of a line means. No byte is
+// consumed unless it is buffered as an undecided line start or the line is
+// known to need no escaping.
+func (e *Escaper) classifyFirstByte(p []byte) (int, error) {
+	switch {
+	case p[0] == escapeByte:
+		// Escape the escape byte, then pass the original line through.
+		if _, err := e.writeAll([]byte{escapeByte}); err != nil {
+			return 0, err
+		}
+		e.atLineStart = false
+
+		return 0, nil
+	case p[0] != MarkerPrefix[0]:
+		// A plain content line: pass it through untouched.
+		e.atLineStart = false
+
+		return 0, nil
+	default:
+		e.pending = append(e.pending, p[0])
+
+		return 1, nil
+	}
+}
+
 // SplitToDir reads a logical backup stream and writes the dump of every
-// database into its own <database>.sql file inside dir.
+// database into its own <database>.sql file inside dir. Dump content is
+// streamed in bounded chunks; only marker lines are buffered.
 func SplitToDir(r io.Reader, dir string) error {
 	s := &splitter{
 		dir:       dir,
 		current:   nil,
 		seen:      make(map[string]struct{}),
 		sawMarker: false,
+		state:     stateLineStart,
+		pending:   nil,
 	}
 	defer func() {
 		_ = s.close()
@@ -92,21 +246,28 @@ func SplitToDir(r io.Reader, dir string) error {
 
 	reader := bufio.NewReader(r)
 	for {
-		line, readErr := reader.ReadString('\n')
+		chunk, readErr := reader.ReadSlice('\n')
 
-		if len(line) > 0 {
-			if err := s.writeLine(line); err != nil {
+		if len(chunk) > 0 {
+			if err := s.feed(chunk); err != nil {
 				return err
 			}
 		}
 
-		if readErr != nil {
-			if errors.Is(readErr, io.EOF) {
-				break
-			}
-
-			return fmt.Errorf("failed to read stream: %w", readErr)
+		if readErr == nil || errors.Is(readErr, bufio.ErrBufferFull) {
+			// ErrBufferFull means a line longer than the buffer: the chunk
+			// holds its first part and the next read continues the line.
+			continue
 		}
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+
+		return fmt.Errorf("failed to read stream: %w", readErr)
+	}
+
+	if err := s.finish(); err != nil {
+		return err
 	}
 
 	if err := s.close(); err != nil {
@@ -120,28 +281,192 @@ func SplitToDir(r io.Reader, dir string) error {
 	return nil
 }
 
+// splitState is the position of the reader within the stream.
+type splitState int
+
+const (
+	// stateLineStart classifies the beginning of the current line.
+	stateLineStart splitState = iota
+	// stateContent streams a content line into the current dump file.
+	stateContent
+	// stateMarker buffers a marker line until its terminating newline.
+	stateMarker
+)
+
 // splitter writes the lines of a logical backup stream to per-database files.
 type splitter struct {
 	dir       string
 	current   *os.File
 	seen      map[string]struct{}
 	sawMarker bool
+
+	state   splitState
+	pending []byte // line-start bytes while undecided; the marker line in stateMarker
 }
 
-// writeLine consumes a single line of the stream.
-func (s *splitter) writeLine(line string) error {
-	db, ok := ParseMarker(line)
-	if !ok {
+// feed consumes the next chunk of the stream. A chunk begins at a line start
+// or continues the current line; a newline inside the chunk ends the line.
+func (s *splitter) feed(chunk []byte) error {
+	for len(chunk) > 0 {
+		var (
+			rest []byte
+			err  error
+		)
+		switch s.state {
+		case stateLineStart:
+			rest, err = s.classify(chunk)
+		case stateContent:
+			rest, err = s.writeContentThrough(chunk)
+		case stateMarker:
+			rest, err = s.bufferMarker(chunk)
+		}
+		if err != nil {
+			return err
+		}
+		chunk = rest
+	}
+
+	return nil
+}
+
+// classify consumes the line-start bytes of chunk until the line is known to
+// be a marker, escaped content, or plain content, then flushes content bytes
+// into the current dump file. It returns the rest of the chunk.
+func (s *splitter) classify(chunk []byte) ([]byte, error) {
+	strip := false
+classifyLoop:
+	for len(chunk) > 0 {
+		b := chunk[0]
+		pos := len(s.pending)
+		if pos > 0 && s.pending[0] == escapeByte {
+			pos--
+		}
+
+		switch {
+		case len(s.pending) == 0 && b == escapeByte:
+			// Undecided: escaped content or a raw escape-byte line.
+			s.pending = append(s.pending, b)
+			chunk = chunk[1:]
+		case pos < len(MarkerPrefix) && b == MarkerPrefix[pos]:
+			s.pending = append(s.pending, b)
+			chunk = chunk[1:]
+			if pos+1 < len(MarkerPrefix) {
+				continue
+			}
+			if s.pending[0] != escapeByte {
+				s.state = stateMarker
+				break classifyLoop
+			}
+			// Content whose producer escaped the marker prefix.
+			strip = true
+			s.state = stateContent
+			break classifyLoop
+		case len(s.pending) == 1 && s.pending[0] == escapeByte && b == escapeByte:
+			// Content whose producer escaped the escape byte.
+			strip = true
+			s.state = stateContent
+			break classifyLoop
+		default:
+			// Plain content.
+			s.state = stateContent
+			break classifyLoop
+		}
+	}
+
+	if s.state == stateContent {
+		return chunk, s.flushLineStart(strip)
+	}
+
+	return chunk, nil
+}
+
+// flushLineStart writes the held bytes of a classified content line.
+func (s *splitter) flushLineStart(strip bool) error {
+	p := s.pending
+	if strip {
+		p = p[1:]
+	}
+	s.pending = nil
+
+	if !s.sawMarker {
+		return fmt.Errorf("%w", ErrUnexpectedContent)
+	}
+	if len(p) == 0 {
+		return nil
+	}
+
+	return s.writeContent(p)
+}
+
+// writeContentThrough writes the content bytes of chunk up to and including
+// the next newline, which ends the line. It returns the rest of the chunk.
+func (s *splitter) writeContentThrough(chunk []byte) ([]byte, error) {
+	i := bytes.IndexByte(chunk, '\n')
+	if i < 0 {
+		if err := s.writeContent(chunk); err != nil {
+			return nil, err
+		}
+
+		return nil, nil
+	}
+
+	if err := s.writeContent(chunk[:i+1]); err != nil {
+		return nil, err
+	}
+	s.state = stateLineStart
+
+	return chunk[i+1:], nil
+}
+
+// bufferMarker appends the marker-line bytes of chunk, opening the database
+// file at the terminating newline. It returns the rest of the chunk.
+func (s *splitter) bufferMarker(chunk []byte) ([]byte, error) {
+	i := bytes.IndexByte(chunk, '\n')
+	if i < 0 {
+		s.pending = append(s.pending, chunk...)
+
+		return nil, nil
+	}
+
+	s.pending = append(s.pending, chunk[:i+1]...)
+	if err := s.openDatabase(string(s.pending)); err != nil {
+		return nil, err
+	}
+	s.pending = nil
+	s.state = stateLineStart
+
+	return chunk[i+1:], nil
+}
+
+// finish processes a final line that the stream ended without a newline.
+func (s *splitter) finish() error {
+	switch s.state {
+	case stateLineStart:
+		if len(s.pending) == 0 {
+			return nil
+		}
 		if !s.sawMarker {
 			return fmt.Errorf("%w", ErrUnexpectedContent)
 		}
-
-		if _, err := s.current.WriteString(line); err != nil {
-			return fmt.Errorf("failed to write dump file: %w", err)
+		if err := s.writeContent(s.pending); err != nil {
+			return err
 		}
-
-		return nil
+		s.pending = nil
+	case stateMarker:
+		if err := s.openDatabase(string(s.pending)); err != nil {
+			return err
+		}
+		s.pending = nil
+	case stateContent:
+		// Written as it was read.
 	}
+
+	return nil
+}
+
+// openDatabase opens the dump file of the database named by a marker line.
+func (s *splitter) openDatabase(line string) error {
+	db, _ := ParseMarker(line)
 
 	if err := s.close(); err != nil {
 		return err
@@ -162,6 +487,15 @@ func (s *splitter) writeLine(line string) error {
 	}
 	s.current = file
 	s.sawMarker = true
+
+	return nil
+}
+
+// writeContent writes a piece of a content line to the current dump file.
+func (s *splitter) writeContent(p []byte) error {
+	if _, err := s.current.Write(p); err != nil {
+		return fmt.Errorf("failed to write dump file: %w", err)
+	}
 
 	return nil
 }

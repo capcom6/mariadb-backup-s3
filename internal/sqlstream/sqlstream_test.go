@@ -203,6 +203,167 @@ func TestSplitToDir_DuplicateDatabase(t *testing.T) {
 	assert.ErrorIs(t, err, sqlstream.ErrDuplicateDatabase)
 }
 
+func TestSplitToDir_LongLines(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	// Longer than bufio's 4 KiB buffer, so the reader sees ErrBufferFull and
+	// the line arrives in several chunks.
+	longLine := strings.Repeat("x", 10_000)
+
+	stream := "-- mariadb-backup-s3: database=mydb\n" +
+		longLine + "\n" +
+		"SELECT 1;\n" +
+		"-- mariadb-backup-s3: database=otherdb\n" +
+		longLine + "\n"
+
+	require.NoError(t, sqlstream.SplitToDir(strings.NewReader(stream), dir))
+
+	assertFileContent(t, filepath.Join(dir, "mydb.sql"), longLine+"\nSELECT 1;\n")
+	assertFileContent(t, filepath.Join(dir, "otherdb.sql"), longLine+"\n")
+}
+
+func TestSplitToDir_LongLineWithoutMarker(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	err := sqlstream.SplitToDir(strings.NewReader(strings.Repeat("x", 10_000)+"\n"), dir)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, sqlstream.ErrUnexpectedContent)
+}
+
+func TestEscaper_EscapesMarkerLikeLine(t *testing.T) {
+	t.Parallel()
+
+	var buf strings.Builder
+	e := sqlstream.NewEscaper(&buf)
+
+	_, err := e.Write([]byte("-- mariadb-backup-s3: database=evil\nSELECT 1;\n"))
+	require.NoError(t, err)
+	require.NoError(t, e.Flush())
+
+	assert.Equal(t, "\x00-- mariadb-backup-s3: database=evil\nSELECT 1;\n", buf.String())
+}
+
+func TestEscaper_EscapesMarkerAcrossWrites(t *testing.T) {
+	t.Parallel()
+
+	var buf strings.Builder
+	e := sqlstream.NewEscaper(&buf)
+
+	for _, part := range []string{"-- mariadb-backup", "-s3: data", "base=mydb\n"} {
+		_, err := e.Write([]byte(part))
+		require.NoError(t, err)
+	}
+	require.NoError(t, e.Flush())
+
+	assert.Equal(t, "\x00-- mariadb-backup-s3: database=mydb\n", buf.String())
+}
+
+func TestEscaper_EscapesEscapeByteLine(t *testing.T) {
+	t.Parallel()
+
+	var buf strings.Builder
+	e := sqlstream.NewEscaper(&buf)
+
+	_, err := e.Write([]byte("\x00weird\n"))
+	require.NoError(t, err)
+	require.NoError(t, e.Flush())
+
+	assert.Equal(t, "\x00\x00weird\n", buf.String())
+}
+
+func TestEscaper_LeavesContentUntouched(t *testing.T) {
+	t.Parallel()
+
+	var buf strings.Builder
+	e := sqlstream.NewEscaper(&buf)
+
+	_, err := e.Write([]byte("-- MySQL dump\nSELECT '-- mariadb-backup-s3: database=x';\n"))
+	require.NoError(t, err)
+	require.NoError(t, e.Flush())
+
+	assert.Equal(t, "-- MySQL dump\nSELECT '-- mariadb-backup-s3: database=x';\n", buf.String())
+}
+
+func TestEscaper_FlushEmitsBufferedPrefix(t *testing.T) {
+	t.Parallel()
+
+	var buf strings.Builder
+	e := sqlstream.NewEscaper(&buf)
+
+	_, err := e.Write([]byte("-- mari"))
+	require.NoError(t, err)
+	require.NoError(t, e.Flush())
+
+	assert.Equal(t, "-- mari", buf.String())
+}
+
+func TestSplitToDir_EscapedMarkerLikeContent(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	stream := "-- mariadb-backup-s3: database=mydb\n" +
+		"\x00-- mariadb-backup-s3: database=evil\nSELECT 1;\n"
+
+	require.NoError(t, sqlstream.SplitToDir(strings.NewReader(stream), dir))
+
+	assertFileContent(t, filepath.Join(dir, "mydb.sql"),
+		"-- mariadb-backup-s3: database=evil\nSELECT 1;\n")
+	_, err := os.Stat(filepath.Join(dir, "evil.sql"))
+	assert.True(t, os.IsNotExist(err))
+}
+
+func TestSplitToDir_EscapedEscapeByteContent(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	stream := "-- mariadb-backup-s3: database=mydb\n" + "\x00\x00weird\n"
+
+	require.NoError(t, sqlstream.SplitToDir(strings.NewReader(stream), dir))
+
+	assertFileContent(t, filepath.Join(dir, "mydb.sql"), "\x00weird\n")
+}
+
+func TestSplitToDir_RawEscapeByteLinePreserved(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	stream := "-- mariadb-backup-s3: database=mydb\n" + "\x00raw\n"
+
+	require.NoError(t, sqlstream.SplitToDir(strings.NewReader(stream), dir))
+
+	assertFileContent(t, filepath.Join(dir, "mydb.sql"), "\x00raw\n")
+}
+
+func TestEscaper_SplitRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	content := "-- comment\n" +
+		"-- mariadb-backup-s3: database=evil\n" +
+		"\x00raw\n" +
+		"SELECT '-- mariadb-backup-s3: database=inline';\n" +
+		"INSERT INTO t VALUES (1);\n"
+
+	var buf strings.Builder
+	require.NoError(t, sqlstream.WriteMarker(&buf, "mydb"))
+	e := sqlstream.NewEscaper(&buf)
+	_, err := e.Write([]byte(content))
+	require.NoError(t, err)
+	require.NoError(t, e.Flush())
+
+	require.NoError(t, sqlstream.SplitToDir(strings.NewReader(buf.String()), dir))
+
+	assertFileContent(t, filepath.Join(dir, "mydb.sql"), content)
+}
+
 func assertFileContent(t *testing.T, path string, expected string) {
 	t.Helper()
 
