@@ -234,6 +234,32 @@ func TestSplitToDir_LongLineWithoutMarker(t *testing.T) {
 	assert.ErrorIs(t, err, sqlstream.ErrUnexpectedContent)
 }
 
+func TestSplitToDir_OversizedMarkerLine(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	stream := "-- mariadb-backup-s3: database=" + strings.Repeat("a", 300) + "\nSELECT 1;\n"
+
+	err := sqlstream.SplitToDir(strings.NewReader(stream), dir)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, sqlstream.ErrInvalidDatabaseName)
+}
+
+func TestSplitToDir_OversizedMarkerLineAcrossChunks(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	// Longer than bufio's buffer, so the rejection happens while the marker
+	// line is still being accumulated.
+	stream := "-- mariadb-backup-s3: database=" + strings.Repeat("a", 10_000) + "\n"
+
+	err := sqlstream.SplitToDir(strings.NewReader(stream), dir)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, sqlstream.ErrInvalidDatabaseName)
+}
+
 func TestEscaper_EscapesMarkerLikeLine(t *testing.T) {
 	t.Parallel()
 

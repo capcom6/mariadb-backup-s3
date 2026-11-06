@@ -45,6 +45,15 @@ const (
 	// artifacts written before escaping was introduced never begin a line with
 	// it.
 	escapeByte = '\x00'
+
+	// maxDatabaseNameBytes is the largest database name a marker can carry:
+	// MariaDB identifiers are at most 64 characters of up to 4 bytes each.
+	maxDatabaseNameBytes = 64 * 4
+
+	// maxMarkerLineLen is the longest line WriteMarker can produce, including
+	// a CRLF line ending. Anything longer cannot be a valid marker, so
+	// bufferMarker rejects it before buffering.
+	maxMarkerLineLen = len(MarkerPrefix) + maxDatabaseNameBytes + 2
 )
 
 // WriteMarker writes the marker line for the given database to w.
@@ -422,6 +431,14 @@ func (s *splitter) writeContentThrough(chunk []byte) ([]byte, error) {
 // file at the terminating newline. It returns the rest of the chunk.
 func (s *splitter) bufferMarker(chunk []byte) ([]byte, error) {
 	i := bytes.IndexByte(chunk, '\n')
+	n := len(chunk)
+	if i >= 0 {
+		n = i + 1
+	}
+	if len(s.pending)+n > maxMarkerLineLen {
+		return nil, fmt.Errorf("%w: marker line exceeds %d bytes", ErrInvalidDatabaseName, maxMarkerLineLen)
+	}
+
 	if i < 0 {
 		s.pending = append(s.pending, chunk...)
 
