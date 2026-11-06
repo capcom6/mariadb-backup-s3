@@ -162,8 +162,9 @@ func (j Job) Validate() error {
 		return fmt.Errorf("%w: %q", config.ErrInvalidEngine, j.Database.Engine)
 	}
 	if j.Command == CommandBackup && j.Stream {
-		if db := j.DatabaseConfig(); !db.IsLogical() {
-			return fmt.Errorf("%w: backup method %q", ErrStreamUnsupported, db.BackupMethod)
+		db := j.DatabaseConfig()
+		if !db.IsLogical() || db.Engine != config.EngineMariaDB {
+			return fmt.Errorf("%w: engine %q, backup method %q", ErrStreamUnsupported, db.Engine, db.BackupMethod)
 		}
 	}
 	return nil

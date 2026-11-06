@@ -288,6 +288,22 @@ func TestConfig_Validate(t *testing.T) {
 			wantErr: "streaming is supported by the logical backup method only",
 		},
 		{
+			name: "stream with logical method on mongodb engine",
+			config: repository.Config{
+				Jobs: []repository.Job{
+					{
+						Name:     "streamed-mongodb-logical",
+						Schedule: "0 2 * * *",
+						Command:  "backup",
+						Stream:   true,
+						Storage:  repository.Storage{URL: "s3://bucket/path"},
+						Database: &repository.Database{Engine: "mongodb", BackupMethod: "mariadb-dump"},
+					},
+				},
+			},
+			wantErr: "streaming is supported by the logical backup method only",
+		},
+		{
 			name: "stream on retention job is not validated",
 			config: repository.Config{
 				Jobs: []repository.Job{
