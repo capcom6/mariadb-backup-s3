@@ -81,8 +81,8 @@ func TestMethod_Stream_DisabledWithoutStreamMode(t *testing.T) {
 	assert.Empty(t, buf.String())
 }
 
+//nolint:paralleltest // writeStub tests must run serially to avoid ETXTBSY (golang/go#22315)
 func TestMethod_Stream_WritesMarkerPerDatabase(t *testing.T) {
-	t.Parallel()
 	cfg := method.Config{
 		User:         "root",
 		BackupBinary: writeStub(t, "mariadb-dump", "printf 'dump of %s\\n' \"$2\""),
@@ -99,8 +99,8 @@ func TestMethod_Stream_WritesMarkerPerDatabase(t *testing.T) {
 		"-- mariadb-backup-s3: database=db2\ndump of db2\n", buf.String())
 }
 
+//nolint:paralleltest // writeStub tests must run serially to avoid ETXTBSY (golang/go#22315)
 func TestMethod_Stream_NoDatabases(t *testing.T) {
-	t.Parallel()
 	cfg := method.Config{
 		User:         "root",
 		BackupBinary: writeStub(t, "mariadb-dump", "printf 'dump\\n'"),
@@ -116,8 +116,8 @@ func TestMethod_Stream_NoDatabases(t *testing.T) {
 	assert.Empty(t, buf.String())
 }
 
+//nolint:paralleltest // writeStub tests must run serially to avoid ETXTBSY (golang/go#22315)
 func TestMethod_Stream_DumpFails(t *testing.T) {
-	t.Parallel()
 	cfg := method.Config{
 		User:         "root",
 		BackupBinary: writeStub(t, "mariadb-dump", "printf 'partial dump\\n'; exit 1"),
@@ -133,8 +133,8 @@ func TestMethod_Stream_DumpFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to dump database \"db1\"")
 }
 
+//nolint:paralleltest // writeStub tests must run serially to avoid ETXTBSY (golang/go#22315)
 func TestMethod_Stream_EscapesMarkerLikeContent(t *testing.T) {
-	t.Parallel()
 	cfg := method.Config{
 		User:         "root",
 		BackupBinary: writeStub(t, "mariadb-dump", "printf '%s\\n' '-- mariadb-backup-s3: database=evil'"),
@@ -162,7 +162,9 @@ func TestMethod_Stream_EscapesMarkerLikeContent(t *testing.T) {
 }
 
 // writeStub creates an executable shell script in a temporary directory and
-// returns its path.
+// returns its path. Tests using it stay serial: a concurrent fork in the same
+// test binary can inherit the stub's write descriptor, so exec fails with
+// ETXTBSY (golang/go#22315).
 func writeStub(t *testing.T, name string, body string) string {
 	t.Helper()
 
