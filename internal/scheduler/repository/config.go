@@ -23,6 +23,10 @@ var (
 	// ErrBothDatabaseSections is returned when a job defines both the new
 	// database section and the legacy mariadb section.
 	ErrBothDatabaseSections = errors.New("database and mariadb sections are mutually exclusive")
+
+	// ErrStreamUnsupported is returned when a backup job enables stream mode
+	// with a backup method that cannot stream.
+	ErrStreamUnsupported = errors.New("streaming is supported by the logical backup method only")
 )
 
 const (
@@ -47,6 +51,7 @@ type Job struct {
 	Timeout   Duration   `yaml:"timeout,omitempty"`
 	Enabled   *bool      `yaml:"enabled,omitempty"`
 	Database  *Database  `yaml:"database,omitempty"`
+	Stream    bool       `yaml:"stream,omitempty"`
 	MariaDB   *MariaDB   `yaml:"mariadb,omitempty"`
 	Storage   Storage    `yaml:"storage"`
 	Encrypt   *Encrypt   `yaml:"encrypt,omitempty"`
@@ -156,6 +161,12 @@ func (j Job) Validate() error {
 		j.Database.Engine != config.EngineMongoDB {
 		return fmt.Errorf("%w: %q", config.ErrInvalidEngine, j.Database.Engine)
 	}
+	if j.Command == CommandBackup && j.Stream {
+		db := j.DatabaseConfig()
+		if !db.IsLogical() || db.Engine != config.EngineMariaDB {
+			return fmt.Errorf("%w: engine %q, backup method %q", ErrStreamUnsupported, db.Engine, db.BackupMethod)
+		}
+	}
 	return nil
 }
 
@@ -164,6 +175,81 @@ func (j Job) IsEnabled() bool {
 		return true
 	}
 	return *j.Enabled
+}
+
+// DatabaseConfig resolves the job's database section into the normalized
+// backup database configuration, applying engine-aware defaults.
+func (j Job) DatabaseConfig() config.Database {
+	if j.Database != nil {
+		return buildDatabaseSection(j.Database)
+	}
+
+	if j.MariaDB == nil {
+		return config.DefaultDatabase(config.EngineMariaDB)
+	}
+
+	return buildDatabaseSection(legacyMariaDBSection(j.MariaDB))
+}
+
+// legacyMariaDBSection maps the legacy mariadb section onto the unified
+// database section with the engine fixed to mariadb.
+func legacyMariaDBSection(m *MariaDB) *Database {
+	return &Database{
+		Engine:                config.EngineMariaDB,
+		Host:                  m.Host,
+		Port:                  m.Port,
+		User:                  m.User,
+		Password:              m.Password,
+		BackupMethod:          m.BackupMethod,
+		BackupBinary:          m.BackupBinary,
+		ClientBinary:          m.ClientBinary,
+		BackupOptions:         m.BackupOptions,
+		URI:                   "",
+		AuthSource:            "",
+		TLS:                   false,
+		TLSCAFile:             "",
+		TLSCertificateKeyFile: "",
+	}
+}
+
+func buildDatabaseSection(section *Database) config.Database {
+	cfg := config.DefaultDatabase(section.Engine)
+
+	if section.Host != "" {
+		cfg.Host = section.Host
+	}
+	if section.Port > 0 {
+		cfg.Port = section.Port
+	}
+	if section.User != "" {
+		cfg.User = section.User
+	}
+	if section.Password != "" {
+		cfg.Password = section.Password
+	}
+	if section.BackupMethod != "" {
+		cfg.BackupMethod = section.BackupMethod
+	}
+	if section.BackupBinary != "" {
+		cfg.BackupBinary = section.BackupBinary
+	} else {
+		cfg.BackupBinary = config.DefaultBackupBinary(cfg.Engine, cfg.BackupMethod)
+	}
+	if section.ClientBinary != "" {
+		cfg.ClientBinary = section.ClientBinary
+	}
+	if section.BackupOptions != "" {
+		cfg.BackupOptions = section.BackupOptions
+	}
+	cfg.MongoDB = config.MongoDB{
+		URI:                   section.URI,
+		AuthSource:            section.AuthSource,
+		TLS:                   section.TLS,
+		TLSCAFile:             section.TLSCAFile,
+		TLSCertificateKeyFile: section.TLSCertificateKeyFile,
+	}
+
+	return cfg.Normalize()
 }
 
 type Duration time.Duration

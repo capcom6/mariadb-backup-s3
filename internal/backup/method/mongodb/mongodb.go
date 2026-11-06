@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/capcom6/mariadb-backup-s3/internal/backup/method"
 	"github.com/capcom6/mariadb-backup-s3/internal/config"
 	"github.com/capcom6/mariadb-backup-s3/internal/exec"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
@@ -48,6 +49,12 @@ func New(cfg Config) *Method {
 // MethodName returns the registry identifier for MongoDB backups.
 func (m *Method) MethodName() string {
 	return MethodName
+}
+
+// ArtifactExtension returns the extension of the artifact produced for this
+// method's backup, without the leading dot.
+func (m *Method) ArtifactExtension() string {
+	return method.ArtifactTarGz
 }
 
 // Backup runs a single mongodump invocation writing the dump into tempdir.

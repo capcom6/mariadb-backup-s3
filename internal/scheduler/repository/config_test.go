@@ -223,6 +223,104 @@ func TestConfig_Validate(t *testing.T) {
 			},
 			wantErr: `invalid database engine: "postgres"`,
 		},
+		{
+			name: "stream with logical method",
+			config: repository.Config{
+				Jobs: []repository.Job{
+					{
+						Name:     "streamed-logical",
+						Schedule: "0 2 * * *",
+						Command:  "backup",
+						Stream:   true,
+						Storage:  repository.Storage{URL: "s3://bucket/path"},
+						MariaDB:  &repository.MariaDB{Host: "localhost", BackupMethod: "mariadb-dump"},
+					},
+				},
+			},
+			wantErr: "",
+		},
+		{
+			name: "stream with omitted method defaults to physical",
+			config: repository.Config{
+				Jobs: []repository.Job{
+					{
+						Name:     "streamed-omitted-method",
+						Schedule: "0 2 * * *",
+						Command:  "backup",
+						Stream:   true,
+						Storage:  repository.Storage{URL: "s3://bucket/path"},
+						MariaDB:  &repository.MariaDB{Host: "localhost"},
+					},
+				},
+			},
+			wantErr: "streaming is supported by the logical backup method only",
+		},
+		{
+			name: "stream with physical method",
+			config: repository.Config{
+				Jobs: []repository.Job{
+					{
+						Name:     "streamed-physical",
+						Schedule: "0 2 * * *",
+						Command:  "backup",
+						Stream:   true,
+						Storage:  repository.Storage{URL: "s3://bucket/path"},
+						MariaDB:  &repository.MariaDB{Host: "localhost", BackupMethod: "mariadb-backup"},
+					},
+				},
+			},
+			wantErr: "streaming is supported by the logical backup method only",
+		},
+		{
+			name: "stream with mongodb engine",
+			config: repository.Config{
+				Jobs: []repository.Job{
+					{
+						Name:     "streamed-mongodb",
+						Schedule: "0 2 * * *",
+						Command:  "backup",
+						Stream:   true,
+						Storage:  repository.Storage{URL: "s3://bucket/path"},
+						Database: &repository.Database{Engine: "mongodb"},
+					},
+				},
+			},
+			wantErr: "streaming is supported by the logical backup method only",
+		},
+		{
+			name: "stream with logical method on mongodb engine",
+			config: repository.Config{
+				Jobs: []repository.Job{
+					{
+						Name:     "streamed-mongodb-logical",
+						Schedule: "0 2 * * *",
+						Command:  "backup",
+						Stream:   true,
+						Storage:  repository.Storage{URL: "s3://bucket/path"},
+						Database: &repository.Database{Engine: "mongodb", BackupMethod: "mariadb-dump"},
+					},
+				},
+			},
+			wantErr: "streaming is supported by the logical backup method only",
+		},
+		{
+			name: "stream on retention job is not validated",
+			config: repository.Config{
+				Jobs: []repository.Job{
+					{
+						Name:     "retention-stream",
+						Schedule: "0 3 * * 0",
+						Command:  "retention",
+						Stream:   true,
+						Storage:  repository.Storage{URL: "s3://bucket/path"},
+						Retention: &repository.Retention{
+							MaxCount: 7,
+						},
+					},
+				},
+			},
+			wantErr: "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -443,4 +541,44 @@ jobs:
 	require.Error(t, verr)
 	require.ErrorIs(t, verr, repository.ErrBothDatabaseSections)
 	assert.Contains(t, verr.Error(), "conflicting-job")
+}
+
+func TestConfig_YAML_Stream(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `
+jobs:
+  - name: streamed-logical-backup
+    schedule: "0 2 * * *"
+    command: backup
+    stream: true
+    storage:
+      url: "s3://bucket/path"
+    mariadb:
+      backup_method: mariadb-dump
+      host: localhost
+`
+	var cfg repository.Config
+	err := yaml.Unmarshal([]byte(yamlData), &cfg)
+	require.NoError(t, err)
+	require.Len(t, cfg.Jobs, 1)
+	assert.True(t, cfg.Jobs[0].Stream)
+}
+
+func TestConfig_YAML_StreamOmitted(t *testing.T) {
+	t.Parallel()
+
+	yamlData := `
+jobs:
+  - name: logical-backup
+    schedule: "0 2 * * *"
+    command: backup
+    storage:
+      url: "s3://bucket/path"
+`
+	var cfg repository.Config
+	err := yaml.Unmarshal([]byte(yamlData), &cfg)
+	require.NoError(t, err)
+	require.Len(t, cfg.Jobs, 1)
+	assert.False(t, cfg.Jobs[0].Stream)
 }
