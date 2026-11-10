@@ -150,6 +150,9 @@ func (f *ftpStorage) Upload(ctx context.Context, filename string, data io.Reader
 	// Upload file
 	tmpPath := remotePath + ".tmp"
 	if stErr := f.client.Store(tmpPath, data); stErr != nil {
+		if delErr := f.client.Delete(tmpPath); delErr != nil {
+			return fmt.Errorf("failed to upload file and delete temporary file: %w", errors.Join(stErr, delErr))
+		}
 		return fmt.Errorf("failed to upload file: %w", stErr)
 	}
 
