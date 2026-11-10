@@ -1,0 +1,56 @@
+package backup_test
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/capcom6/mariadb-backup-s3/internal/backup"
+	"github.com/capcom6/mariadb-backup-s3/internal/config"
+)
+
+func TestConfig_Validate_AcceptsStreamWithPhysicalMethod(t *testing.T) {
+	t.Parallel()
+	cfg := backup.DefaultConfig()
+	cfg.Database.BackupMethod = config.BackupMethodPhysical
+	cfg.Database.BackupBinary = writeStubBinary(t, "mariadb-backup")
+	cfg.Storage.URL = "s3://bucket/prefix"
+	cfg.Stream = true
+
+	require.NoError(t, cfg.Validate())
+}
+
+func TestConfig_Validate_AcceptsStreamWithLogicalMethod(t *testing.T) {
+	t.Parallel()
+	cfg := backup.DefaultConfig()
+	cfg.Database.BackupMethod = config.BackupMethodLogical
+	cfg.Database.BackupBinary = writeStubBinary(t, "mariadb-dump")
+	cfg.Database.ClientBinary = writeStubBinary(t, "mariadb")
+	cfg.Storage.URL = "s3://bucket/prefix"
+	cfg.Stream = true
+
+	require.NoError(t, cfg.Validate())
+}
+
+func TestConfig_Validate_AcceptsFileModeWithPhysicalMethod(t *testing.T) {
+	t.Parallel()
+	cfg := backup.DefaultConfig()
+	cfg.Database.BackupMethod = config.BackupMethodPhysical
+	cfg.Database.BackupBinary = writeStubBinary(t, "mariadb-backup")
+	cfg.Storage.URL = "s3://bucket/prefix"
+
+	require.NoError(t, cfg.Validate())
+}
+
+// writeStubBinary creates an executable stub in a temporary directory and
+// returns its path.
+func writeStubBinary(t *testing.T, name string) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), name)
+	require.NoError(t, os.WriteFile(path, []byte("#!/bin/sh\n"), 0o700))
+
+	return path
+}

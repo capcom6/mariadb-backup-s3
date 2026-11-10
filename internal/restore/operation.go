@@ -2,16 +2,19 @@ package restore
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/capcom6/mariadb-backup-s3/internal/encryption"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
+	"github.com/capcom6/mariadb-backup-s3/internal/sqlstream"
 	"github.com/capcom6/mariadb-backup-s3/internal/storage"
 	"github.com/capcom6/mariadb-backup-s3/pkg/pipeline"
 )
@@ -62,7 +65,7 @@ func (o *Operation) Run(ctx context.Context, filename string) error {
 			return o.decrypt(ctx, r, w)
 		},
 		func(ctx context.Context, r io.Reader, _ io.Writer) error {
-			return o.extract(ctx, r, targetDir)
+			return o.extract(ctx, r, targetDir, filename)
 		},
 	)
 
@@ -142,7 +145,56 @@ func (o *Operation) decrypt(ctx context.Context, r io.Reader, w io.Writer) error
 	return nil
 }
 
-func (o *Operation) extract(ctx context.Context, r io.Reader, targetDir string) error {
+// extract unpacks the backup into the target directory. A streamed logical
+// backup is split into one file per database, an archive is extracted.
+func (o *Operation) extract(ctx context.Context, r io.Reader, targetDir string, filename string) error {
+	if isSQLStream(filename) {
+		return o.extractSQLStream(ctx, r, targetDir)
+	}
+
+	return o.extractArchive(ctx, r, targetDir)
+}
+
+// isSQLStream reports whether the artifact holds a streamed logical backup.
+func isSQLStream(filename string) bool {
+	name := strings.TrimSuffix(filename, ".enc")
+
+	return strings.HasSuffix(name, "."+sqlstream.ArtifactExtension)
+}
+
+// extractSQLStream decompresses a streamed logical backup and writes the dump
+// of every database into the target directory.
+func (o *Operation) extractSQLStream(ctx context.Context, r io.Reader, targetDir string) error {
+	o.logger.Info(ctx, "Stage 2: Decompress")
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start)
+		o.logger.Info(ctx, "Stage 2 completed", logging.Fields{
+			logFieldDuration: duration.String(),
+		})
+	}()
+
+	reader, err := gzip.NewReader(r)
+	if err != nil {
+		o.logger.Error(ctx, "Decompression failed: failed to create gzip reader", err)
+		return fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			o.logger.Error(ctx, "Decompression failed: failed to close gzip reader", closeErr)
+		}
+	}()
+
+	if splitErr := sqlstream.SplitToDir(reader, targetDir); splitErr != nil {
+		o.logger.Error(ctx, "Decompression failed: failed to split the backup", splitErr)
+		return fmt.Errorf("failed to split the backup: %w", splitErr)
+	}
+
+	return nil
+}
+
+// extractArchive extracts a gzipped tar archive into the target directory.
+func (o *Operation) extractArchive(ctx context.Context, r io.Reader, targetDir string) error {
 	o.logger.Info(ctx, "Stage 2: Decompress")
 	start := time.Now()
 	defer func() {

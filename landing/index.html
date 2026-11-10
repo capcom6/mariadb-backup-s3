@@ -149,6 +149,12 @@
                         required - ideal for containerized and managed deployments.</p>
                 </div>
                 <div class="feature">
+                    <div class="feature-icon">🌊</div>
+                    <h3>Streamed Backups</h3>
+                    <p>Stream a logical backup straight to storage, without writing dump files to the local disk -
+                        no temp space required.</p>
+                </div>
+                <div class="feature">
                     <div class="feature-icon">⏰</div>
                     <h3>Built-in Scheduler</h3>
                     <p>Cron-compatible scheduler daemon with YAML configuration, persistent state, and CloudEvents
@@ -429,6 +435,10 @@ sudo systemctl enable --now mariadb-backup-s3.timer</code></pre>
                         <div class="config-item">
                             <code>MARIADB__BACKUP_OPTIONS</code>
                             <span>Additional mariabackup options (e.g., --parallel=4)</span>
+                        </div>
+                        <div class="config-item">
+                            <code>BACKUP__STREAM</code>
+                            <span>Stream a logical backup to storage, without writing dump files to disk</span>
                         </div>
                     </div>
                 </div>

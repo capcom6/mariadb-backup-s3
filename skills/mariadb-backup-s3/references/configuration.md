@@ -19,6 +19,7 @@ Two Docker images: `ghcr.io/capcom6/mariadb-backup-s3` (MariaDB tools + pigz) an
 | `--db-backup-binary` | `DB__BACKUP_BINARY` | auto-derived | Path to backup binary (derived from engine and method) |
 | `--db-client-binary` | `DB__CLIENT_BINARY` | `mariadb` (mariadb) | Path to client binary (database discovery for `mariadb-dump`; unused for mongodb) |
 | `--db-backup-options` | `DB__BACKUP_OPTIONS` | `""` | Extra backup options (sanitized) |
+| `--stream` | `BACKUP__STREAM` | `false` | Stream a logical backup to storage, without writing dump files to disk (logical method only) |
 | `--mongo-uri` | `MONGODB__URI` | `""` | MongoDB connection URI (replaces host/port/user) |
 | `--mongo-auth-source` | `MONGODB__AUTH_SOURCE` | `admin` (mongodb) | MongoDB authentication source database |
 | `--mongo-tls` | `MONGODB__TLS` | `false` | Enable MongoDB TLS |
@@ -106,6 +107,13 @@ Exactly one backup selector required: positional filename, `--latest`, or `--bac
 
 Restore extracts files only and does not connect to either database engine. MongoDB dump imports, when needed, are performed separately using `mongorestore`.
 
+Backup artifacts:
+
+| Artifact | Produced by | Restored as |
+|---|---|---|
+| `<timestamp>.tar.gz` | physical and logical backups | extracted into the target directory |
+| `<timestamp>.sql.gz` | streamed logical backups (`--stream`) | one `<database>.sql` file per database |
+
 ## Scheduler YAML
 
 Per-job database section `database:` supports both engines; legacy `mariadb:` still works. Setting both in one job is an error.
@@ -129,6 +137,9 @@ MARIADB__PORT=3306
 MARIADB__USER=backup
 MARIADB__PASSWORD=secret
 MARIADB__BACKUP_METHOD=mariadb-backup
+
+# Stream a logical backup to storage, without writing dump files to disk
+BACKUP__STREAM=false
 
 STORAGE__URL=s3://my-bucket/backups?endpoint=https://s3.eu-west-1.amazonaws.com
 

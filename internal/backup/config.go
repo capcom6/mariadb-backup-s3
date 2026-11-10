@@ -1,19 +1,20 @@
 package backup
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/capcom6/mariadb-backup-s3/internal/config"
 )
-
-var ErrValidationFailed = errors.New("validation failed")
 
 type Config struct {
 	Version    string
 	Database   config.Database
 	Storage    config.Storage
 	Encryption config.Encryption
+
+	// Stream makes the backup produce its output as a stream, instead of
+	// writing files into a temp directory. Only logical backups support it.
+	Stream bool
 }
 
 func (c Config) Validate() error {
@@ -38,5 +39,6 @@ func DefaultConfig() Config {
 		Encryption: config.Encryption{
 			EncryptionKey: "",
 		},
+		Stream: false,
 	}
 }

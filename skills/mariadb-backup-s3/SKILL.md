@@ -107,6 +107,23 @@ export AWS_SECRET_ACCESS_KEY=yyy
 mariadb-backup-s3
 ```
 
+### Streamed logical backup (no local dump files)
+
+```shell
+mariadb-backup-s3 backup \
+  --backup-method=mariadb-dump \
+  --stream \
+  --storage-url="s3://bucket/path" \
+  --db-host=db.example.com \
+  --db-user=backup
+```
+
+`--stream` (env `BACKUP__STREAM=true`) pipes the dump of every database
+straight into the upload, so no dump file is written to the local disk and no
+temp space is required. The backup is stored as a single `<timestamp>.sql.gz`
+artifact; the restore writes the same per-database `.sql` files as a regular
+logical backup. Supported by the logical backup method only.
+
 Minimal (env-only, MariaDB):
 
 ```shell
@@ -176,7 +193,7 @@ Preview with `--dry-run` before deleting.
 ## Requirements
 
 - **External binaries**: `mariadb-backup` or `mariadb-dump` (mariadb engine); `mongodump` (mongodb engine, MongoDB Database Tools) - available via PATH or configured full path; `pigz` (or `gzip`), `tar` - must be in PATH. Install `mongorestore` separately for manual imports.
-- **Temp space**: ~2x database size in `$TMPDIR` (default `/tmp`)
+- **Temp space**: ~2x database size in `$TMPDIR` (default `/tmp`) - not needed for a streamed logical backup (`--stream`)
 - **Storage**: S3 (AWS SDK v2 - reads `AWS_*` env vars), FTP, or local `file://` URL
 - **Docker images**: `ghcr.io/capcom6/mariadb-backup-s3` (MariaDB tools + pigz) or `ghcr.io/capcom6/mongodb-backup-s3` (mongodump + pigz); native installs must provide MongoDB Database Tools separately
 
