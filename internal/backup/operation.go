@@ -92,7 +92,7 @@ func newMethod(database config.Database, stream bool) (method.Method, error) {
 	case config.EngineMariaDB:
 		return newMariaDBMethod(database, stream)
 	case config.EngineMongoDB:
-		return newMongoDBMethod(database)
+		return newMongoDBMethod(database, stream)
 	default:
 		return nil, fmt.Errorf("%w: %q", config.ErrInvalidEngine, database.Engine)
 	}
@@ -120,7 +120,7 @@ func newMariaDBMethod(database config.Database, stream bool) (method.Method, err
 	}
 }
 
-func newMongoDBMethod(database config.Database) (method.Method, error) {
+func newMongoDBMethod(database config.Database, stream bool) (method.Method, error) {
 	if database.BackupMethod != config.BackupMethodMongoDB {
 		return nil, fmt.Errorf("%w: %q", config.ErrInvalidBackupMethod, database.BackupMethod)
 	}
@@ -133,6 +133,7 @@ func newMongoDBMethod(database config.Database) (method.Method, error) {
 		BackupOptions: database.BackupOptions,
 		BackupBinary:  database.BackupBinary,
 		MongoDB:       database.MongoDB,
+		Stream:        stream,
 	}
 
 	return mongodb.New(mConfig), nil

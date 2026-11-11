@@ -33,7 +33,8 @@ type fakeMongodump struct {
 
 // installFakeMongodump puts a fake mongodump on PATH that records its argv,
 // copies the --config file (if any) while it exists, writes a dump into
-// --out, and optionally exits with FAKE_MONGODUMP_EXIT.
+// --out, writes a fake archive stream for --archive=-, and optionally exits
+// with FAKE_MONGODUMP_EXIT.
 func installFakeMongodump(t *testing.T) fakeMongodump {
 	t.Helper()
 
@@ -53,10 +54,12 @@ for arg in "$@"; do
 done
 cfg=""
 out=""
+arc=""
 for arg in "$@"; do
 	case "$arg" in
 	--config=*) cfg="${arg#--config=}" ;;
 	--out=*) out="${arg#--out=}" ;;
+	--archive=*) arc="${arg#--archive=}" ;;
 	esac
 done
 if [ -n "$cfg" ]; then
@@ -67,6 +70,9 @@ if [ -n "$out" ]; then
 	mkdir -p "$out"
 	printf 'fake-bson-data' > "$out/dump.bson"
 	printf '{}' > "$out/dump.metadata.json"
+fi
+if [ "$arc" = "-" ]; then
+	printf 'fake-archive-data'
 fi
 code="${FAKE_MONGODUMP_EXIT:-0}"
 if [ "$code" -ne 0 ]; then
@@ -485,6 +491,132 @@ func TestBackup_BinaryMissing(t *testing.T) {
 	err := m.Backup(context.Background(), tempdir, logging.NewTestLogger())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestMethod_ArtifactExtension(t *testing.T) {
+	t.Parallel()
+	fileMode := mongodb.New(mongodb.Config{BackupBinary: "mongodump"})
+	assert.Equal(t, method.ArtifactTarGz, fileMode.ArtifactExtension())
+
+	streamMode := mongodb.New(mongodb.Config{BackupBinary: "mongodump", Stream: true})
+	assert.Equal(t, "archive.gz", streamMode.ArtifactExtension())
+}
+
+func TestMethod_ImplementsStreamingInterface(t *testing.T) {
+	t.Parallel()
+	m := mongodb.New(mongodb.Config{BackupBinary: "mongodump"})
+	var _ method.StreamingMethod = m
+}
+
+func TestMethod_Backup_DisabledInStreamMode(t *testing.T) {
+	t.Parallel()
+	m := mongodb.New(mongodb.Config{BackupBinary: "mongodump", Stream: true})
+
+	err := m.Backup(context.Background(), t.TempDir(), logging.NewTestLogger())
+	require.Error(t, err)
+	require.ErrorIs(t, err, mongodb.ErrInvalidMode)
+}
+
+func TestMethod_Stream_DisabledWithoutStreamMode(t *testing.T) {
+	t.Parallel()
+	m := mongodb.New(mongodb.Config{BackupBinary: "mongodump"})
+
+	var buf strings.Builder
+	err := m.Stream(context.Background(), &buf, logging.NewTestLogger())
+	require.Error(t, err)
+	require.ErrorIs(t, err, mongodb.ErrInvalidMode)
+	assert.Empty(t, buf.String())
+}
+
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
+func TestStream_WritesArchiveToWriter(t *testing.T) {
+	fake := installFakeMongodump(t)
+
+	m := mongodb.New(mongodb.Config{
+		Host:          "mongo.internal",
+		Port:          27018,
+		User:          fakeUser,
+		Password:      fakePassword,
+		BackupOptions: "--oplog",
+		BackupBinary:  "mongodump",
+		MongoDB:       config.MongoDB{AuthSource: "admin"},
+		Stream:        true,
+	})
+
+	var buf strings.Builder
+	require.NoError(t, m.Stream(context.Background(), &buf, logging.NewTestLogger()))
+
+	configPath := string(mustRead(t, fake.configPathFile))
+	args := readFakeArgs(t, fake)
+	assert.Equal(t, []string{
+		"--host=mongo.internal",
+		"--port=27018",
+		"--username=" + fakeUser,
+		"--config=" + configPath,
+		"--authenticationDatabase=admin",
+		"--archive=-",
+		"--oplog",
+	}, args)
+
+	// The archive stream reaches the caller; no --out in argv.
+	assert.Equal(t, "fake-archive-data", buf.String())
+
+	// Secrets must never appear in argv.
+	assert.NotContains(t, strings.Join(args, " "), fakePassword)
+
+	// Config file is removed after the run.
+	_, statErr := os.Stat(configPath)
+	assert.True(t, os.IsNotExist(statErr), "credentials file must be removed after Stream")
+}
+
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
+func TestStream_ConflictingOptionsRejectedBeforeExec(t *testing.T) {
+	for _, opt := range []string{"--archive", "--archive=/elsewhere", "--gzip"} {
+		t.Run(opt, func(t *testing.T) {
+			fake := installFakeMongodump(t)
+
+			m := mongodb.New(mongodb.Config{
+				Host:          "localhost",
+				BackupBinary:  "mongodump",
+				BackupOptions: opt,
+				Stream:        true,
+			})
+
+			var buf strings.Builder
+			err := m.Stream(context.Background(), &buf, logging.NewTestLogger())
+			require.ErrorIs(t, err, mongodb.ErrOptionConflictsWithStream)
+			require.ErrorContains(t, err, opt)
+			assert.Empty(t, buf.String())
+
+			_, statErr := os.Stat(fake.argsFile)
+			assert.True(t, os.IsNotExist(statErr), "mongodump must not run with a conflicting option")
+		})
+	}
+}
+
+func TestStream_ExecFailurePropagatesAndCleansUp(t *testing.T) {
+	fake := installFakeMongodump(t)
+	t.Setenv(exitCodeEnvVar, "7")
+
+	m := mongodb.New(mongodb.Config{
+		Host:         "localhost",
+		Port:         27017,
+		User:         fakeUser,
+		Password:     fakePassword,
+		BackupBinary: "mongodump",
+		Stream:       true,
+	})
+
+	var buf strings.Builder
+	err := m.Stream(context.Background(), &buf, logging.NewTestLogger())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "mongodump failed")
+	assert.Contains(t, err.Error(), "fake mongodump stderr failure")
+
+	// Failure path must also remove the credentials file.
+	configPath := string(mustRead(t, fake.configPathFile))
+	_, statErr := os.Stat(configPath)
+	assert.True(t, os.IsNotExist(statErr), "credentials file must be removed after failure")
 }
 
 func mustRead(t *testing.T, path string) []byte {

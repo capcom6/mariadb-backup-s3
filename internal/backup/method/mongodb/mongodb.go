@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -20,6 +21,10 @@ import (
 
 const MethodName = "mongodump"
 
+// StreamArtifactExtension is the extension of the artifact produced by a
+// streamed mongodump backup, without the leading dot.
+const StreamArtifactExtension = "archive.gz"
+
 // ErrOptionOverridesOut is returned when backup options try to redirect
 // mongodump output away from the archive directory; the operation archives
 // the managed tempdir, so any other --out would silently drop the dump.
@@ -34,6 +39,10 @@ type Config struct {
 	BackupOptions string
 	BackupBinary  string
 	MongoDB       config.MongoDB
+
+	// Stream makes the backup emit its output as a mongodump archive on
+	// stdout instead of dump files in a temp directory.
+	Stream bool
 }
 
 // Method implements method.Method for mongodump (MongoDB logical backup).
@@ -54,6 +63,10 @@ func (m *Method) MethodName() string {
 // ArtifactExtension returns the extension of the artifact produced for this
 // method's backup, without the leading dot.
 func (m *Method) ArtifactExtension() string {
+	if m.config.Stream {
+		return StreamArtifactExtension
+	}
+
 	return method.ArtifactTarGz
 }
 
@@ -62,6 +75,10 @@ func (m *Method) ArtifactExtension() string {
 // tempdir and removed after the run, so they never reach argv, logs, or the
 // archived backup directory.
 func (m *Method) Backup(ctx context.Context, tempdir string, logger logging.Logger) error {
+	if m.config.Stream {
+		return fmt.Errorf("%w: file-based backup is disabled in streaming mode", ErrInvalidMode)
+	}
+
 	logger.Info(ctx, "Stage 1: Dump")
 	start := time.Now()
 	defer func() {
@@ -94,6 +111,46 @@ func (m *Method) Backup(ctx context.Context, tempdir string, logger logging.Logg
 	return nil
 }
 
+// Stream runs a single mongodump invocation writing a mongodump archive to
+// w. No files are written to disk; tempdir is unused. Credentials handling
+// matches [Method.Backup].
+func (m *Method) Stream(ctx context.Context, w io.Writer, logger logging.Logger) error {
+	if !m.config.Stream {
+		return fmt.Errorf("%w: streaming is disabled for this method", ErrInvalidMode)
+	}
+
+	logger.Info(ctx, "Stage 1: Dump")
+	start := time.Now()
+	defer func() {
+		logger.Info(ctx, "Stage 1 completed", logging.Fields{
+			"duration": time.Since(start).String(),
+		})
+	}()
+
+	opts, err := m.sanitizedOptions()
+	if err != nil {
+		return err
+	}
+
+	args, cleanup, err := m.buildArgs("", opts)
+	if cleanup != nil {
+		defer func() {
+			if cleanupErr := cleanup(); cleanupErr != nil {
+				logger.Error(ctx, "Failed to remove credentials file", cleanupErr, logging.Fields{})
+			}
+		}()
+	}
+	if err != nil {
+		return err
+	}
+
+	if runErr := exec.Run(ctx, args, nil, w); runErr != nil {
+		return fmt.Errorf("mongodump failed: %w", runErr)
+	}
+
+	return nil
+}
+
 // Prepare is a no-op for mongodump backups.
 func (m *Method) Prepare(_ context.Context, _ string, _ logging.Logger) error {
 	return nil
@@ -111,18 +168,27 @@ func (m *Method) sanitizedOptions() ([]string, error) {
 
 	// mongodump parses repeated scalar options last-wins, so a user --out
 	// appended after the managed one would write outside the archived dir.
+	// In stream mode a user --archive would redirect the stream away from
+	// stdout, and --gzip would nest a compression layer the pipeline already
+	// produces, yielding an artifact restore cannot read.
 	for _, opt := range opts {
 		if opt == "--out" || strings.HasPrefix(opt, "--out=") {
 			return nil, fmt.Errorf("%w: %q", ErrOptionOverridesOut, opt)
+		}
+		if m.config.Stream &&
+			(opt == "--archive" || strings.HasPrefix(opt, "--archive=") || opt == "--gzip") {
+			return nil, fmt.Errorf("%w: %q", ErrOptionConflictsWithStream, opt)
 		}
 	}
 
 	return opts, nil
 }
 
-// buildArgs assembles the mongodump command line. When credentials must stay
-// off the command line it writes a 0600 config file in a temporary directory
-// outside tempdir and returns a cleanup function that removes it again.
+// buildArgs assembles the mongodump command line. In stream mode the dump is
+// written as an archive on stdout and tempdir is ignored; otherwise the dump
+// goes into tempdir. When credentials must stay off the command line it
+// writes a 0600 config file in a temporary directory outside tempdir and
+// returns a cleanup function that removes it again.
 func (m *Method) buildArgs(tempdir string, opts []string) ([]string, func() error, error) {
 	info := inspectURI(m.config.MongoDB.URI)
 	needsFile := m.config.Password != "" || (info.set && info.hasCredentials)
@@ -135,10 +201,20 @@ func (m *Method) buildArgs(tempdir string, opts []string) ([]string, func() erro
 	args := []string{m.config.BackupBinary}
 	args = append(args, m.connectionArgs(info, needsFile, credsFile)...)
 	args = append(args, m.serverArgs(info)...)
-	args = append(args, "--out="+tempdir)
+	args = append(args, m.outputArgs(tempdir)...)
 	args = append(args, opts...)
 
 	return args, cleanup, nil
+}
+
+// outputArgs returns the managed output flag: an archive stream on stdout in
+// stream mode, the dump directory otherwise.
+func (m *Method) outputArgs(tempdir string) []string {
+	if m.config.Stream {
+		return []string{"--archive=-"}
+	}
+
+	return []string{"--out=" + tempdir}
 }
 
 // credentialsFile writes the temporary mongodump --config file when

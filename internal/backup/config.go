@@ -13,7 +13,8 @@ type Config struct {
 	Encryption config.Encryption
 
 	// Stream makes the backup produce its output as a stream, instead of
-	// writing files into a temp directory. Only logical backups support it.
+	// writing files into a temp directory. Supported by the logical
+	// (mariadb-dump) and mongodump methods.
 	Stream bool
 }
 

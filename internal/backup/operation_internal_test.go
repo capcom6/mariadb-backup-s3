@@ -356,8 +356,8 @@ func TestOperation_Run_MongoDBRegistryMethod(t *testing.T) {
 }
 
 // installFakeMongodump puts a fake mongodump on PATH that records its argv,
-// copies the --config file (if any) while it exists, and writes a dump into
-// --out.
+// copies the --config file (if any) while it exists, writes a dump into
+// --out, and writes a fake archive stream for --archive=-.
 func installFakeMongodump(t *testing.T) fakeMongodump {
 	t.Helper()
 
@@ -376,10 +376,12 @@ for arg in "$@"; do
 done
 cfg=""
 out=""
+arc=""
 for arg in "$@"; do
 	case "$arg" in
 	--config=*) cfg="${arg#--config=}" ;;
 	--out=*) out="${arg#--out=}" ;;
+	--archive=*) arc="${arg#--archive=}" ;;
 	esac
 done
 if [ -n "$cfg" ]; then
@@ -388,6 +390,9 @@ fi
 if [ -n "$out" ]; then
 	mkdir -p "$out"
 	printf 'fake-bson-data' > "$out/dump.bson"
+fi
+if [ "$arc" = "-" ]; then
+	printf 'fake-archive-data'
 fi
 exit 0
 `
@@ -566,7 +571,7 @@ func TestNewOperation_StreamWithPhysicalMethodFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "selected method doesn't support streaming")
 }
 
-func TestNewOperation_StreamWithMongoDBMethodFails(t *testing.T) {
+func TestNewOperation_StreamWithMongoDBMethodWiresStreamer(t *testing.T) {
 	t.Parallel()
 	cfg := Config{
 		Version: "test",
@@ -580,10 +585,79 @@ func TestNewOperation_StreamWithMongoDBMethodFails(t *testing.T) {
 	}
 
 	op, err := NewOperation(cfg, nil, nil, logging.NewTestLogger())
-	require.Error(t, err)
-	require.Nil(t, op)
-	require.ErrorIs(t, err, ErrValidationFailed)
-	assert.Contains(t, err.Error(), "selected method doesn't support streaming")
+	require.NoError(t, err)
+	require.NotNil(t, op.streamer)
+	assert.Equal(t, "archive.gz", op.method.ArtifactExtension())
+}
+
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
+func TestOperation_Run_MongoDBStreaming(t *testing.T) {
+	fake := installFakeMongodump(t)
+
+	backend, regSvc, captured := newCapturingMockStorage(t)
+
+	cfg := Config{
+		Version: "test",
+		Database: config.Database{
+			Engine:       config.EngineMongoDB,
+			BackupMethod: config.BackupMethodMongoDB,
+			BackupBinary: "mongodump",
+			User:         "backup",
+			Password:     "stream-test-secret",
+		},
+		Storage: config.Storage{URL: "file:///tmp/test"},
+		Stream:  true,
+	}
+
+	op, err := NewOperation(cfg, regSvc, backend, logging.NewTestLogger())
+	require.NoError(t, err)
+	require.NotNil(t, op.streamer)
+	require.NoError(t, op.Run(context.Background()))
+
+	// mongodump must have streamed an archive: --archive=- and no --out.
+	args := mustReadFile(t, fake.argsFile)
+	joined := strings.ReplaceAll(string(args), "\n", " ")
+	assert.Contains(t, joined, "--archive=-")
+	assert.NotContains(t, joined, "--out=")
+	assert.NotContains(t, joined, "stream-test-secret")
+
+	// The artifact is a single gzip of the raw archive stream.
+	artifactName, artifact, found := findUpload(captured, ".archive.gz")
+	require.True(t, found, "no .archive.gz object was uploaded")
+	require.NoError(t, artifact.err)
+
+	baseName := strings.TrimSuffix(artifactName, ".archive.gz")
+	startedAt, err := time.ParseInLocation("2006-01-02-15-04-05", baseName, time.UTC)
+	require.NoError(t, err)
+	assert.WithinDuration(t, time.Now().UTC(), startedAt, time.Minute)
+
+	reader, err := gzip.NewReader(bytes.NewReader(artifact.data))
+	require.NoError(t, err)
+	decompressed, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	assert.Equal(t, "fake-archive-data", string(decompressed))
+
+	// Credentials file is removed after the run.
+	configPath := string(mustReadFile(t, fake.configPathFile))
+	_, statErr := os.Stat(configPath)
+	assert.True(t, os.IsNotExist(statErr), "credentials file must be removed after the run")
+
+	// Registry upload carries tool.method=mongodump.
+	var registryBody []byte
+	for name, u := range captured {
+		if name == ".backup-registry.json" {
+			registryBody = u.data
+		}
+	}
+	require.NotEmpty(t, registryBody)
+	var reg registry.Registry
+	require.NoError(t, json.Unmarshal(registryBody, &reg))
+	require.NotEmpty(t, reg.Backups)
+
+	last := reg.Backups[len(reg.Backups)-1]
+	require.NotNil(t, last.Tool)
+	assert.Equal(t, "mongodump", last.Tool.Method)
+	assert.Equal(t, "mariadb-backup-s3", last.Tool.Name)
 }
 
 // findUpload returns the uploaded object with the given suffix.
