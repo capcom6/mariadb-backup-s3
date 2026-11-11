@@ -66,7 +66,7 @@ MariaDB Backup to S3 is a CLI tool that backs up MariaDB and MongoDB databases, 
 - Compress backups with pigz (parallel gzip)
 - MongoDB backups alongside MariaDB (`mongodump`)
 - Optional AES-256-GCM client-side encryption
-- Stream logical backups straight to storage, without writing dump files to disk
+- Stream logical and MongoDB backups straight to storage, without writing dump files to disk
 - Multiple storage backends: S3-compatible, FTP, filesystem
 - Automatic backup rotation with configurable retention policies
 - Backup registry for tracking and managing backups
@@ -95,7 +95,7 @@ MariaDB Backup to S3 is a CLI tool that backs up MariaDB and MongoDB databases, 
 - For the `mongodb` engine: MongoDB Database Tools (`mongodump`) available in PATH; native installs must provide it separately (the MongoDB image bundles it)
 - `pigz` in PATH (required for all engines; bundled in both Docker images)
 - `tar` in PATH
-- At least 2x the database size in free temp space (not needed when streaming a logical backup with `--stream`)
+- At least 2x the database size in free temp space (not needed when streaming with `--stream`)
 - Storage backend credentials (depending on chosen storage type)
 
 ### Installation
@@ -128,10 +128,10 @@ docker pull ghcr.io/capcom6/mariadb-backup-s3:latest
 docker pull ghcr.io/capcom6/mongodb-backup-s3:latest
 ```
 
-| Image                               | Base           | Contents                        |
-| ----------------------------------- | -------------- | ------------------------------- |
-| `ghcr.io/capcom6/mariadb-backup-s3` | `mariadb:lts`  | MariaDB tools + `pigz`          |
-| `ghcr.io/capcom6/mongodb-backup-s3` | `ubuntu:24.04` | `mongodump` + `pigz`          |
+| Image                               | Base           | Contents               |
+| ----------------------------------- | -------------- | ---------------------- |
+| `ghcr.io/capcom6/mariadb-backup-s3` | `mariadb:lts`  | MariaDB tools + `pigz` |
+| `ghcr.io/capcom6/mongodb-backup-s3` | `ubuntu:24.04` | `mongodump` + `pigz`   |
 
 > **Note**
 > The MariaDB image uses MariaDB's `lts` version; the MongoDB image bundles a pinned MongoDB Database Tools version. For specific versions, clone the repo, modify `Dockerfile.goreleaser` or `Dockerfile.mongodb.goreleaser`, and build a custom image.
@@ -192,7 +192,7 @@ mariadb-backup-s3 backup [options]
 | `--keep-monthly`                   | `RETENTION__KEEP_MONTHLY`           | Number of monthly backups to keep                                     | `0` (disabled)                       |
 | `--skip-retention`                 | `BACKUP__SKIP_RETENTION`            | Skip retention policy after backup                                    | `false`                              |
 | **Backup mode**                    |                                     |                                                                       |                                      |
-| `--stream`                         | `BACKUP__STREAM`                    | Stream a logical backup to storage, without dump files                | `false`                              |
+| `--stream`                         | `BACKUP__STREAM`                    | Stream a logical or MongoDB backup to storage, without dump files     | `false`                              |
 
 > **Note**
 > `DB__*` variables are preferred. Legacy `MARIADB__*` names (`MARIADB__HOST`, `MARIADB__PORT`, `MARIADB__USER`, `MARIADB__PASSWORD`, `MARIADB__BACKUP_METHOD`, `MARIADB__BACKUP_BINARY`, `MARIADB__CLIENT_BINARY`, `MARIADB__BACKUP_OPTIONS`) still work as fallback when the `DB__*` variable is unset.
@@ -255,8 +255,20 @@ mariadb-backup-s3 backup \
   --storage-url="s3://my-bucket/backups"
 ```
 
+**Streamed MongoDB backup:**
+
+With `--db-engine=mongodb --stream`, `mongodump` writes a single archive stream straight into the upload: again no dump file is written to the local disk. The backup is stored as a single `<timestamp>.archive.gz` artifact, and the restore writes one `<timestamp>.archive` file to the target directory.
+
+```sh
+mariadb-backup-s3 backup \
+  --db-engine=mongodb \
+  --mongo-uri=mongodb://mongo.example.com:27017 \
+  --stream \
+  --storage-url="s3://my-bucket/mongodb-backups"
+```
+
 > **Note**
-> `--stream` is supported by the logical backup method only; combining it with `--backup-method=mariadb-backup` is rejected.
+> `--stream` is supported by the logical (`mariadb-dump`) and `mongodump` methods; combining it with `--backup-method=mariadb-backup` (physical) is rejected.
 
 
 **Environment-only (minimal):**
@@ -278,7 +290,7 @@ mariadb-backup-s3
 ### Restore
 
 ```sh
-mariadb-backup-s3 restore [options] [backup_name.tar.gz | backup_name.sql.gz | --latest | --backup-id=<id>]
+mariadb-backup-s3 restore [options] [backup_name.tar.gz | backup_name.sql.gz | backup_name.archive.gz | --latest | --backup-id=<id>]
 ```
 
 Exactly one backup selector must be specified: a filename argument, `--latest`, or `--backup-id`.
@@ -288,7 +300,7 @@ Exactly one backup selector must be specified: a filename argument, `--latest`, 
 | Option                       | Env Var               | Description                                   | Default      |
 | ---------------------------- | --------------------- | --------------------------------------------- | ------------ |
 | `--storage-url`, `--storage` | `STORAGE__URL`        | Storage URL                                   | **required** |
-| `--encryption-key`           | `ENCRYPTION__KEY`      | Encryption key                                | `""`         |
+| `--encryption-key`           | `ENCRYPTION__KEY`     | Encryption key                                | `""`         |
 | `--target-dir`               | `RESTORE__TARGET_DIR` | Directory to extract the backup into          | **required** |
 | `--latest`                   |                       | Extract latest ready backup from registry     | `false`      |
 | `--backup-id`                |                       | Extract backup selected by registry backup ID | `""`         |
@@ -315,6 +327,10 @@ mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
 
 mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
   --target-dir=/tmp/restore \
+  2026-07-03-12-00-00.archive.gz  # streamed MongoDB backup
+
+mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
+  --target-dir=/tmp/restore \
   2026-07-03-12-00-00.tar.gz.enc  # .enc suffix for encrypted backups
 
 mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
@@ -328,7 +344,7 @@ mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
 > mariadb-backup-s3 restore --storage-url="s3://bucket/path" --target-dir=/tmp/restore --latest
 > mariadb -u root -p < /tmp/restore/mydb.sql
 > ```
-> A streamed logical backup (`.sql.gz`) restores to the same per-database `.sql` files.
+> A streamed logical backup (`.sql.gz`) restores to the same per-database `.sql` files; a streamed MongoDB backup (`.archive.gz`) restores to a single `<timestamp>.archive` file.
 
 **Extract a MongoDB backup:**
 
@@ -346,7 +362,7 @@ mariadb-backup-s3 restore \
   2026-07-03-12-00-00.tar.gz
 ```
 
-The restore command only downloads, decrypts, and extracts backup files into `--target-dir` for all engines. To import MongoDB data, install MongoDB Database Tools and run `mongorestore` separately against the extracted dump.
+The restore command only downloads, decrypts, and extracts backup files into `--target-dir` for all engines. To import MongoDB data, install MongoDB Database Tools and run `mongorestore` separately against the extracted dump. A streamed backup (`.archive.gz`) extracts to a single `<timestamp>.archive` file instead of a directory tree; import it with `mongorestore --archive=<file>`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -507,7 +523,7 @@ The `database:` section works for both engines. Keys: `engine`, `host`, `port`, 
 > **Note**
 > The legacy `mariadb:` section is still supported. Setting both `database:` and `mariadb:` in one job is a validation error.
 
-Set `stream: true` on a job to stream a logical backup to storage, without writing dump files to the local disk:
+Set `stream: true` on a job to stream a logical or MongoDB backup to storage, without writing dump files to the local disk:
 
 ```yaml
 jobs:

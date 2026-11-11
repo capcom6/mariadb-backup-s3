@@ -14,7 +14,7 @@ examples/scheduler/
 
 To ensure successful scheduled backups:
 
-- At least 2x the actual database size in free space available (not needed for a streamed logical backup, see [Streaming Configuration](#streaming-configuration))
+- At least 2x the actual database size in free space available (not needed for a streamed backup, see [Streaming Configuration](#streaming-configuration))
 - Valid scheduler configuration (see `config.yaml`)
 - Proper file permissions for the state file location
 
@@ -153,7 +153,7 @@ jobs:
     schedule: "0 2 * * *"  # cron expression
     command: backup or retention
     timeout: 4h
-    stream: true  # optional: stream a logical backup, without local dump files
+    stream: true  # optional: stream a logical or MongoDB backup, without local dump files
     storage:
       url: s3://bucket/path
     mariadb:
@@ -285,10 +285,12 @@ Restore downloads and extracts backup files only. MongoDB dump imports, when nee
 
 ### Streaming Configuration
 
-Set `stream: true` on a job to stream a logical backup to storage, without writing dump files to the local
-disk: no temp space is required. The backup is stored as a single `<timestamp>.sql.gz` artifact, and the
-restore writes the same per-database `.sql` files as a regular logical backup. Supported by the logical
-backup method (`backup_method: mariadb-dump`) only.
+Set `stream: true` on a job to stream a backup to storage, without writing dump files to the local
+disk: no temp space is required. A logical job (`backup_method: mariadb-dump`) stores a single
+`<timestamp>.sql.gz` artifact, and the restore writes the same per-database `.sql` files as a
+regular logical backup. A MongoDB job (`engine: mongodb`) stores a single `<timestamp>.archive.gz`
+artifact, and the restore writes one `<timestamp>.archive` file. The physical method
+(`backup_method: mariadb-backup`) rejects `stream: true`.
 
 ```yaml
 jobs:
@@ -301,6 +303,17 @@ jobs:
     database:
       host: localhost
       backup_method: mariadb-dump
+
+  - name: nightly-mongodb-backup
+    schedule: "0 3 * * *"
+    command: backup
+    stream: true
+    storage:
+      url: s3://my-bucket/mongodb-backups
+    database:
+      engine: mongodb
+      host: localhost
+      auth_source: admin
 ```
 
 ### Encryption Configuration
