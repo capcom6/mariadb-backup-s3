@@ -101,7 +101,7 @@ func TestOperation_Run_ArchiveStream_NotGzip(t *testing.T) {
 	op := restore.NewOperation(cfg, logging.NewTestLogger())
 	err := op.Run(context.Background(), "2024-01-15-10-30-00.archive.gz")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create gzip reader")
+	assert.Contains(t, err.Error(), "unrecognized format")
 }
 
 func TestOperation_Run_SQLStream(t *testing.T) {
@@ -178,7 +178,7 @@ func TestOperation_Run_SQLStream_NotGzip(t *testing.T) {
 	op := restore.NewOperation(cfg, logging.NewTestLogger())
 	err := op.Run(context.Background(), "2024-01-15-10-30-00.sql.gz")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create gzip reader")
+	assert.Contains(t, err.Error(), "unrecognized format")
 }
 
 func writeArtifact(t *testing.T, dir string, name string, content []byte) {
