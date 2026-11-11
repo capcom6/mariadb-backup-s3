@@ -21,6 +21,89 @@ import (
 const streamedBackup = "-- mariadb-backup-s3: database=db1\ndump of db1\n" +
 	"-- mariadb-backup-s3: database=db2\ndump of db2\n"
 
+// rawArchive is the decompressed payload of a streamed mongodump artifact.
+const rawArchive = "fake-mongodump-archive-data"
+
+func TestOperation_Run_ArchiveStream(t *testing.T) {
+	t.Parallel()
+	storageDir := t.TempDir()
+	targetDir := t.TempDir()
+
+	writeArtifact(t, storageDir, "2024-01-15-10-30-00.mongo.gz", gzipBytes(t, []byte(rawArchive)))
+
+	cfg := restore.DefaultConfig()
+	cfg.Storage.URL = "file://" + storageDir
+	cfg.TargetDir = targetDir
+
+	op := restore.NewOperation(cfg, logging.NewTestLogger())
+	require.NoError(t, op.Run(context.Background(), "2024-01-15-10-30-00.mongo.gz"))
+
+	assertFileContent(t, filepath.Join(targetDir, "2024-01-15-10-30-00.archive"), rawArchive)
+
+	// Exactly one file: the raw archive, not a directory tree.
+	entries, err := os.ReadDir(targetDir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	assert.Equal(t, "2024-01-15-10-30-00.archive", entries[0].Name())
+}
+
+func TestOperation_Run_ArchiveStream_Encrypted(t *testing.T) {
+	t.Parallel()
+	storageDir := t.TempDir()
+	targetDir := t.TempDir()
+
+	key := []byte("0123456789abcdef0123456789abcdef")
+	encrypted := encryptBytes(t, key, gzipBytes(t, []byte(rawArchive)))
+	writeArtifact(t, storageDir, "2024-01-15-10-30-00.mongo.gz.enc", encrypted)
+
+	cfg := restore.DefaultConfig()
+	cfg.Storage.URL = "file://" + storageDir
+	cfg.Encryption.EncryptionKey = base64.StdEncoding.EncodeToString(key)
+	cfg.TargetDir = targetDir
+
+	op := restore.NewOperation(cfg, logging.NewTestLogger())
+	require.NoError(t, op.Run(context.Background(), "2024-01-15-10-30-00.mongo.gz.enc"))
+
+	assertFileContent(t, filepath.Join(targetDir, "2024-01-15-10-30-00.archive"), rawArchive)
+}
+
+func TestOperation_Run_ArchiveStream_SubdirectoryArtifactKeepsBaseName(t *testing.T) {
+	t.Parallel()
+	storageDir := t.TempDir()
+	targetDir := t.TempDir()
+
+	name := "prefix/2024-01-15-10-30-00.mongo.gz"
+	require.NoError(t, os.MkdirAll(filepath.Join(storageDir, "prefix"), 0o700))
+	writeArtifact(t, storageDir, name, gzipBytes(t, []byte(rawArchive)))
+
+	cfg := restore.DefaultConfig()
+	cfg.Storage.URL = "file://" + storageDir
+	cfg.TargetDir = targetDir
+
+	op := restore.NewOperation(cfg, logging.NewTestLogger())
+	require.NoError(t, op.Run(context.Background(), name))
+
+	// A crafted artifact name must not create nested paths in targetDir.
+	assertFileContent(t, filepath.Join(targetDir, "2024-01-15-10-30-00.archive"), rawArchive)
+}
+
+func TestOperation_Run_ArchiveStream_NotGzip(t *testing.T) {
+	t.Parallel()
+	storageDir := t.TempDir()
+	targetDir := t.TempDir()
+
+	writeArtifact(t, storageDir, "2024-01-15-10-30-00.mongo.gz", []byte("not a gzip stream"))
+
+	cfg := restore.DefaultConfig()
+	cfg.Storage.URL = "file://" + storageDir
+	cfg.TargetDir = targetDir
+
+	op := restore.NewOperation(cfg, logging.NewTestLogger())
+	err := op.Run(context.Background(), "2024-01-15-10-30-00.mongo.gz")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unrecognized format")
+}
+
 func TestOperation_Run_SQLStream(t *testing.T) {
 	t.Parallel()
 	storageDir := t.TempDir()
@@ -95,7 +178,7 @@ func TestOperation_Run_SQLStream_NotGzip(t *testing.T) {
 	op := restore.NewOperation(cfg, logging.NewTestLogger())
 	err := op.Run(context.Background(), "2024-01-15-10-30-00.sql.gz")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create gzip reader")
+	assert.Contains(t, err.Error(), "unrecognized format")
 }
 
 func writeArtifact(t *testing.T, dir string, name string, content []byte) {
