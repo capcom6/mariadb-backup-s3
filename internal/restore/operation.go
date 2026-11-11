@@ -9,9 +9,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/capcom6/mariadb-backup-s3/internal/backup/method/mongodb"
 	"github.com/capcom6/mariadb-backup-s3/internal/encryption"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
 	"github.com/capcom6/mariadb-backup-s3/internal/sqlstream"
@@ -146,13 +148,17 @@ func (o *Operation) decrypt(ctx context.Context, r io.Reader, w io.Writer) error
 }
 
 // extract unpacks the backup into the target directory. A streamed logical
-// backup is split into one file per database, an archive is extracted.
+// backup is split into one file per database, a streamed mongodump archive is
+// written as a single archive file, an archive is extracted.
 func (o *Operation) extract(ctx context.Context, r io.Reader, targetDir string, filename string) error {
-	if isSQLStream(filename) {
+	switch {
+	case isSQLStream(filename):
 		return o.extractSQLStream(ctx, r, targetDir)
+	case isArchiveStream(filename):
+		return o.extractArchiveStream(ctx, r, targetDir, filename)
+	default:
+		return o.extractArchive(ctx, r, targetDir)
 	}
-
-	return o.extractArchive(ctx, r, targetDir)
 }
 
 // isSQLStream reports whether the artifact holds a streamed logical backup.
@@ -160,6 +166,14 @@ func isSQLStream(filename string) bool {
 	name := strings.TrimSuffix(filename, ".enc")
 
 	return strings.HasSuffix(name, "."+sqlstream.ArtifactExtension)
+}
+
+// isArchiveStream reports whether the artifact holds a streamed mongodump
+// archive.
+func isArchiveStream(filename string) bool {
+	name := strings.TrimSuffix(filename, ".enc")
+
+	return strings.HasSuffix(name, "."+mongodb.StreamArtifactExtension)
 }
 
 // extractSQLStream decompresses a streamed logical backup and writes the dump
@@ -188,6 +202,67 @@ func (o *Operation) extractSQLStream(ctx context.Context, r io.Reader, targetDir
 	if splitErr := sqlstream.SplitToDir(reader, targetDir); splitErr != nil {
 		o.logger.Error(ctx, "Decompression failed: failed to split the backup", splitErr)
 		return fmt.Errorf("failed to split the backup: %w", splitErr)
+	}
+
+	return nil
+}
+
+// extractArchiveStream decompresses a streamed mongodump backup and writes
+// the raw archive into the target directory as a single file, named after the
+// artifact without its .gz[.enc] suffixes. Importing it into MongoDB is a
+// separate mongorestore step.
+func (o *Operation) extractArchiveStream(ctx context.Context, r io.Reader, targetDir string, filename string) error {
+	o.logger.Info(ctx, "Stage 2: Decompress")
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start)
+		o.logger.Info(ctx, "Stage 2 completed", logging.Fields{
+			logFieldDuration: duration.String(),
+		})
+	}()
+
+	reader, err := gzip.NewReader(r)
+	if err != nil {
+		o.logger.Error(ctx, "Decompression failed: failed to create gzip reader", err)
+		return fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			o.logger.Error(ctx, "Decompression failed: failed to close gzip reader", closeErr)
+		}
+	}()
+
+	// The artifact name comes from the registry or a CLI argument; keep only
+	// its base name so a crafted name cannot escape the target directory.
+	outName := filepath.Base(strings.TrimSuffix(strings.TrimSuffix(filename, ".enc"), ".gz"))
+	outFile, err := os.Create(filepath.Join(targetDir, outName))
+	if err != nil {
+		return fmt.Errorf("failed to create archive file: %w", err)
+	}
+	defer func() {
+		if closeErr := outFile.Close(); closeErr != nil {
+			o.logger.Error(ctx, "Failed to close archive file", closeErr, logging.Fields{})
+		}
+	}()
+
+	// Stream the decompressed archive into the file with a fixed buffer;
+	// memory use stays bounded while the artifact size is limited only by
+	// the target disk.
+	const bufferSize = 64 * 1024
+	buf := make([]byte, bufferSize)
+	for {
+		n, readErr := reader.Read(buf)
+		if n > 0 {
+			if _, writeErr := outFile.Write(buf[:n]); writeErr != nil {
+				return fmt.Errorf("failed to write archive file: %w", writeErr)
+			}
+		}
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				break
+			}
+			return fmt.Errorf("failed to read archive stream: %w", readErr)
+		}
 	}
 
 	return nil
