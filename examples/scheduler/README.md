@@ -154,6 +154,8 @@ jobs:
     command: backup or retention
     timeout: 4h
     stream: true  # optional: stream a logical or MongoDB backup, without local dump files
+                  # requires a logical method (mariadb-dump or mongodump); the physical
+                  # method (mariadb-backup) rejects it
     storage:
       url: s3://bucket/path
     mariadb:
@@ -161,6 +163,7 @@ jobs:
       port: 3306
       user: root
       password: ${MARIADB__PASSWORD}
+      backup_method: mariadb-dump  # required for stream: true; mariadb-backup (the default) rejects streaming
     encrypt:
       key: ${ENCRYPTION__KEY}
     retention:
@@ -286,11 +289,15 @@ Restore downloads and extracts backup files only. MongoDB dump imports, when nee
 ### Streaming Configuration
 
 Set `stream: true` on a job to stream a backup to storage, without writing dump files to the local
-disk: no temp space is required. A logical job (`backup_method: mariadb-dump`) stores a single
+disk. A logical job (`backup_method: mariadb-dump`) stores a single
 `<timestamp>.sql.gz` artifact, and the restore writes the same per-database `.sql` files as a
 regular logical backup. A MongoDB job (`engine: mongodb`) stores a single `<timestamp>.archive.gz`
 artifact, and the restore writes one `<timestamp>.archive` file. The physical method
 (`backup_method: mariadb-backup`) rejects `stream: true`.
+
+An authenticated MongoDB stream (`user` set) still writes a small credentials file to the system
+temporary directory, so a MongoDB job needs writable temp space even though no dump file is
+created.
 
 ```yaml
 jobs:

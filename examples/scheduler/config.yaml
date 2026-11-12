@@ -147,7 +147,9 @@ jobs:
   # ---------------------------------------------------------------------------
   # Daily streamed MongoDB backup (mongodump --archive)
   # Pipes a single mongodump archive straight to storage: no dump file is
-  # written to the local disk, so no temp space is required. Stored as a
+  # written to the local disk. Note: with authentication configured, a
+  # credentials file is written to the system temporary directory, so the job
+  # still needs writable temp space. Stored as a
   # single <timestamp>.archive.gz, restoring to one <timestamp>.archive file.
   # ---------------------------------------------------------------------------
   - name: daily-streamed-mongodb-backup
