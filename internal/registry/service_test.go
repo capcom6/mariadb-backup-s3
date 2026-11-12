@@ -641,6 +641,27 @@ func TestServiceRebuild_WithRecovery_SetsEncryptedFlag(t *testing.T) {
 	backend.AssertExpectations(t)
 }
 
+func TestServiceRebuild_WithRecovery_StreamedMongoDBArtifacts(t *testing.T) {
+	t.Parallel()
+	svc, backend := buildService(registry.WithRecovery())
+
+	backend.On("List", mock.Anything).Return([]string{
+		"2024-01-15-10-30-00.archive.gz",
+		"2024-01-15-11-30-00.archive.gz.enc",
+	}, nil)
+	backend.On("Upload", mock.Anything, ".backup-registry.json", mock.Anything).Return(nil)
+
+	reg, err := svc.Rebuild(context.Background())
+	require.NoError(t, err)
+	require.Len(t, reg.Backups, 2)
+	assert.Equal(t, "2024-01-15-11-30-00", reg.Backups[0].ID)
+	assert.True(t, reg.Backups[0].Encrypted)
+	assert.Equal(t, "2024-01-15-10-30-00", reg.Backups[1].ID)
+	assert.False(t, reg.Backups[1].Encrypted)
+
+	backend.AssertExpectations(t)
+}
+
 func TestServiceRebuild_WithRecovery_ListError(t *testing.T) {
 	t.Parallel()
 	svc, backend := buildService(registry.WithRecovery())
