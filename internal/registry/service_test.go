@@ -646,8 +646,8 @@ func TestServiceRebuild_WithRecovery_StreamedMongoDBArtifacts(t *testing.T) {
 	svc, backend := buildService(registry.WithRecovery())
 
 	backend.On("List", mock.Anything).Return([]string{
-		"2024-01-15-10-30-00.archive.gz",
-		"2024-01-15-11-30-00.archive.gz.enc",
+		"2024-01-15-10-30-00.mongo.gz",
+		"2024-01-15-11-30-00.mongo.gz.enc",
 	}, nil)
 	backend.On("Upload", mock.Anything, ".backup-registry.json", mock.Anything).Return(nil)
 

@@ -29,14 +29,14 @@ func TestOperation_Run_ArchiveStream(t *testing.T) {
 	storageDir := t.TempDir()
 	targetDir := t.TempDir()
 
-	writeArtifact(t, storageDir, "2024-01-15-10-30-00.archive.gz", gzipBytes(t, []byte(rawArchive)))
+	writeArtifact(t, storageDir, "2024-01-15-10-30-00.mongo.gz", gzipBytes(t, []byte(rawArchive)))
 
 	cfg := restore.DefaultConfig()
 	cfg.Storage.URL = "file://" + storageDir
 	cfg.TargetDir = targetDir
 
 	op := restore.NewOperation(cfg, logging.NewTestLogger())
-	require.NoError(t, op.Run(context.Background(), "2024-01-15-10-30-00.archive.gz"))
+	require.NoError(t, op.Run(context.Background(), "2024-01-15-10-30-00.mongo.gz"))
 
 	assertFileContent(t, filepath.Join(targetDir, "2024-01-15-10-30-00.archive"), rawArchive)
 
@@ -54,7 +54,7 @@ func TestOperation_Run_ArchiveStream_Encrypted(t *testing.T) {
 
 	key := []byte("0123456789abcdef0123456789abcdef")
 	encrypted := encryptBytes(t, key, gzipBytes(t, []byte(rawArchive)))
-	writeArtifact(t, storageDir, "2024-01-15-10-30-00.archive.gz.enc", encrypted)
+	writeArtifact(t, storageDir, "2024-01-15-10-30-00.mongo.gz.enc", encrypted)
 
 	cfg := restore.DefaultConfig()
 	cfg.Storage.URL = "file://" + storageDir
@@ -62,7 +62,7 @@ func TestOperation_Run_ArchiveStream_Encrypted(t *testing.T) {
 	cfg.TargetDir = targetDir
 
 	op := restore.NewOperation(cfg, logging.NewTestLogger())
-	require.NoError(t, op.Run(context.Background(), "2024-01-15-10-30-00.archive.gz.enc"))
+	require.NoError(t, op.Run(context.Background(), "2024-01-15-10-30-00.mongo.gz.enc"))
 
 	assertFileContent(t, filepath.Join(targetDir, "2024-01-15-10-30-00.archive"), rawArchive)
 }
@@ -72,7 +72,7 @@ func TestOperation_Run_ArchiveStream_SubdirectoryArtifactKeepsBaseName(t *testin
 	storageDir := t.TempDir()
 	targetDir := t.TempDir()
 
-	name := "prefix/2024-01-15-10-30-00.archive.gz"
+	name := "prefix/2024-01-15-10-30-00.mongo.gz"
 	require.NoError(t, os.MkdirAll(filepath.Join(storageDir, "prefix"), 0o700))
 	writeArtifact(t, storageDir, name, gzipBytes(t, []byte(rawArchive)))
 
@@ -92,14 +92,14 @@ func TestOperation_Run_ArchiveStream_NotGzip(t *testing.T) {
 	storageDir := t.TempDir()
 	targetDir := t.TempDir()
 
-	writeArtifact(t, storageDir, "2024-01-15-10-30-00.archive.gz", []byte("not a gzip stream"))
+	writeArtifact(t, storageDir, "2024-01-15-10-30-00.mongo.gz", []byte("not a gzip stream"))
 
 	cfg := restore.DefaultConfig()
 	cfg.Storage.URL = "file://" + storageDir
 	cfg.TargetDir = targetDir
 
 	op := restore.NewOperation(cfg, logging.NewTestLogger())
-	err := op.Run(context.Background(), "2024-01-15-10-30-00.archive.gz")
+	err := op.Run(context.Background(), "2024-01-15-10-30-00.mongo.gz")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unrecognized format")
 }

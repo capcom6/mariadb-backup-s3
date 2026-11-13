@@ -102,7 +102,7 @@ func TestRun_ArchiveStreamExtractOnly(t *testing.T) {
 	require.NoError(t, writeErr)
 	require.NoError(t, gz.Close())
 
-	artifactName := "2024-01-15-10-30-00.archive.gz"
+	artifactName := "2024-01-15-10-30-00.mongo.gz"
 	require.NoError(t, os.WriteFile(filepath.Join(storageDir, artifactName), buf.Bytes(), 0o600))
 
 	cfg := Config{

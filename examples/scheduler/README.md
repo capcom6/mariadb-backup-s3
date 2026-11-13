@@ -272,17 +272,17 @@ jobs:
 
 **Options:**
 
-| Option                    | Description                                          | Default (mariadb / mongodb) |
-| ------------------------- | ---------------------------------------------------- | --------------------------- |
-| `engine`                  | Database engine: `mariadb` or `mongodb`              | `mariadb`                   |
-| `host` / `port` / `user` / `password` | Connection settings                         | engine-specific defaults     |
-| `backup_method`           | `mariadb-backup`, `mariadb-dump`, or `mongodump`     | per engine                  |
-| `backup_binary` / `client_binary` | Tool paths; omitted keys use built-in defaults | per method/engine |
-| `backup_options` | Extra backup command-line options                | empty                       |
-| `uri`                     | MongoDB connection URI (alternative to host/port)    | empty                       |
-| `auth_source`             | MongoDB authentication database                      | empty                       |
-| `tls`                     | Enable MongoDB TLS                                   | `false`                     |
-| `tls_ca_file` / `tls_certificate_key_file` | MongoDB TLS material files             | empty                       |
+| Option                                     | Description                                       | Default (mariadb / mongodb) |
+| ------------------------------------------ | ------------------------------------------------- | --------------------------- |
+| `engine`                                   | Database engine: `mariadb` or `mongodb`           | `mariadb`                   |
+| `host` / `port` / `user` / `password`      | Connection settings                               | engine-specific defaults    |
+| `backup_method`                            | `mariadb-backup`, `mariadb-dump`, or `mongodump`  | per engine                  |
+| `backup_binary` / `client_binary`          | Tool paths; omitted keys use built-in defaults    | per method/engine           |
+| `backup_options`                           | Extra backup command-line options                 | empty                       |
+| `uri`                                      | MongoDB connection URI (alternative to host/port) | empty                       |
+| `auth_source`                              | MongoDB authentication database                   | empty                       |
+| `tls`                                      | Enable MongoDB TLS                                | `false`                     |
+| `tls_ca_file` / `tls_certificate_key_file` | MongoDB TLS material files                        | empty                       |
 
 Restore downloads and extracts backup files only. MongoDB dump imports, when needed, are performed separately using `mongorestore`.
 
@@ -291,7 +291,7 @@ Restore downloads and extracts backup files only. MongoDB dump imports, when nee
 Set `stream: true` on a job to stream a backup to storage, without writing dump files to the local
 disk. A logical job (`backup_method: mariadb-dump`) stores a single
 `<timestamp>.sql.gz` artifact, and the restore writes the same per-database `.sql` files as a
-regular logical backup. A MongoDB job (`engine: mongodb`) stores a single `<timestamp>.archive.gz`
+regular logical backup. A MongoDB job (`engine: mongodb`) stores a single `<timestamp>.mongo.gz`
 artifact, and the restore writes one `<timestamp>.archive` file. The physical method
 (`backup_method: mariadb-backup`) rejects `stream: true`.
 

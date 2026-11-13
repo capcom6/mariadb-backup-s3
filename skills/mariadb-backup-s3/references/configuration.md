@@ -8,23 +8,23 @@ Two Docker images: `ghcr.io/capcom6/mariadb-backup-s3` (MariaDB tools + pigz) an
 
 ## Database
 
-| Flag | Env var | Default | Description |
-|---|---|---|---|
-| `--db-engine` | `DB__ENGINE` | `mariadb` | Engine: `mariadb` or `mongodb` |
-| `--db-host`, `--host` | `DB__HOST` | `localhost` | Database hostname |
-| `--db-port`, `--port` | `DB__PORT` | `3306` / `27017` (engine) | Database port |
-| `--db-user`, `--user` | `DB__USER` | `root` (mariadb), empty (mongodb) | Database username |
-| `--db-password`, `--password` | `DB__PASSWORD` | `""` | Database password |
-| `--backup-method` | `DB__BACKUP_METHOD` | derived from `--db-engine` | Backup method: `mariadb-backup` (physical), `mariadb-dump` (logical), or `mongodump` |
-| `--db-backup-binary` | `DB__BACKUP_BINARY` | auto-derived | Path to backup binary (derived from engine and method) |
-| `--db-client-binary` | `DB__CLIENT_BINARY` | `mariadb` (mariadb) | Path to client binary (database discovery for `mariadb-dump`; unused for mongodb) |
-| `--db-backup-options` | `DB__BACKUP_OPTIONS` | `""` | Extra backup options (sanitized) |
-| `--stream` | `BACKUP__STREAM` | `false` | Stream a logical or MongoDB backup to storage, without writing dump files to disk (logical and `mongodump` methods; rejected for physical) |
-| `--mongo-uri` | `MONGODB__URI` | `""` | MongoDB connection URI (replaces host/port/user) |
-| `--mongo-auth-source` | `MONGODB__AUTH_SOURCE` | `admin` (mongodb) | MongoDB authentication source database |
-| `--mongo-tls` | `MONGODB__TLS` | `false` | Enable MongoDB TLS |
-| `--mongo-tls-ca-file` | `MONGODB__TLS_CA_FILE` | `""` | MongoDB TLS CA file |
-| `--mongo-tls-certificate-key-file` | `MONGODB__TLS_CERTIFICATE_KEY_FILE` | `""` | MongoDB TLS certificate key file |
+| Flag                               | Env var                             | Default                           | Description                                                                                                                                |
+| ---------------------------------- | ----------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--db-engine`                      | `DB__ENGINE`                        | `mariadb`                         | Engine: `mariadb` or `mongodb`                                                                                                             |
+| `--db-host`, `--host`              | `DB__HOST`                          | `localhost`                       | Database hostname                                                                                                                          |
+| `--db-port`, `--port`              | `DB__PORT`                          | `3306` / `27017` (engine)         | Database port                                                                                                                              |
+| `--db-user`, `--user`              | `DB__USER`                          | `root` (mariadb), empty (mongodb) | Database username                                                                                                                          |
+| `--db-password`, `--password`      | `DB__PASSWORD`                      | `""`                              | Database password                                                                                                                          |
+| `--backup-method`                  | `DB__BACKUP_METHOD`                 | derived from `--db-engine`        | Backup method: `mariadb-backup` (physical), `mariadb-dump` (logical), or `mongodump`                                                       |
+| `--db-backup-binary`               | `DB__BACKUP_BINARY`                 | auto-derived                      | Path to backup binary (derived from engine and method)                                                                                     |
+| `--db-client-binary`               | `DB__CLIENT_BINARY`                 | `mariadb` (mariadb)               | Path to client binary (database discovery for `mariadb-dump`; unused for mongodb)                                                          |
+| `--db-backup-options`              | `DB__BACKUP_OPTIONS`                | `""`                              | Extra backup options (sanitized)                                                                                                           |
+| `--stream`                         | `BACKUP__STREAM`                    | `false`                           | Stream a logical or MongoDB backup to storage, without writing dump files to disk (logical and `mongodump` methods; rejected for physical) |
+| `--mongo-uri`                      | `MONGODB__URI`                      | `""`                              | MongoDB connection URI (replaces host/port/user)                                                                                           |
+| `--mongo-auth-source`              | `MONGODB__AUTH_SOURCE`              | `admin` (mongodb)                 | MongoDB authentication source database                                                                                                     |
+| `--mongo-tls`                      | `MONGODB__TLS`                      | `false`                           | Enable MongoDB TLS                                                                                                                         |
+| `--mongo-tls-ca-file`              | `MONGODB__TLS_CA_FILE`              | `""`                              | MongoDB TLS CA file                                                                                                                        |
+| `--mongo-tls-certificate-key-file` | `MONGODB__TLS_CERTIFICATE_KEY_FILE` | `""`                              | MongoDB TLS certificate key file                                                                                                           |
 
 Engine defaults (when unset): mariadb -> port `3306`, method `mariadb-backup`, client binary `mariadb`; mongodb -> port `27017`, method `mongodump`, backup binary `mongodump`, client binary empty, auth source `admin`.
 
@@ -34,9 +34,9 @@ Backup method must match the engine (`mariadb-backup`/`mariadb-dump` -> mariadb,
 
 ## Storage
 
-| Flag | Env var | Required | Description |
-|---|---|---|---|
-| `--storage-url`, `--storage` | `STORAGE__URL` | Yes | Storage URL (see formats below) |
+| Flag                         | Env var        | Required | Description                     |
+| ---------------------------- | -------------- | -------- | ------------------------------- |
+| `--storage-url`, `--storage` | `STORAGE__URL` | Yes      | Storage URL (see formats below) |
 
 ### Storage URL formats
 
@@ -50,11 +50,11 @@ Query parameters: `endpoint` (optional), `s3-force-path-style` (optional, defaul
 
 S3 authentication uses the standard AWS SDK chain (env vars, ~/.aws/credentials, etc.):
 
-| Env var | Description |
-|---|---|
-| `AWS_REGION` | AWS region |
-| `AWS_ACCESS_KEY_ID` | Access key |
-| `AWS_SECRET_ACCESS_KEY` | Secret key |
+| Env var                 | Description |
+| ----------------------- | ----------- |
+| `AWS_REGION`            | AWS region  |
+| `AWS_ACCESS_KEY_ID`     | Access key  |
+| `AWS_SECRET_ACCESS_KEY` | Secret key  |
 
 **FTP:**
 
@@ -72,8 +72,8 @@ file:///absolute/path/to/backup/directory
 
 ## Encryption
 
-| Flag | Env var | Description |
-|---|---|---|
+| Flag               | Env var           | Description                                   |
+| ------------------ | ----------------- | --------------------------------------------- |
 | `--encryption-key` | `ENCRYPTION__KEY` | Base64-encoded 32-byte AES-256 key (optional) |
 
 Algorithm: AES-256-GCM with HKDF-SHA256 key derivation. Encrypted files get `.enc` extension.
@@ -84,24 +84,24 @@ Generate key: `openssl rand -base64 32`
 
 All optional. If none set, retention is skipped.
 
-| Flag | Env var | Default | Description |
-|---|---|---|---|
+| Flag                | Env var                                                            | Default   | Description                           |
+| ------------------- | ------------------------------------------------------------------ | --------- | ------------------------------------- |
 | `--retention-count` | `RETENTION__COUNT` (deprecated alias: `BACKUP__LIMITS__MAX_COUNT`) | unlimited | Number of most recent backups to keep |
-| `--max-age` | `RETENTION__MAX_AGE` | unlimited | Max age (e.g. `24h`, `168h`) |
-| `--keep-daily` | `RETENTION__KEEP_DAILY` | unlimited | Keep N per day |
-| `--keep-weekly` | `RETENTION__KEEP_WEEKLY` | unlimited | Keep N per ISO week |
-| `--keep-monthly` | `RETENTION__KEEP_MONTHLY` | unlimited | Keep N per month |
-| `--skip-retention` | `BACKUP__SKIP_RETENTION` | false | Skip retention after backup |
-| `--dry-run` | `RETENTION__DRY_RUN` | false | Preview without deleting |
-| `--force` | `RETENTION__FORCE` | false | Continue despite errors |
+| `--max-age`         | `RETENTION__MAX_AGE`                                               | unlimited | Max age (e.g. `24h`, `168h`)          |
+| `--keep-daily`      | `RETENTION__KEEP_DAILY`                                            | unlimited | Keep N per day                        |
+| `--keep-weekly`     | `RETENTION__KEEP_WEEKLY`                                           | unlimited | Keep N per ISO week                   |
+| `--keep-monthly`    | `RETENTION__KEEP_MONTHLY`                                          | unlimited | Keep N per month                      |
+| `--skip-retention`  | `BACKUP__SKIP_RETENTION`                                           | false     | Skip retention after backup           |
+| `--dry-run`         | `RETENTION__DRY_RUN`                                               | false     | Preview without deleting              |
+| `--force`           | `RETENTION__FORCE`                                                 | false     | Continue despite errors               |
 
 ## Restore
 
-| Flag | Env var | Default | Description |
-|---|---|---|---|
+| Flag           | Env var               | Default  | Description                                          |
+| -------------- | --------------------- | -------- | ---------------------------------------------------- |
 | `--target-dir` | `RESTORE__TARGET_DIR` | required | Directory to extract backup files into (all engines) |
-| `--latest` | - | false | Extract most recent ready backup |
-| `--backup-id` | - | `""` | Extract backup selected by registry backup ID |
+| `--latest`     | -                     | false    | Extract most recent ready backup                     |
+| `--backup-id`  | -                     | `""`     | Extract backup selected by registry backup ID        |
 
 Exactly one backup selector required: positional filename, `--latest`, or `--backup-id`.
 
@@ -109,11 +109,11 @@ Restore extracts files only and does not connect to either database engine. Mong
 
 Backup artifacts:
 
-| Artifact | Produced by | Restored as |
-|---|---|---|
-| `<timestamp>.tar.gz` | physical and logical backups | extracted into the target directory |
-| `<timestamp>.sql.gz` | streamed logical backups (`--stream`) | one `<database>.sql` file per database |
-| `<timestamp>.archive.gz` | streamed MongoDB backups (`--stream`) | one `<timestamp>.archive` file (import with `mongorestore --archive`) |
+| Artifact               | Produced by                           | Restored as                                                           |
+| ---------------------- | ------------------------------------- | --------------------------------------------------------------------- |
+| `<timestamp>.tar.gz`   | physical and logical backups          | extracted into the target directory                                   |
+| `<timestamp>.sql.gz`   | streamed logical backups (`--stream`) | one `<database>.sql` file per database                                |
+| `<timestamp>.mongo.gz` | streamed MongoDB backups (`--stream`) | one `<timestamp>.archive` file (import with `mongorestore --archive`) |
 
 ## Scheduler YAML
 
@@ -123,12 +123,12 @@ Per-job database section `database:` supports both engines; legacy `mariadb:` st
 
 ## Logging (env vars only)
 
-| Env var | Values | Default |
-|---|---|---|
-| `LOG_LEVEL` | `debug`, `info`, `warn`, `error`, `fatal` | `info` |
-| `LOG_FORMAT` | `human`, `json` | `human` |
-| `LOG_OUTPUT` | `stdout`, `stderr`, file path | `stdout` |
-| `NO_COLOR` | any non-empty | disabled |
+| Env var      | Values                                    | Default  |
+| ------------ | ----------------------------------------- | -------- |
+| `LOG_LEVEL`  | `debug`, `info`, `warn`, `error`, `fatal` | `info`   |
+| `LOG_FORMAT` | `human`, `json`                           | `human`  |
+| `LOG_OUTPUT` | `stdout`, `stderr`, file path             | `stdout` |
+| `NO_COLOR`   | any non-empty                             | disabled |
 
 ## Example `.env`
 

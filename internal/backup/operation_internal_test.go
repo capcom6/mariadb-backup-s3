@@ -587,7 +587,7 @@ func TestNewOperation_StreamWithMongoDBMethodWiresStreamer(t *testing.T) {
 	op, err := NewOperation(cfg, nil, nil, logging.NewTestLogger())
 	require.NoError(t, err)
 	require.NotNil(t, op.streamer)
-	assert.Equal(t, "archive.gz", op.method.ArtifactExtension())
+	assert.Equal(t, "mongo.gz", op.method.ArtifactExtension())
 }
 
 //nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
@@ -622,11 +622,11 @@ func TestOperation_Run_MongoDBStreaming(t *testing.T) {
 	assert.NotContains(t, joined, "stream-test-secret")
 
 	// The artifact is a single gzip of the raw archive stream.
-	artifactName, artifact, found := findUpload(captured, ".archive.gz")
-	require.True(t, found, "no .archive.gz object was uploaded")
+	artifactName, artifact, found := findUpload(captured, ".mongo.gz")
+	require.True(t, found, "no .mongo.gz object was uploaded")
 	require.NoError(t, artifact.err)
 
-	baseName := strings.TrimSuffix(artifactName, ".archive.gz")
+	baseName := strings.TrimSuffix(artifactName, ".mongo.gz")
 	startedAt, err := time.ParseInLocation("2006-01-02-15-04-05", baseName, time.UTC)
 	require.NoError(t, err)
 	assert.WithinDuration(t, time.Now().UTC(), startedAt, time.Minute)

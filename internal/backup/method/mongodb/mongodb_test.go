@@ -499,7 +499,7 @@ func TestMethod_ArtifactExtension(t *testing.T) {
 	assert.Equal(t, method.ArtifactTarGz, fileMode.ArtifactExtension())
 
 	streamMode := mongodb.New(mongodb.Config{BackupBinary: "mongodump", Stream: true})
-	assert.Equal(t, "archive.gz", streamMode.ArtifactExtension())
+	assert.Equal(t, "mongo.gz", streamMode.ArtifactExtension())
 }
 
 func TestMethod_ImplementsStreamingInterface(t *testing.T) {

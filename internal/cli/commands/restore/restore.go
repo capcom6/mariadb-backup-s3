@@ -57,7 +57,7 @@ func Command() *cli.Command {
 				},
 			},
 		},
-		ArgsUsage: "[backup_name.tar.gz | backup_name.sql.gz | backup_name.archive.gz | --latest | --backup-id=<id>]",
+		ArgsUsage: "[backup_name.tar.gz | backup_name.sql.gz | backup_name.mongo.gz | --latest | --backup-id=<id>]",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			logger := logging.GetLogger(ctx)
 			if logger == nil {

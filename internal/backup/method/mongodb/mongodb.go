@@ -23,7 +23,7 @@ const MethodName = "mongodump"
 
 // StreamArtifactExtension is the extension of the artifact produced by a
 // streamed mongodump backup, without the leading dot.
-const StreamArtifactExtension = "archive.gz"
+const StreamArtifactExtension = "mongo.gz"
 
 // ErrOptionOverridesOut is returned when backup options try to redirect
 // mongodump output away from the archive directory; the operation archives
