@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/capcom6/mariadb-backup-s3/internal/backup/method/mongodb"
 	"github.com/capcom6/mariadb-backup-s3/internal/encryption"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
+	"github.com/capcom6/mariadb-backup-s3/internal/method/mongodb"
 	"github.com/capcom6/mariadb-backup-s3/internal/sqlstream"
 	"github.com/capcom6/mariadb-backup-s3/internal/storage"
 	"github.com/capcom6/mariadb-backup-s3/pkg/pipeline"

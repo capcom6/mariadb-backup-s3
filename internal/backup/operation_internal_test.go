@@ -19,9 +19,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/capcom6/mariadb-backup-s3/internal/backup/method"
 	"github.com/capcom6/mariadb-backup-s3/internal/config"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
+	"github.com/capcom6/mariadb-backup-s3/internal/method"
 	"github.com/capcom6/mariadb-backup-s3/internal/registry"
 	"github.com/capcom6/mariadb-backup-s3/internal/storage"
 )

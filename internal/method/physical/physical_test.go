@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/capcom6/mariadb-backup-s3/internal/backup/method"
-	"github.com/capcom6/mariadb-backup-s3/internal/backup/method/physical"
+	"github.com/capcom6/mariadb-backup-s3/internal/method"
+	"github.com/capcom6/mariadb-backup-s3/internal/method/physical"
 )
 
 func TestNew(t *testing.T) {
