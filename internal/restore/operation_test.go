@@ -38,13 +38,13 @@ func TestOperation_Run_ArchiveStream(t *testing.T) {
 	op := restore.NewOperation(cfg, logging.NewTestLogger())
 	require.NoError(t, op.Run(context.Background(), "2024-01-15-10-30-00.mongo.gz"))
 
-	assertFileContent(t, filepath.Join(targetDir, "2024-01-15-10-30-00.archive"), rawArchive)
+	assertFileContent(t, filepath.Join(targetDir, "2024-01-15-10-30-00.mongo"), rawArchive)
 
 	// Exactly one file: the raw archive, not a directory tree.
 	entries, err := os.ReadDir(targetDir)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
-	assert.Equal(t, "2024-01-15-10-30-00.archive", entries[0].Name())
+	assert.Equal(t, "2024-01-15-10-30-00.mongo", entries[0].Name())
 }
 
 func TestOperation_Run_ArchiveStream_Encrypted(t *testing.T) {
@@ -64,7 +64,7 @@ func TestOperation_Run_ArchiveStream_Encrypted(t *testing.T) {
 	op := restore.NewOperation(cfg, logging.NewTestLogger())
 	require.NoError(t, op.Run(context.Background(), "2024-01-15-10-30-00.mongo.gz.enc"))
 
-	assertFileContent(t, filepath.Join(targetDir, "2024-01-15-10-30-00.archive"), rawArchive)
+	assertFileContent(t, filepath.Join(targetDir, "2024-01-15-10-30-00.mongo"), rawArchive)
 }
 
 func TestOperation_Run_ArchiveStream_SubdirectoryArtifactKeepsBaseName(t *testing.T) {
@@ -84,7 +84,7 @@ func TestOperation_Run_ArchiveStream_SubdirectoryArtifactKeepsBaseName(t *testin
 	require.NoError(t, op.Run(context.Background(), name))
 
 	// A crafted artifact name must not create nested paths in targetDir.
-	assertFileContent(t, filepath.Join(targetDir, "2024-01-15-10-30-00.archive"), rawArchive)
+	assertFileContent(t, filepath.Join(targetDir, "2024-01-15-10-30-00.mongo"), rawArchive)
 }
 
 func TestOperation_Run_ArchiveStream_NotGzip(t *testing.T) {
