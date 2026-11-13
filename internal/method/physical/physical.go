@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/capcom6/mariadb-backup-s3/internal/backup/method"
 	"github.com/capcom6/mariadb-backup-s3/internal/exec"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
+	"github.com/capcom6/mariadb-backup-s3/internal/method"
 	"github.com/capcom6/mariadb-backup-s3/internal/sanitizer"
 )
 

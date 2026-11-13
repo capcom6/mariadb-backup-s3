@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/capcom6/mariadb-backup-s3/internal/backup/method"
+	"github.com/capcom6/mariadb-backup-s3/internal/method"
 )
 
 func TestConnectionArgs_AppliesSharedOptionsToDiscovery(t *testing.T) {
