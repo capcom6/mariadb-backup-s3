@@ -113,7 +113,7 @@ func TestRun_ArchiveStreamExtractOnly(t *testing.T) {
 
 	require.NoError(t, NewOperation(cfg, logging.NewTestLogger()).Run(context.Background(), artifactName))
 
-	data, readErr := os.ReadFile(filepath.Join(targetDir, "2024-01-15-10-30-00.archive"))
+	data, readErr := os.ReadFile(filepath.Join(targetDir, "2024-01-15-10-30-00.mongo"))
 	require.NoError(t, readErr)
 	require.Equal(t, "raw-archive", string(data))
 
