@@ -257,7 +257,7 @@ mariadb-backup-s3 backup \
 
 **Streamed MongoDB backup:**
 
-With `--db-engine=mongodb --stream`, `mongodump` writes a single archive stream straight into the upload: again no dump file is written to the local disk. The backup is stored as a single `<timestamp>.mongo.gz` artifact, and the restore writes one `<timestamp>.archive` file to the target directory.
+With `--db-engine=mongodb --stream`, `mongodump` writes a single archive stream straight into the upload: again no dump file is written to the local disk. The backup is stored as a single `<timestamp>.mongo.gz` artifact, and the restore writes one `<timestamp>.mongo` file to the target directory.
 
 ```sh
 mariadb-backup-s3 backup \
@@ -344,7 +344,7 @@ mariadb-backup-s3 restore --storage-url="s3://bucket/path" \
 > mariadb-backup-s3 restore --storage-url="s3://bucket/path" --target-dir=/tmp/restore --latest
 > mariadb -u root -p < /tmp/restore/mydb.sql
 > ```
-> A streamed logical backup (`.sql.gz`) restores to the same per-database `.sql` files; a streamed MongoDB backup (`.mongo.gz`) restores to a single `<timestamp>.archive` file.
+> A streamed logical backup (`.sql.gz`) restores to the same per-database `.sql` files; a streamed MongoDB backup (`.mongo.gz`) restores to a single `<timestamp>.mongo` file.
 
 **Extract a MongoDB backup:**
 
@@ -362,7 +362,7 @@ mariadb-backup-s3 restore \
   2026-07-03-12-00-00.tar.gz
 ```
 
-The restore command only downloads, decrypts, and extracts backup files into `--target-dir` for all engines. To import MongoDB data, install MongoDB Database Tools and run `mongorestore` separately against the extracted dump. A streamed backup (`.mongo.gz`) extracts to a single `<timestamp>.archive` file instead of a directory tree; import it with `mongorestore --archive=<file>`.
+The restore command only downloads, decrypts, and extracts backup files into `--target-dir` for all engines. To import MongoDB data, install MongoDB Database Tools and run `mongorestore` separately against the extracted dump. A streamed backup (`.mongo.gz`) extracts to a single `<timestamp>.mongo` file instead of a directory tree; import it with `mongorestore --archive=<file>`.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 

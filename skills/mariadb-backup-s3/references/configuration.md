@@ -113,7 +113,7 @@ Backup artifacts:
 | ---------------------- | ------------------------------------- | --------------------------------------------------------------------- |
 | `<timestamp>.tar.gz`   | physical and logical backups          | extracted into the target directory                                   |
 | `<timestamp>.sql.gz`   | streamed logical backups (`--stream`) | one `<database>.sql` file per database                                |
-| `<timestamp>.mongo.gz` | streamed MongoDB backups (`--stream`) | one `<timestamp>.archive` file (import with `mongorestore --archive`) |
+| `<timestamp>.mongo.gz` | streamed MongoDB backups (`--stream`) | one `<timestamp>.mongo` file (import with `mongorestore --archive=<file>`) |
 
 ## Scheduler YAML
 
