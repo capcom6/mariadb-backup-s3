@@ -292,7 +292,7 @@ Set `stream: true` on a job to stream a backup to storage, without writing dump 
 disk. A logical job (`backup_method: mariadb-dump`) stores a single
 `<timestamp>.sql.gz` artifact, and the restore writes the same per-database `.sql` files as a
 regular logical backup. A MongoDB job (`engine: mongodb`) stores a single `<timestamp>.mongo.gz`
-artifact, and the restore writes one `<timestamp>.archive` file. The physical method
+artifact, and the restore writes one `<timestamp>.mongo` file. The physical method
 (`backup_method: mariadb-backup`) rejects `stream: true`.
 
 An authenticated MongoDB stream (`user` set) still writes a small credentials file to the system
