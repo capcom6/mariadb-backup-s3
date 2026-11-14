@@ -123,7 +123,7 @@ upload, so no dump file is written to the local disk and no temp space is
 required. For the logical method the artifact is a single `<timestamp>.sql.gz`
 and the restore writes the same per-database `.sql` files as a regular logical
 backup. For `--db-engine=mongodb` the artifact is a single
-`<timestamp>.mongo.gz` and the restore writes one `<timestamp>.archive`
+`<timestamp>.mongo.gz` and the restore writes one `<timestamp>.mongo`
 file. The physical method (`mariadb-backup`) rejects `--stream`.
 
 Minimal (env-only, MariaDB):
@@ -171,7 +171,7 @@ mariadb-backup-s3 restore \
 
 Restore only extracts backup files into `--target-dir` for all engines. A
 `mongodump` backup extracts to a directory of BSON dumps; a streamed one
-(`.mongo.gz`) extracts to a single `<timestamp>.archive` file. Install
+(`.mongo.gz`) extracts to a single `<timestamp>.mongo` file. Install
 MongoDB Database Tools and import separately with `mongorestore` (for a
 streamed artifact: `mongorestore --archive=<file>`) if needed.
 

@@ -150,7 +150,7 @@ jobs:
   # written to the local disk. Note: with authentication configured, a
   # credentials file is written to the system temporary directory, so the job
   # still needs writable temp space. Stored as a
-  # single <timestamp>.mongo.gz, restoring to one <timestamp>.archive file.
+  # single <timestamp>.mongo.gz, restoring to one <timestamp>.mongo file.
   # ---------------------------------------------------------------------------
   - name: daily-streamed-mongodb-backup
     schedule: "0 6 * * *"
