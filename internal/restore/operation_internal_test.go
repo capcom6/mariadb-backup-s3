@@ -84,3 +84,43 @@ func TestRun_ExtractOnly(t *testing.T) {
 	_, markerErr := os.Stat(markerPath)
 	assert.True(t, os.IsNotExist(markerErr), "restore must extract without invoking mongorestore")
 }
+
+func TestRun_ArchiveStreamExtractOnly(t *testing.T) {
+	binDir := t.TempDir()
+	markerPath := filepath.Join(t.TempDir(), "mongorestore-ran")
+	script := "#!/bin/sh\nprintf called > \"$MONGORESTORE_MARKER\"\nexit 99\n"
+	require.NoError(t, os.WriteFile(filepath.Join(binDir, "mongorestore"), []byte(script), 0o755))
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("MONGORESTORE_MARKER", markerPath)
+
+	storageDir := t.TempDir()
+	targetDir := t.TempDir()
+
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	_, writeErr := gz.Write([]byte("raw-archive"))
+	require.NoError(t, writeErr)
+	require.NoError(t, gz.Close())
+
+	artifactName := "2024-01-15-10-30-00.mongo.gz"
+	require.NoError(t, os.WriteFile(filepath.Join(storageDir, artifactName), buf.Bytes(), 0o600))
+
+	cfg := Config{
+		Storage:    config.Storage{URL: storageURL(storageDir)},
+		Encryption: config.Encryption{EncryptionKey: ""},
+		TargetDir:  targetDir,
+	}
+
+	require.NoError(t, NewOperation(cfg, logging.NewTestLogger()).Run(context.Background(), artifactName))
+
+	data, readErr := os.ReadFile(filepath.Join(targetDir, "2024-01-15-10-30-00.mongo"))
+	require.NoError(t, readErr)
+	require.Equal(t, "raw-archive", string(data))
+
+	entries, dirErr := os.ReadDir(targetDir)
+	require.NoError(t, dirErr)
+	require.Len(t, entries, 1, "restore must write exactly one archive file")
+
+	_, markerErr := os.Stat(markerPath)
+	assert.True(t, os.IsNotExist(markerErr), "restore must extract without invoking mongorestore")
+}

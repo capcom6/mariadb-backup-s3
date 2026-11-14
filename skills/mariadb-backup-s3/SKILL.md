@@ -107,6 +107,25 @@ export AWS_SECRET_ACCESS_KEY=yyy
 mariadb-backup-s3
 ```
 
+### Streamed backup (no local dump files)
+
+```shell
+mariadb-backup-s3 backup \
+  --backup-method=mariadb-dump \
+  --stream \
+  --storage-url="s3://bucket/path" \
+  --db-host=db.example.com \
+  --db-user=backup
+```
+
+`--stream` (env `BACKUP__STREAM=true`) pipes the dump straight into the
+upload, so no dump file is written to the local disk and no temp space is
+required. For the logical method the artifact is a single `<timestamp>.sql.gz`
+and the restore writes the same per-database `.sql` files as a regular logical
+backup. For `--db-engine=mongodb` the artifact is a single
+`<timestamp>.mongo.gz` and the restore writes one `<timestamp>.mongo`
+file. The physical method (`mariadb-backup`) rejects `--stream`.
+
 Minimal (env-only, MariaDB):
 
 ```shell
@@ -150,9 +169,11 @@ mariadb-backup-s3 restore \
   --latest
 ```
 
-Restore only extracts backup files into `--target-dir` for all engines. MongoDB
-archives contain a logical BSON dump; install MongoDB Database Tools and import
-it separately with `mongorestore` if needed.
+Restore only extracts backup files into `--target-dir` for all engines. A
+`mongodump` backup extracts to a directory of BSON dumps; a streamed one
+(`.mongo.gz`) extracts to a single `<timestamp>.mongo` file. Install
+MongoDB Database Tools and import separately with `mongorestore` (for a
+streamed artifact: `mongorestore --archive=<file>`) if needed.
 
 ### List backups
 
@@ -176,7 +197,7 @@ Preview with `--dry-run` before deleting.
 ## Requirements
 
 - **External binaries**: `mariadb-backup` or `mariadb-dump` (mariadb engine); `mongodump` (mongodb engine, MongoDB Database Tools) - available via PATH or configured full path; `pigz` (or `gzip`), `tar` - must be in PATH. Install `mongorestore` separately for manual imports.
-- **Temp space**: ~2x database size in `$TMPDIR` (default `/tmp`)
+- **Temp space**: ~2x database size in `$TMPDIR` (default `/tmp`) - not needed for a streamed backup (`--stream`)
 - **Storage**: S3 (AWS SDK v2 - reads `AWS_*` env vars), FTP, or local `file://` URL
 - **Docker images**: `ghcr.io/capcom6/mariadb-backup-s3` (MariaDB tools + pigz) or `ghcr.io/capcom6/mongodb-backup-s3` (mongodump + pigz); native installs must provide MongoDB Database Tools separately
 

@@ -14,7 +14,7 @@ examples/scheduler/
 
 To ensure successful scheduled backups:
 
-- At least 2x the actual database size in free space available
+- At least 2x the actual database size in free space available (not needed for a streamed backup, see [Streaming Configuration](#streaming-configuration))
 - Valid scheduler configuration (see `config.yaml`)
 - Proper file permissions for the state file location
 
@@ -153,6 +153,9 @@ jobs:
     schedule: "0 2 * * *"  # cron expression
     command: backup or retention
     timeout: 4h
+    stream: true  # optional: stream a logical or MongoDB backup, without local dump files
+                  # requires a logical method (mariadb-dump or mongodump); the physical
+                  # method (mariadb-backup) rejects it
     storage:
       url: s3://bucket/path
     mariadb:
@@ -160,6 +163,7 @@ jobs:
       port: 3306
       user: root
       password: ${MARIADB__PASSWORD}
+      backup_method: mariadb-dump  # required for stream: true; mariadb-backup (the default) rejects streaming
     encrypt:
       key: ${ENCRYPTION__KEY}
     retention:
@@ -268,19 +272,56 @@ jobs:
 
 **Options:**
 
-| Option                    | Description                                          | Default (mariadb / mongodb) |
-| ------------------------- | ---------------------------------------------------- | --------------------------- |
-| `engine`                  | Database engine: `mariadb` or `mongodb`              | `mariadb`                   |
-| `host` / `port` / `user` / `password` | Connection settings                         | engine-specific defaults     |
-| `backup_method`           | `mariadb-backup`, `mariadb-dump`, or `mongodump`     | per engine                  |
-| `backup_binary` / `client_binary` | Tool paths; omitted keys use built-in defaults | per method/engine |
-| `backup_options` | Extra backup command-line options                | empty                       |
-| `uri`                     | MongoDB connection URI (alternative to host/port)    | empty                       |
-| `auth_source`             | MongoDB authentication database                      | empty                       |
-| `tls`                     | Enable MongoDB TLS                                   | `false`                     |
-| `tls_ca_file` / `tls_certificate_key_file` | MongoDB TLS material files             | empty                       |
+| Option                                     | Description                                       | Default (mariadb / mongodb) |
+| ------------------------------------------ | ------------------------------------------------- | --------------------------- |
+| `engine`                                   | Database engine: `mariadb` or `mongodb`           | `mariadb`                   |
+| `host` / `port` / `user` / `password`      | Connection settings                               | engine-specific defaults    |
+| `backup_method`                            | `mariadb-backup`, `mariadb-dump`, or `mongodump`  | per engine                  |
+| `backup_binary` / `client_binary`          | Tool paths; omitted keys use built-in defaults    | per method/engine           |
+| `backup_options`                           | Extra backup command-line options                 | empty                       |
+| `uri`                                      | MongoDB connection URI (alternative to host/port) | empty                       |
+| `auth_source`                              | MongoDB authentication database                   | empty                       |
+| `tls`                                      | Enable MongoDB TLS                                | `false`                     |
+| `tls_ca_file` / `tls_certificate_key_file` | MongoDB TLS material files                        | empty                       |
 
 Restore downloads and extracts backup files only. MongoDB dump imports, when needed, are performed separately using `mongorestore`.
+
+### Streaming Configuration
+
+Set `stream: true` on a job to stream a backup to storage, without writing dump files to the local
+disk. A logical job (`backup_method: mariadb-dump`) stores a single
+`<timestamp>.sql.gz` artifact, and the restore writes the same per-database `.sql` files as a
+regular logical backup. A MongoDB job (`engine: mongodb`) stores a single `<timestamp>.mongo.gz`
+artifact, and the restore writes one `<timestamp>.mongo` file. The physical method
+(`backup_method: mariadb-backup`) rejects `stream: true`.
+
+An authenticated MongoDB stream (`user` set) still writes a small credentials file to the system
+temporary directory, so a MongoDB job needs writable temp space even though no dump file is
+created.
+
+```yaml
+jobs:
+  - name: nightly-logical-backup
+    schedule: "0 2 * * *"
+    command: backup
+    stream: true
+    storage:
+      url: s3://my-bucket/backups
+    database:
+      host: localhost
+      backup_method: mariadb-dump
+
+  - name: nightly-mongodb-backup
+    schedule: "0 3 * * *"
+    command: backup
+    stream: true
+    storage:
+      url: s3://my-bucket/mongodb-backups
+    database:
+      engine: mongodb
+      host: localhost
+      auth_source: admin
+```
 
 ### Encryption Configuration
 

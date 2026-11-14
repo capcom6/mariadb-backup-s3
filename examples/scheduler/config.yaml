@@ -121,3 +121,51 @@ jobs:
       # tls_certificate_key_file: /etc/ssl/client.pem
     retention:
       max_count: 7
+
+  # ---------------------------------------------------------------------------
+  # Daily streamed logical backup (mariadb-dump)
+  # Pipes the dumps straight to storage: no dump file is written to the local
+  # disk, so no temp space is required. Stored as a single <timestamp>.sql.gz.
+  # ---------------------------------------------------------------------------
+  - name: daily-streamed-logical-backup
+    schedule: "0 5 * * *"
+    command: backup
+    timeout: 4h
+    stream: true
+    storage:
+      # Distinct prefix so this job's retention never prunes other backups
+      url: s3://my-bucket/streamed-backups?endpoint=https://s3.custom.com
+    mariadb:
+      host: localhost
+      port: 3306
+      user: root
+      password: ${MARIADB__PASSWORD}
+      backup_method: mariadb-dump
+    retention:
+      max_count: 7
+
+  # ---------------------------------------------------------------------------
+  # Daily streamed MongoDB backup (mongodump --archive)
+  # Pipes a single mongodump archive straight to storage: no dump file is
+  # written to the local disk. Note: with authentication configured, a
+  # credentials file is written to the system temporary directory, so the job
+  # still needs writable temp space. Stored as a
+  # single <timestamp>.mongo.gz, restoring to one <timestamp>.mongo file.
+  # ---------------------------------------------------------------------------
+  - name: daily-streamed-mongodb-backup
+    schedule: "0 6 * * *"
+    command: backup
+    timeout: 4h
+    stream: true
+    storage:
+      # Distinct prefix so this job's retention never prunes other backups
+      url: s3://my-bucket/streamed-mongodb-backups?endpoint=https://s3.custom.com
+    database:
+      engine: mongodb
+      host: localhost
+      port: 27017
+      user: backup
+      password: ${MONGODB__PASSWORD}
+      auth_source: admin
+    retention:
+      max_count: 7

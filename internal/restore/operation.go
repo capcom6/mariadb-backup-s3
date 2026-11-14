@@ -8,10 +8,12 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/capcom6/mariadb-backup-s3/internal/encryption"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
+	"github.com/capcom6/mariadb-backup-s3/internal/method/artifact"
 	"github.com/capcom6/mariadb-backup-s3/internal/storage"
 	"github.com/capcom6/mariadb-backup-s3/pkg/pipeline"
 )
@@ -61,8 +63,11 @@ func (o *Operation) Run(ctx context.Context, filename string) error {
 		func(ctx context.Context, r io.Reader, w io.Writer) error {
 			return o.decrypt(ctx, r, w)
 		},
+		func(ctx context.Context, r io.Reader, w io.Writer) error {
+			return o.gunzip(ctx, r, w)
+		},
 		func(ctx context.Context, r io.Reader, _ io.Writer) error {
-			return o.extract(ctx, r, targetDir)
+			return o.extract(ctx, r, targetDir, filename)
 		},
 	)
 
@@ -142,7 +147,11 @@ func (o *Operation) decrypt(ctx context.Context, r io.Reader, w io.Writer) error
 	return nil
 }
 
-func (o *Operation) extract(ctx context.Context, r io.Reader, targetDir string) error {
+// gunzip decompresses the artifact stream with pigz. Every artifact type is
+// gzipped, and pigz is already a hard dependency (the backup side compresses
+// with it), so decompression runs once here with the same parallelism for
+// every format.
+func (o *Operation) gunzip(ctx context.Context, r io.Reader, w io.Writer) error {
 	o.logger.Info(ctx, "Stage 2: Decompress")
 	start := time.Now()
 	defer func() {
@@ -153,44 +162,42 @@ func (o *Operation) extract(ctx context.Context, r io.Reader, targetDir string) 
 	}()
 
 	pigzCmd := exec.CommandContext(ctx, "pigz", "-d")
-	tarCmd := exec.CommandContext(ctx, "tar", "-C", targetDir, "-xf", "-")
-
-	// Set up piping
-	var err error
-	tarCmd.Stdin, err = pigzCmd.StdoutPipe()
-	if err != nil {
-		o.logger.Error(ctx, "Decompression failed: failed to create stdout pipe", err)
-		return fmt.Errorf("failed to create stdout pipe: %w", err)
-	}
 	pigzCmd.Stdin = r
+	pigzCmd.Stdout = w
 
-	var tarErr, pigzErr bytes.Buffer
-	var errs []error
-	tarCmd.Stderr = &tarErr
-	pigzCmd.Stderr = &pigzErr
+	var stderr bytes.Buffer
+	pigzCmd.Stderr = &stderr
 
-	if pigzErr := pigzCmd.Start(); pigzErr != nil {
-		o.logger.Error(ctx, "Decompression failed: failed to start pigz", pigzErr)
-		return fmt.Errorf("failed to start pigz: %w", pigzErr)
-	}
-	if tarErr := tarCmd.Run(); tarErr != nil {
-		o.logger.Error(ctx, "Decompression failed: failed to run tar", tarErr)
-		errs = append(errs, fmt.Errorf("failed to run tar: %w", tarErr))
-	}
-	if waitErr := pigzCmd.Wait(); waitErr != nil {
-		o.logger.Error(ctx, "Decompression failed: failed to wait for pigz", waitErr)
-		errs = append(errs, fmt.Errorf("failed to wait for pigz: %w", waitErr))
-	}
-
-	// Attach stderr as context only if we observed command errors above.
-	if len(errs) > 0 {
-		if s := tarErr.String(); s != "" {
-			errs = append(errs, fmt.Errorf("%w: tar stderr: %s", ErrExternalCommandFailed, s))
-		}
-		if s := pigzErr.String(); s != "" {
+	if runErr := pigzCmd.Run(); runErr != nil {
+		o.logger.Error(ctx, "Decompression failed", runErr, logging.Fields{})
+		var errs []error
+		errs = append(errs, fmt.Errorf("failed to decompress: %w", runErr))
+		if s := strings.TrimSpace(stderr.String()); s != "" {
 			errs = append(errs, fmt.Errorf("%w: pigz stderr: %s", ErrExternalCommandFailed, s))
 		}
+		return errors.Join(errs...)
 	}
 
-	return errors.Join(errs...)
+	return nil
+}
+
+// extract unpacks the decompressed backup stream into the target directory
+// by delegating to the artifact's producing method. The dispatcher in
+// [artifact.Restore] owns the artifact catalog; the restore pipeline only
+// streams bytes.
+func (o *Operation) extract(ctx context.Context, r io.Reader, targetDir string, filename string) error {
+	o.logger.Info(ctx, "Stage 3: Extract")
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start)
+		o.logger.Info(ctx, "Stage 3 completed", logging.Fields{
+			logFieldDuration: duration.String(),
+		})
+	}()
+
+	if extractErr := artifact.Restore(ctx, r, targetDir, filename, o.logger); extractErr != nil {
+		return fmt.Errorf("failed to extract backup: %w", extractErr)
+	}
+
+	return nil
 }

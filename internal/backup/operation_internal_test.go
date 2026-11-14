@@ -1,14 +1,19 @@
 package backup
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -16,6 +21,7 @@ import (
 
 	"github.com/capcom6/mariadb-backup-s3/internal/config"
 	"github.com/capcom6/mariadb-backup-s3/internal/logging"
+	"github.com/capcom6/mariadb-backup-s3/internal/method"
 	"github.com/capcom6/mariadb-backup-s3/internal/registry"
 	"github.com/capcom6/mariadb-backup-s3/internal/storage"
 )
@@ -47,6 +53,10 @@ func (m *mockMethod) MethodName() string {
 	return "test-method"
 }
 
+func (m *mockMethod) ArtifactExtension() string {
+	return method.ArtifactTarGz
+}
+
 func (m *mockMethod) getCallOrder() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -55,27 +65,62 @@ func (m *mockMethod) getCallOrder() []string {
 	return result
 }
 
+// mockStreamMethod is a backup method that streams its output.
+type mockStreamMethod struct {
+	content string
+	err     error
+}
+
+func (m *mockStreamMethod) Backup(_ context.Context, _ string, _ logging.Logger) error {
+	return errors.New("unexpected call to Backup")
+}
+
+func (m *mockStreamMethod) Prepare(_ context.Context, _ string, _ logging.Logger) error {
+	return nil
+}
+
+func (m *mockStreamMethod) MethodName() string {
+	return "mariadb-dump"
+}
+
+func (m *mockStreamMethod) ArtifactExtension() string {
+	return "sql.gz"
+}
+
+func (m *mockStreamMethod) Stream(_ context.Context, w io.Writer, _ logging.Logger) error {
+	if _, err := io.WriteString(w, m.content); err != nil {
+		return err
+	}
+
+	return m.err
+}
+
 func writeTestFile(t *testing.T, tempdir string) {
 	t.Helper()
 	err := os.WriteFile(filepath.Join(tempdir, "test.sql"), []byte("SELECT 1;"), 0o644)
 	require.NoError(t, err)
 }
 
+// capturedUpload holds the content of a single upload.
 type capturedUpload struct {
-	name string
-	body []byte
+	data []byte
+	err  error
 }
 
-func newMockStorage(t *testing.T) (*storage.MockBackend, *registry.Service, *[]capturedUpload) {
+// newCapturingMockStorage returns a storage mock that keeps the uploaded
+// content, keyed by file name.
+func newCapturingMockStorage(t *testing.T) (*storage.MockBackend, *registry.Service, map[string]capturedUpload) {
 	t.Helper()
+
+	captured := make(map[string]capturedUpload)
+
 	backend := &storage.MockBackend{}
-	uploads := &[]capturedUpload{}
 	backend.On("Upload", mock.Anything, mock.AnythingOfType("string"), mock.Anything).
 		Return(nil).Run(func(args mock.Arguments) {
+		filename := args.String(1)
 		r := args.Get(2).(io.Reader)
-		body, err := io.ReadAll(r)
-		require.NoError(t, err)
-		*uploads = append(*uploads, capturedUpload{name: args.String(1), body: body})
+		data, err := io.ReadAll(r)
+		captured[filename] = capturedUpload{data: data, err: err}
 	})
 	locker := &storage.MockLocker{}
 	locker.On("Unlock", mock.Anything).Return(nil)
@@ -89,7 +134,8 @@ func newMockStorage(t *testing.T) (*storage.MockBackend, *registry.Service, *[]c
 	})
 
 	regSvc := registry.NewService(backend)
-	return backend, regSvc, uploads
+
+	return backend, regSvc, captured
 }
 
 func TestOperation_Run_CallsBackupThenPrepare(t *testing.T) {
@@ -100,7 +146,7 @@ func TestOperation_Run_CallsBackupThenPrepare(t *testing.T) {
 	})
 	method.On("Prepare", mock.AnythingOfType("string")).Return(nil)
 
-	backend, regSvc, _ := newMockStorage(t)
+	backend, regSvc, captured := newCapturingMockStorage(t)
 
 	logger := logging.NewTestLogger()
 	cfg := Config{
@@ -127,6 +173,11 @@ func TestOperation_Run_CallsBackupThenPrepare(t *testing.T) {
 	order := method.getCallOrder()
 	assert.Equal(t, []string{"Backup", "Prepare"}, order)
 	method.AssertExpectations(t)
+
+	// the file-based backup is stored as a .tar.gz archive
+	artifactName, _, found := findUpload(captured, ".tar.gz")
+	assert.True(t, found, "no .tar.gz object was uploaded")
+	assert.NotEmpty(t, artifactName)
 }
 
 func TestOperation_Run_BackupFails(t *testing.T) {
@@ -257,7 +308,7 @@ func TestNewOperation_EmptyEngineDefaultsToMariaDBPhysical(t *testing.T) {
 func TestOperation_Run_MongoDBRegistryMethod(t *testing.T) {
 	fake := installFakeMongodump(t)
 
-	backend, regSvc, uploads := newMockStorage(t)
+	backend, regSvc, captured := newCapturingMockStorage(t)
 
 	cfg := Config{
 		Version: "test",
@@ -283,11 +334,11 @@ func TestOperation_Run_MongoDBRegistryMethod(t *testing.T) {
 	// Registry upload must carry tool.method=mongodump.
 	var registryBody []byte
 	var archiveUploaded bool
-	for _, u := range *uploads {
+	for name, u := range captured {
 		switch {
-		case u.name == ".backup-registry.json":
-			registryBody = u.body
-		case strings.HasSuffix(u.name, ".tar.gz"):
+		case name == ".backup-registry.json":
+			registryBody = u.data
+		case strings.HasSuffix(name, ".tar.gz"):
 			archiveUploaded = true
 		}
 	}
@@ -305,8 +356,8 @@ func TestOperation_Run_MongoDBRegistryMethod(t *testing.T) {
 }
 
 // installFakeMongodump puts a fake mongodump on PATH that records its argv,
-// copies the --config file (if any) while it exists, and writes a dump into
-// --out.
+// copies the --config file (if any) while it exists, writes a dump into
+// --out, and writes a fake archive stream for --archive=-.
 func installFakeMongodump(t *testing.T) fakeMongodump {
 	t.Helper()
 
@@ -325,10 +376,12 @@ for arg in "$@"; do
 done
 cfg=""
 out=""
+arc=""
 for arg in "$@"; do
 	case "$arg" in
 	--config=*) cfg="${arg#--config=}" ;;
 	--out=*) out="${arg#--out=}" ;;
+	--archive=*) arc="${arg#--archive=}" ;;
 	esac
 done
 if [ -n "$cfg" ]; then
@@ -337,6 +390,9 @@ fi
 if [ -n "$out" ]; then
 	mkdir -p "$out"
 	printf 'fake-bson-data' > "$out/dump.bson"
+fi
+if [ "$arc" = "-" ]; then
+	printf 'fake-archive-data'
 fi
 exit 0
 `
@@ -361,4 +417,256 @@ func mustReadFile(t *testing.T, path string) []byte {
 	require.NoError(t, err)
 
 	return data
+}
+
+func TestOperation_Run_Streaming(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("TMPDIR", tmpDir)
+
+	backend, regSvc, captured := newCapturingMockStorage(t)
+
+	streamMethod := &mockStreamMethod{content: "-- mariadb-backup-s3: database=mydb\nSELECT 1;\n"}
+
+	logger := logging.NewTestLogger()
+	cfg := Config{
+		Version: "test",
+		Database: config.Database{
+			BackupBinary: "mariadb-dump",
+			BackupMethod: config.BackupMethodLogical,
+			User:         "root",
+		},
+		Storage: config.Storage{URL: "file:///tmp/test"},
+		Stream:  true,
+	}
+
+	op := &Operation{
+		config:      cfg,
+		method:      streamMethod,
+		streamer:    streamMethod,
+		registrySvc: regSvc,
+		storage:     backend,
+		logger:      logger,
+	}
+
+	require.NoError(t, op.Run(context.Background()))
+
+	// the backup is stored as a single .sql.gz object
+	artifactName, artifact, found := findUpload(captured, ".sql.gz")
+	require.True(t, found, "no .sql.gz object was uploaded")
+	require.NoError(t, artifact.err)
+
+	// the object is named after the start of the backup
+	startedAt, err := time.ParseInLocation("2006-01-02-15-04-05", strings.TrimSuffix(artifactName, ".sql.gz"), time.UTC)
+	require.NoError(t, err)
+	assert.WithinDuration(t, time.Now().UTC(), startedAt, time.Minute)
+
+	// the object holds the gzip of the streamed dump
+	reader, err := gzip.NewReader(bytes.NewReader(artifact.data))
+	require.NoError(t, err)
+	decompressed, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	assert.Equal(t, streamMethod.content, string(decompressed))
+
+	// nothing was written to the local disk
+	entries, err := os.ReadDir(tmpDir)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+}
+
+func TestOperation_Run_StreamingFails_NoObjectUploaded(t *testing.T) {
+	t.Parallel()
+	storageDir := t.TempDir()
+
+	u, err := url.Parse("file://" + storageDir)
+	require.NoError(t, err)
+	backend, err := storage.New(u)
+	require.NoError(t, err)
+
+	streamMethod := &mockStreamMethod{
+		content: "-- mariadb-backup-s3: database=mydb\nSELECT 1;\n",
+		err:     errors.New("dump failed"),
+	}
+
+	logger := logging.NewTestLogger()
+	cfg := Config{
+		Version: "test",
+		Database: config.Database{
+			BackupBinary: "mariadb-dump",
+			BackupMethod: config.BackupMethodLogical,
+			User:         "root",
+		},
+		Storage: config.Storage{URL: "file://" + storageDir},
+		Stream:  true,
+	}
+
+	op := &Operation{
+		config:      cfg,
+		method:      streamMethod,
+		streamer:    streamMethod,
+		registrySvc: registry.NewService(backend),
+		storage:     backend,
+		logger:      logger,
+	}
+
+	err = op.Run(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dump failed")
+
+	// neither a partial backup nor a registry entry was stored
+	entries, err := os.ReadDir(storageDir)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+}
+
+func TestNewOperation_WiresStreamerOnlyForStreamedLogicalBackup(t *testing.T) {
+	t.Parallel()
+	logger := logging.NewTestLogger()
+
+	logicalConfig := Config{
+		Version: "test",
+		Database: config.Database{
+			BackupBinary: "mariadb-dump",
+			BackupMethod: config.BackupMethodLogical,
+			User:         "root",
+		},
+		Storage: config.Storage{URL: "file:///tmp/test"},
+		Stream:  true,
+	}
+	op, err := NewOperation(logicalConfig, nil, nil, logger)
+	require.NoError(t, err)
+	require.NotNil(t, op.streamer)
+	assert.Equal(t, "sql.gz", op.method.ArtifactExtension())
+
+	logicalConfig.Stream = false
+	op, err = NewOperation(logicalConfig, nil, nil, logger)
+	require.NoError(t, err)
+	assert.Nil(t, op.streamer)
+	assert.Equal(t, "tar.gz", op.method.ArtifactExtension())
+
+	physicalConfig := logicalConfig
+	physicalConfig.Database.BackupMethod = config.BackupMethodPhysical
+	physicalConfig.Database.BackupBinary = "mariadb-backup"
+	op, err = NewOperation(physicalConfig, nil, nil, logger)
+	require.NoError(t, err)
+	assert.Nil(t, op.streamer)
+	assert.Equal(t, "tar.gz", op.method.ArtifactExtension())
+}
+
+func TestNewOperation_StreamWithPhysicalMethodFails(t *testing.T) {
+	t.Parallel()
+	cfg := Config{
+		Version: "test",
+		Database: config.Database{
+			BackupMethod: config.BackupMethodPhysical,
+			BackupBinary: "mariadb-backup",
+		},
+		Storage: config.Storage{URL: "file:///tmp/test"},
+		Stream:  true,
+	}
+
+	op, err := NewOperation(cfg, nil, nil, logging.NewTestLogger())
+	require.Error(t, err)
+	require.Nil(t, op)
+	require.ErrorIs(t, err, ErrValidationFailed)
+	assert.Contains(t, err.Error(), "selected method doesn't support streaming")
+}
+
+func TestNewOperation_StreamWithMongoDBMethodWiresStreamer(t *testing.T) {
+	t.Parallel()
+	cfg := Config{
+		Version: "test",
+		Database: config.Database{
+			Engine:       config.EngineMongoDB,
+			BackupMethod: config.BackupMethodMongoDB,
+			BackupBinary: "mongodump",
+		},
+		Storage: config.Storage{URL: "file:///tmp/test"},
+		Stream:  true,
+	}
+
+	op, err := NewOperation(cfg, nil, nil, logging.NewTestLogger())
+	require.NoError(t, err)
+	require.NotNil(t, op.streamer)
+	assert.Equal(t, "mongo.gz", op.method.ArtifactExtension())
+}
+
+//nolint:paralleltest // fake-binary helper mutates process env via t.Setenv; Go forbids t.Parallel in tests that call it
+func TestOperation_Run_MongoDBStreaming(t *testing.T) {
+	fake := installFakeMongodump(t)
+
+	backend, regSvc, captured := newCapturingMockStorage(t)
+
+	cfg := Config{
+		Version: "test",
+		Database: config.Database{
+			Engine:       config.EngineMongoDB,
+			BackupMethod: config.BackupMethodMongoDB,
+			BackupBinary: "mongodump",
+			User:         "backup",
+			Password:     "stream-test-secret",
+		},
+		Storage: config.Storage{URL: "file:///tmp/test"},
+		Stream:  true,
+	}
+
+	op, err := NewOperation(cfg, regSvc, backend, logging.NewTestLogger())
+	require.NoError(t, err)
+	require.NotNil(t, op.streamer)
+	require.NoError(t, op.Run(context.Background()))
+
+	// mongodump must have streamed an archive: --archive=- and no --out.
+	args := mustReadFile(t, fake.argsFile)
+	joined := strings.ReplaceAll(string(args), "\n", " ")
+	assert.Contains(t, joined, "--archive=-")
+	assert.NotContains(t, joined, "--out=")
+	assert.NotContains(t, joined, "stream-test-secret")
+
+	// The artifact is a single gzip of the raw archive stream.
+	artifactName, artifact, found := findUpload(captured, ".mongo.gz")
+	require.True(t, found, "no .mongo.gz object was uploaded")
+	require.NoError(t, artifact.err)
+
+	baseName := strings.TrimSuffix(artifactName, ".mongo.gz")
+	startedAt, err := time.ParseInLocation("2006-01-02-15-04-05", baseName, time.UTC)
+	require.NoError(t, err)
+	assert.WithinDuration(t, time.Now().UTC(), startedAt, time.Minute)
+
+	reader, err := gzip.NewReader(bytes.NewReader(artifact.data))
+	require.NoError(t, err)
+	decompressed, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	assert.Equal(t, "fake-archive-data", string(decompressed))
+
+	// Credentials file is removed after the run.
+	configPath := string(mustReadFile(t, fake.configPathFile))
+	_, statErr := os.Stat(configPath)
+	assert.True(t, os.IsNotExist(statErr), "credentials file must be removed after the run")
+
+	// Registry upload carries tool.method=mongodump.
+	var registryBody []byte
+	for name, u := range captured {
+		if name == ".backup-registry.json" {
+			registryBody = u.data
+		}
+	}
+	require.NotEmpty(t, registryBody)
+	var reg registry.Registry
+	require.NoError(t, json.Unmarshal(registryBody, &reg))
+	require.NotEmpty(t, reg.Backups)
+
+	last := reg.Backups[len(reg.Backups)-1]
+	require.NotNil(t, last.Tool)
+	assert.Equal(t, "mongodump", last.Tool.Method)
+	assert.Equal(t, "mariadb-backup-s3", last.Tool.Name)
+}
+
+// findUpload returns the uploaded object with the given suffix.
+func findUpload(captured map[string]capturedUpload, suffix string) (string, capturedUpload, bool) {
+	for name, upload := range captured {
+		if strings.HasSuffix(name, suffix) {
+			return name, upload, true
+		}
+	}
+
+	return "", capturedUpload{}, false
 }
