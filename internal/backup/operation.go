@@ -164,7 +164,7 @@ func (o *Operation) Run(ctx context.Context) error {
 func (o *Operation) runToFiles(ctx context.Context, start time.Time) error {
 	targetName := o.targetName(start, o.method.ArtifactExtension())
 
-	tempdir, err := os.MkdirTemp("", "mariadb")
+	tempdir, err := os.MkdirTemp("", "backup-s3")
 	if err != nil {
 		return fmt.Errorf("failed to create tempdir: %w", err)
 	}
