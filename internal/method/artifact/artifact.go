@@ -30,7 +30,7 @@ func Restore(ctx context.Context, r io.Reader, targetDir string, filename string
 	case strings.HasSuffix(name, "."+sqlstream.ArtifactExtension):
 		err = logical.ExtractStream(ctx, r, targetDir, logger)
 	case strings.HasSuffix(name, "."+mongodb.StreamArtifactExtension):
-		err = mongodb.ExtractStream(ctx, r, targetDir, filename, logger)
+		err = mongodb.ExtractStream(r, targetDir, filename)
 	default:
 		err = method.ExtractTar(ctx, r, targetDir, logger)
 	}

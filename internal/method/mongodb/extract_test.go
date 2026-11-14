@@ -1,7 +1,6 @@
 package mongodb_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/capcom6/mariadb-backup-s3/internal/logging"
 	"github.com/capcom6/mariadb-backup-s3/internal/method/mongodb"
 )
 
@@ -41,11 +39,9 @@ func TestExtractStream_WritesSingleFile(t *testing.T) {
 			stream := strings.NewReader(extractStreamFixture)
 
 			require.NoError(t, mongodb.ExtractStream(
-				context.Background(),
 				stream,
 				targetDir,
 				tt.filename,
-				logging.NewTestLogger(),
 			))
 
 			got, readErr := os.ReadFile(filepath.Join(targetDir, tt.wantName))
@@ -62,15 +58,65 @@ func TestExtractStream_WritesSingleFile(t *testing.T) {
 func TestExtractStream_WriteErrorFails(t *testing.T) {
 	t.Parallel()
 
+	targetDir := t.TempDir()
+
 	err := mongodb.ExtractStream(
-		context.Background(),
 		failingReader{},
-		t.TempDir(),
+		targetDir,
 		"2024-01-15-10-30-00.mongo.gz",
-		logging.NewTestLogger(),
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to write archive file")
+
+	entries, dirErr := os.ReadDir(targetDir)
+	require.NoError(t, dirErr)
+	assert.Empty(t, entries, "no partial archive should remain after a write error")
+}
+
+func TestExtractStream_ReplacesSymlinkDestination(t *testing.T) {
+	t.Parallel()
+
+	targetDir := t.TempDir()
+	victim := filepath.Join(t.TempDir(), "outside-file")
+	require.NoError(t, os.WriteFile(victim, []byte("victim"), 0o600))
+
+	dest := filepath.Join(targetDir, "2024-01-15-10-30-00.mongo")
+	require.NoError(t, os.Symlink(victim, dest))
+
+	require.NoError(t, mongodb.ExtractStream(
+		strings.NewReader(extractStreamFixture),
+		targetDir,
+		"2024-01-15-10-30-00.mongo.gz",
+	))
+
+	got, readErr := os.ReadFile(dest)
+	require.NoError(t, readErr)
+	assert.Equal(t, extractStreamFixture, string(got))
+
+	info, statErr := os.Lstat(dest)
+	require.NoError(t, statErr)
+	assert.Equal(t, os.FileMode(0), info.Mode()&os.ModeSymlink, "destination must be a regular file, not a symlink")
+
+	victimData, victimErr := os.ReadFile(victim)
+	require.NoError(t, victimErr)
+	assert.Equal(t, "victim", string(victimData), "symlink target must stay untouched")
+}
+
+func TestExtractStream_FilePermissions(t *testing.T) {
+	t.Parallel()
+
+	targetDir := t.TempDir()
+	dest := filepath.Join(targetDir, "2024-01-15-10-30-00.mongo")
+
+	require.NoError(t, mongodb.ExtractStream(
+		strings.NewReader(extractStreamFixture),
+		targetDir,
+		"2024-01-15-10-30-00.mongo.gz",
+	))
+
+	info, statErr := os.Stat(dest)
+	require.NoError(t, statErr)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
 
 // failingReader simulates a stream that breaks mid-copy.
